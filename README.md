@@ -82,3 +82,7 @@ examples/           design tokens + carousel badge demo
 ```
 
 Regenerate the app icon after editing `Resources/logo.svg`: `make icon` (background: `make icon ICON_BG=272729`).
+
+## License
+
+[Apache License 2.0](LICENSE)
