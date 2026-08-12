@@ -1,0 +1,19 @@
+/* 菜单 */
+"menu.templates" = "模板库…";
+"menu.chooseHTML" = "选择HTML文件…";
+"menu.passthrough.on" = "鼠标穿透：开启";
+"menu.passthrough.off" = "鼠标穿透：关闭";
+"menu.resetPosition" = "重置窗口位置";
+"menu.reloadHTML" = "重载HTML";
+"menu.quit" = "退出 PinShell";
+
+/* 文件选择器 */
+"openPanel.title" = "选择 HTML 文件";
+"openPanel.prompt" = "打开";
+
+/* 模板库窗口 */
+"gallery.title" = "模板库";
+"gallery.openFolder" = "打开模板文件夹";
+"gallery.resetPosition" = "重置位置";
+"gallery.apply" = "应用";
+"gallery.passthrough" = "鼠标穿透";

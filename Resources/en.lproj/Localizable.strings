@@ -1,0 +1,19 @@
+/* 菜单 */
+"menu.templates" = "Templates…";
+"menu.chooseHTML" = "Choose HTML File…";
+"menu.passthrough.on" = "Click-Through: On";
+"menu.passthrough.off" = "Click-Through: Off";
+"menu.resetPosition" = "Reset Window Position";
+"menu.reloadHTML" = "Reload HTML";
+"menu.quit" = "Quit PinShell";
+
+/* 文件选择器 */
+"openPanel.title" = "Choose an HTML File";
+"openPanel.prompt" = "Open";
+
+/* 模板库窗口 */
+"gallery.title" = "Templates";
+"gallery.openFolder" = "Open Templates Folder";
+"gallery.resetPosition" = "Reset Position";
+"gallery.apply" = "Apply";
+"gallery.passthrough" = "Click-Through";

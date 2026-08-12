@@ -1,0 +1,72 @@
+/* ============================================================
+   PinShell Design Tokens — 来自仓库 DESIGN.md（Apple 设计语言）
+   供业务 HTML 作者复用：<link rel="stylesheet" href="design-tokens.css">
+   ============================================================ */
+:root {
+  /* 品牌与强调色 —— 唯一交互色 Action Blue，禁止引入第二强调色 */
+  --ps-primary: #0066cc;            /* Action Blue：唯一 "click me" 信号 */
+  --ps-primary-focus: #0071e3;      /* 键盘焦点环 */
+  --ps-primary-on-dark: #2997ff;    /* 仅深色表面上的链接/点缀（浅色面禁用） */
+
+  /* 表面色 */
+  --ps-canvas: #ffffff;
+  --ps-canvas-parchment: #f5f5f7;   /* Apple 标志性米白 */
+  --ps-surface-pearl: #fafafc;      /* 次按钮填充 */
+  --ps-surface-tile-1: #272729;     /* 深色卡主表面 */
+  --ps-surface-tile-2: #2a2a2c;
+  --ps-surface-tile-3: #252527;
+  --ps-surface-black: #000000;      /* 仅限视频/导航等"真黑"场景 */
+  --ps-chip-translucent: rgba(210, 210, 215, 0.64);
+
+  /* 文本色 —— 权重阶梯 300/400/600/700，刻意无 500 */
+  --ps-ink: #1d1d1f;                /* 浅色面全部正文 */
+  --ps-body-on-dark: #ffffff;
+  --ps-body-muted: #cccccc;         /* 深色面次级文字 */
+  --ps-ink-muted-80: #333333;
+  --ps-ink-muted-48: #7a7a7a;       /* 禁用态/法律小字 */
+
+  /* 描边 */
+  --ps-divider-soft: #f0f0f0;
+  --ps-hairline: #e0e0e0;
+
+  /* 字体栈 */
+  --ps-font-display: "SF Pro Display", system-ui, -apple-system, sans-serif;
+  --ps-font-text: "SF Pro Text", system-ui, -apple-system, sans-serif;
+
+  /* 字号 —— 正文 17px 是品牌节奏；显示级带负字距 */
+  --ps-fs-hero: 56px;
+  --ps-fs-display-lg: 40px;
+  --ps-fs-display-md: 34px;
+  --ps-fs-lead: 28px;
+  --ps-fs-tagline: 21px;
+  --ps-fs-body: 17px;
+  --ps-fs-caption: 14px;
+  --ps-fs-fine: 12px;
+  --ps-fs-micro: 10px;
+
+  /* 圆角语法：sm=紧凑工具，lg=工具卡，pill=胶囊动作，中间不混用 */
+  --ps-radius-xs: 5px;
+  --ps-radius-sm: 8px;
+  --ps-radius-md: 11px;
+  --ps-radius-lg: 18px;
+  --ps-radius-pill: 9999px;
+  --ps-radius-full: 9999px;
+
+  /* 间距（8px 基准） */
+  --ps-space-xxs: 4px;
+  --ps-space-xs: 8px;
+  --ps-space-sm: 12px;
+  --ps-space-md: 17px;
+  --ps-space-lg: 24px;
+  --ps-space-xl: 32px;
+  --ps-space-xxl: 48px;
+  --ps-space-section: 80px;
+
+  /* 微交互与投影 */
+  --ps-press-scale: scale(0.95);    /* 全系统按压态 */
+  --ps-shadow-product: 0 3px 5px 30px rgba(0, 0, 0, 0.22);  /* 仅产品图可用 */
+}
+
+/* 显示级负字距样例（Apple tight）：用于 17px 以上标题
+   .display-tight { letter-spacing: -0.28px; font-weight: 600; }
+   正文：.body-text { font-size: var(--ps-fs-body); line-height: 1.47; letter-spacing: -0.374px; } */

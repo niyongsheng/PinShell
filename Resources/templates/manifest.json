@@ -1,0 +1,32 @@
+{
+  "templates": [
+    {
+      "id": "badge-carousel",
+      "name": "轮播徽章",
+      "description": "社交账号轮播，带 LIVE 点",
+      "file": "badge-carousel.html",
+      "size": { "width": 240, "height": 80 }
+    },
+    {
+      "id": "live-dot",
+      "name": "LIVE 状态点",
+      "description": "呼吸灯式录制状态徽章",
+      "file": "live-dot.html",
+      "size": { "width": 120, "height": 48 }
+    },
+    {
+      "id": "social-rail",
+      "name": "社交胶囊栏",
+      "description": "一行账号胶囊平铺，静态展示",
+      "file": "social-rail.html",
+      "size": { "width": 400, "height": 56 }
+    },
+    {
+      "id": "watermark",
+      "name": "角标水印",
+      "description": "低对比度常驻水印文字",
+      "file": "watermark.html",
+      "size": { "width": 320, "height": 56 }
+    }
+  ]
+}

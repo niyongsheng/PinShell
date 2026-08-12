@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 打 tag 时把版本写进 Info.plist，make app 组装 bundle 时一并生效
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          plutil -replace CFBundleShortVersionString -string "${VERSION}" Resources/Info.plist
+
+      # PR 构建用 native（快）；发布用 universal（arm64 + x86_64）
+      - name: Build app
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            make app ARCH=universal
+          else
+            make app
+          fi
+
+      - name: Package DMG
+        run: |
+          APP="build/PinShell.app"
+          TMP="dmg_tmp"
+
+          mkdir -p "$TMP"
+          cp -R "$APP" "$TMP/"
+          ln -s /Applications "$TMP/Applications"
+
+          hdiutil create -volname PinShell -srcfolder "$TMP" -ov -format UDZO "PinShell.dmg"
+          rm -rf "$TMP"
+
+      - name: Package ZIP
+        run: zip -ry "PinShell.zip" "build/PinShell.app"
+
+      - name: Upload app (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PinShell.app
+          path: build/PinShell.app
+
+      - name: Upload DMG (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PinShell.dmg
+          path: PinShell.dmg
+
+      - name: Upload ZIP (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PinShell.zip
+          path: PinShell.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: PinShell.dmg
+          path: release-artifacts
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: PinShell.zip
+          path: release-artifacts
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Rename artifacts to versioned names
+        run: |
+          cd release-artifacts
+          mv PinShell.dmg "PinShell-${{ steps.version.outputs.VERSION }}.dmg"
+          mv PinShell.zip "PinShell-${{ steps.version.outputs.VERSION }}.zip"
+
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/*
+          generate_release_notes: true
