@@ -195,8 +195,9 @@ final class TemplateGalleryController: NSObject, NSWindowDelegate {
                                       width: size.width,
                                       height: size.height)
         previewWebView.layer?.setAffineTransform(CGAffineTransform(scaleX: scale, y: scale))
-        let url = TemplateStore.fileURL(for: item)
-        previewWebView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+        if let url = TemplateStore.fileURL(for: item) {
+            previewWebView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+        }
     }
 
     private func apply(_ item: TemplateItem) {
