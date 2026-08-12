@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var queuedFile: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        _ = AppState.registerDefaults   // 默认值注册（穿透透明度等）
         windowController = OverlayWindowController()
         statusItemController = StatusItemController(windowController: windowController)
         statusItemController.scheduleAutomaticUpdateCheck()   // 启动 5s 后静默检查更新（24h 节流）

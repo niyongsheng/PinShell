@@ -68,6 +68,28 @@
   --ps-shadow-float: 0 1px 2px rgba(0, 0, 0, 0.08), 0 6px 14px rgba(0, 0, 0, 0.10);  /* 悬浮外壳投影：替代被关闭的窗口阴影；全出血（铺满窗口）的模板会被窗口边界裁掉，勿用 */
 }
 
+/* 画布 reset：所有模板共用（body 透明 + overflow hidden，画布尺寸跟随窗口）。
+   模板正文需引入本文件；不要再逐模板复制此块 */
+html, body {
+  width: 100%; height: 100%;
+  margin: 0; padding: 0;
+  background: transparent;
+  overflow: hidden;
+  font-family: var(--ps-font-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 穿透模式（PinShell 给 <html> 加 passthrough class，见 DraggableWebView）：
+   表面元素挂 .ps-dim-surface，穿透时只淡背景、文字保持实。
+   透明度数值来自菜单滑块（--ps-passthrough-opacity），默认值与 AppState.registerDefaults 同步 */
+:root {
+  --ps-passthrough-opacity: 0.65;
+}
+html.passthrough .ps-dim-surface {
+  background: rgba(39, 39, 41, var(--ps-passthrough-opacity));
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
 /* 显示级负字距样例（Apple tight）：用于 17px 以上标题
    .display-tight { letter-spacing: -0.28px; font-weight: 600; }
    正文：.body-text { font-size: var(--ps-fs-body); line-height: 1.47; letter-spacing: -0.374px; } */

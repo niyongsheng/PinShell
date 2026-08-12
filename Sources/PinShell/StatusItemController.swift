@@ -9,6 +9,7 @@ final class StatusItemController: NSObject {
     /// 首次打开模板库时才构建（避免启动即建第二个 WKWebView + 读 manifest）
     private lazy var galleryController = TemplateGalleryController(windowController: windowController)
     private var passthroughItem: NSMenuItem!
+    private var passthroughOpacityLabel: NSTextField!
 
     init(windowController: OverlayWindowController) {
         self.windowController = windowController
@@ -36,6 +37,7 @@ final class StatusItemController: NSObject {
         menu.addItem(header)
         menu.addItem(.separator())
 
+        // 内容：模板库 / 选文件 / 重载
         let gallery = NSMenuItem(title: NSLocalizedString("menu.templates", comment: ""),
                                  action: #selector(openGallery(_:)), keyEquivalent: "l")
         gallery.target = self
@@ -46,27 +48,32 @@ final class StatusItemController: NSObject {
         open.target = self
         menu.addItem(open)
 
-        passthroughItem = NSMenuItem(title: "", action: #selector(togglePassthrough(_:)), keyEquivalent: "t")
-        passthroughItem.target = self
-        menu.addItem(passthroughItem)
-        updatePassthroughItem(passthroughItem)
-
-        let reset = NSMenuItem(title: NSLocalizedString("menu.resetPosition", comment: ""),
-                               action: #selector(resetPosition(_:)), keyEquivalent: "0")
-        reset.target = self
-        menu.addItem(reset)
-
         let reload = NSMenuItem(title: NSLocalizedString("menu.reloadHTML", comment: ""),
                                 action: #selector(reloadHTML(_:)), keyEquivalent: "r")
         reload.target = self
         menu.addItem(reload)
 
+        menu.addItem(.separator())
+
+        // 穿透：位置复位 / 开关 / 透明度滑块
+        let reset = NSMenuItem(title: NSLocalizedString("menu.resetPosition", comment: ""),
+                               action: #selector(resetPosition(_:)), keyEquivalent: "0")
+        reset.target = self
+        menu.addItem(reset)
+
+        passthroughItem = NSMenuItem(title: "", action: #selector(togglePassthrough(_:)), keyEquivalent: "t")
+        passthroughItem.target = self
+        menu.addItem(passthroughItem)
+        updatePassthroughItem(passthroughItem)
+        menu.addItem(makePassthroughOpacityItem())
+
+        menu.addItem(.separator())
+
+        // 应用：更新检查 / 退出
         let checkUpdates = NSMenuItem(title: NSLocalizedString("menu.checkForUpdates", comment: ""),
                                       action: #selector(checkForUpdates(_:)), keyEquivalent: "u")
         checkUpdates.target = self
         menu.addItem(checkUpdates)
-
-        menu.addItem(.separator())
 
         let quit = NSMenuItem(title: NSLocalizedString("menu.quit", comment: ""),
                               action: #selector(quit(_:)), keyEquivalent: "q")
@@ -82,6 +89,45 @@ final class StatusItemController: NSObject {
         item.title = enabled
             ? NSLocalizedString("menu.passthrough.on", comment: "")
             : NSLocalizedString("menu.passthrough.off", comment: "")
+    }
+
+    /// 穿透透明度滑块（0.3~1.0）：拖动实时注入 CSS 变量，穿透开关状态不受影响
+    private func makePassthroughOpacityItem() -> NSMenuItem {
+        let item = NSMenuItem()
+        // 约束布局：label 固有宽度 + slider 吃掉剩余，本地化文案长短都不错位
+        let container = NSStackView()
+        container.orientation = .horizontal
+        container.alignment = .centerY
+        container.spacing = 10
+        container.edgeInsets = NSEdgeInsets(top: 0, left: 14, bottom: 0, right: 14)
+        container.frame = NSRect(x: 0, y: 0, width: 240, height: 30)
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let opacity = AppState.passthroughOpacity
+        let label = NSTextField(labelWithString: Self.opacityLabelText(opacity))
+        label.font = .menuFont(ofSize: 13)
+        label.textColor = .secondaryLabelColor
+        passthroughOpacityLabel = label
+
+        let slider = NSSlider(value: opacity, minValue: 0.3, maxValue: 1.0,
+                              target: self, action: #selector(changePassthroughOpacity(_:)))
+        slider.isContinuous = true
+        slider.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        container.addArrangedSubview(label)
+        container.addArrangedSubview(slider)
+        item.view = container
+        return item
+    }
+
+    private static func opacityLabelText(_ opacity: Double) -> String {
+        String(format: NSLocalizedString("menu.passthroughOpacity", comment: ""),
+               Int((opacity * 100).rounded()))
+    }
+
+    @objc private func changePassthroughOpacity(_ sender: NSSlider) {
+        windowController.setPassthroughOpacity(sender.doubleValue)
+        passthroughOpacityLabel.stringValue = Self.opacityLabelText(sender.doubleValue)
     }
 
     @objc private func openGallery(_ sender: Any?) {

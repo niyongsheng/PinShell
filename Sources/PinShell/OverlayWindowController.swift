@@ -44,8 +44,6 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         panel.becomesKeyOnlyIfNeeded = true
         panel.isReleasedWhenClosed = false
         panel.delegate = self
-        // 恢复持久化的穿透状态（AppState 为唯一事实来源，UI 控件只读它）
-        panel.ignoresMouseEvents = AppState.passthroughEnabled
     }
 
     private func setupWebView() {
@@ -62,8 +60,8 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
             x: panel.contentView!.bounds.maxX - grip.frame.width,
             y: panel.contentView!.bounds.minY
         )
-        grip.isHidden = AppState.passthroughEnabled
         panel.contentView?.addSubview(grip)
+        syncPassthroughUI()
     }
 
     private func registerFrameObservers() {
@@ -93,11 +91,17 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
     }
 
     func setPassthrough(_ enabled: Bool) {
+        AppState.passthroughEnabled = enabled
+        // 通知只作变化信号，观察者（菜单项/模板库开关/WebView）从 AppState 读状态
+        NotificationCenter.default.post(name: .pinshellPassthroughChanged, object: nil)
+        syncPassthroughUI()
+    }
+
+    /// 从 AppState 派生全部穿透 UI（窗口/拖拽手柄），init 与切换共用一条路径
+    private func syncPassthroughUI() {
+        let enabled = AppState.passthroughEnabled
         panel.ignoresMouseEvents = enabled   // 窗口级开关：穿透 + 禁拖动一次生效
         grip.isHidden = enabled
-        AppState.passthroughEnabled = enabled
-        // 通知只作变化信号，观察者一律从 AppState 读状态（单一事实来源）
-        NotificationCenter.default.post(name: .pinshellPassthroughChanged, object: nil)
     }
 
     @discardableResult
@@ -105,6 +109,17 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         let next = !AppState.passthroughEnabled
         setPassthrough(next)
         return next
+    }
+
+    /// 菜单滑块：实时注入 CSS 变量（穿透开关状态不受影响），落盘沿用拖动防抖惯例
+    private var opacityPersistWork: DispatchWorkItem?
+
+    func setPassthroughOpacity(_ opacity: Double) {
+        webView.setPassthroughOpacity(opacity)
+        opacityPersistWork?.cancel()
+        let work = DispatchWorkItem { AppState.passthroughOpacity = opacity }
+        opacityPersistWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
     }
 
     func resetToDefaultFrame() {

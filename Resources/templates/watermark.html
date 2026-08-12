@@ -6,14 +6,6 @@
 <title>角标水印</title>
 <link rel="stylesheet" href="design-tokens.css">
 <style>
-html, body {
-  width: 100%; height: 100%;
-  margin: 0; padding: 0;
-  background: transparent;
-  overflow: hidden;
-  font-family: var(--ps-font-text);
-  -webkit-font-smoothing: antialiased;
-}
 .wm {
   position: absolute;
   right: 8px; bottom: 8px;
@@ -27,6 +19,7 @@ html, body {
   border-radius: var(--ps-radius-pill);
   box-sizing: border-box;
   white-space: nowrap;
+  overflow: hidden;
 }
 /* 品牌红点（logo #FD3532） */
 .dot {
@@ -57,6 +50,13 @@ html, body {
 .handle {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.65);
+}
+/* 穿透模式（PinShell 给 <html> 加 passthrough class）：只淡背景，文字保持实 —— 全权由 HTML 控制。
+   透明度数值来自菜单滑块（--ps-passthrough-opacity，token 默认值见 design-tokens.css）。
+   底色刻意更深（#141416），故不挂共享的 ps-dim-surface，独立声明 */
+html.passthrough .wm {
+  background: rgba(20, 20, 22, var(--ps-passthrough-opacity));
+  border-color: rgba(255, 255, 255, 0.06);
 }
 </style>
 </head>

@@ -3,6 +3,7 @@
 "menu.chooseHTML" = "Choose HTML File…";
 "menu.passthrough.on" = "Click-Through: On";
 "menu.passthrough.off" = "Click-Through: Off";
+"menu.passthroughOpacity" = "Click-Through Opacity %d%%";
 "menu.resetPosition" = "Reset Window Position";
 "menu.reloadHTML" = "Reload HTML";
 "menu.checkForUpdates" = "Check for Updates…";

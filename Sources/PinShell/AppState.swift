@@ -5,6 +5,7 @@ enum AppState {
     private static let kFrame = "windowFrame"
     private static let kHTMLPath = "lastHTMLPath"
     private static let kPassthrough = "passthroughEnabled"
+    private static let kPassthroughOpacity = "passthroughOpacity"
     private static let kLastUpdateCheck = "lastUpdateCheckDate"
     private static let kSkippedVersion = "skippedUpdateVersion"
 
@@ -29,6 +30,19 @@ enum AppState {
         get { UserDefaults.standard.bool(forKey: kPassthrough) }
         set { UserDefaults.standard.set(newValue, forKey: kPassthrough) }
     }
+
+    /// 穿透模式透明度（CSS 变量 --ps-passthrough-opacity，0.3~1.0）。
+    /// 默认值经 register(defaults:) 注册，getter 无需哨兵判断（见 registerDefaults）
+    static var passthroughOpacity: Double {
+        get { UserDefaults.standard.double(forKey: kPassthroughOpacity) }
+        set { UserDefaults.standard.set(newValue, forKey: kPassthroughOpacity) }
+    }
+
+    /// 一次性注册默认值（首次访问 AppState 时执行）。0.65 与 design-tokens.css
+    /// 的 --ps-passthrough-opacity 保持一致（模板侧兜底），改动需两处同步
+    static let registerDefaults: Void = {
+        UserDefaults.standard.register(defaults: [kPassthroughOpacity: 0.65])
+    }()
 
     /// 上次自动检查更新的时间（距今 ≤24h 不再重复检查）
     static var lastUpdateCheckDate: Date? {

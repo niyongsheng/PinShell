@@ -13,7 +13,8 @@ final class TemplateGalleryController: NSObject, NSWindowDelegate {
 
     private let previewBox = NSView()
     private let previewWebView = WKWebView(frame: .zero)
-    private let listStack = NSStackView()
+    private let listStack = FlippedStackView()
+    private let listScroll = NSScrollView()
     private let passthroughSwitch = NSSwitch()
     private let currentFileLabel = NSTextField(labelWithString: "—")
     private var cards: [TemplateCardView] = []
@@ -35,7 +36,7 @@ final class TemplateGalleryController: NSObject, NSWindowDelegate {
     // MARK: - 装配
 
     private func buildWindow() {
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 440),
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 560),
                            styleMask: [.titled, .closable, .fullSizeContentView],
                            backing: .buffered, defer: false)
         win.title = NSLocalizedString("gallery.title", comment: "")
@@ -64,11 +65,23 @@ final class TemplateGalleryController: NSObject, NSWindowDelegate {
         previewBox.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.10).cgColor
         previewBox.addSubview(previewWebView)
 
-        // 模板卡片列表（内容由 reloadTemplates 填充，支持打开时刷新）
+        // 模板卡片列表（内容由 reloadTemplates 填充，支持打开时刷新；模板增多时可滚动）。
+        // 翻转 stack 直接作文档视图：卡片从顶部排起（NSScrollView 文档视图默认左下原点），
+        // 高度由内容决定，关 autoresizing 固定到 clipView 上沿
         listStack.orientation = .vertical
         listStack.alignment = .width
         listStack.spacing = 8
         listStack.distribution = .fill
+        listScroll.hasVerticalScroller = false   // 隐藏滚动指示条（触控板滚动手势仍可滚动）
+        listScroll.drawsBackground = false
+        listScroll.borderType = .noBorder
+        listScroll.documentView = listStack
+        listStack.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            listStack.leadingAnchor.constraint(equalTo: listScroll.contentView.leadingAnchor),
+            listStack.trailingAnchor.constraint(equalTo: listScroll.contentView.trailingAnchor),
+            listStack.topAnchor.constraint(equalTo: listScroll.contentView.topAnchor),
+        ])
 
         // 底部控制条
         let controlBar = buildControlBar()
@@ -79,15 +92,20 @@ final class TemplateGalleryController: NSObject, NSWindowDelegate {
         root.spacing = 12
         // fullSizeContentView：顶部留出标题栏空间（内容延伸到玻璃下）
         root.edgeInsets = NSEdgeInsets(top: 44, left: 16, bottom: 16, right: 16)
+        // 滚动区：弹性占满预览区与底栏之间的空间（低内容优先级），模板多时可滚动。
+        // root 底部固定后高度确定，.fill 分布把剩余空间全给 listScroll
         root.addArrangedSubview(previewBox)
-        root.addArrangedSubview(listStack)
+        root.addArrangedSubview(listScroll)
         root.addArrangedSubview(controlBar)
         root.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(root)
+        listScroll.setContentHuggingPriority(.defaultLow, for: .vertical)
+        listScroll.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
         NSLayoutConstraint.activate([
             root.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             root.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             root.topAnchor.constraint(equalTo: content.topAnchor),
+            root.bottomAnchor.constraint(equalTo: content.bottomAnchor),
             previewBox.widthAnchor.constraint(equalToConstant: Self.previewSize.width),
             previewBox.heightAnchor.constraint(equalToConstant: Self.previewSize.height),
             controlBar.widthAnchor.constraint(equalToConstant: Self.previewSize.width),
@@ -323,4 +341,9 @@ final class TemplateCardView: NSView {
     }
 
     @objc private func applyTapped() { onApply(item) }
+}
+
+/// 翻转坐标的 stack：作为滚动视图的文档视图，列表从顶部向下排列
+private final class FlippedStackView: NSStackView {
+    override var isFlipped: Bool { true }
 }

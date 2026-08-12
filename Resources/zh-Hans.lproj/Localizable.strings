@@ -3,6 +3,7 @@
 "menu.chooseHTML" = "选择HTML文件…";
 "menu.passthrough.on" = "鼠标穿透：开启";
 "menu.passthrough.off" = "鼠标穿透：关闭";
+"menu.passthroughOpacity" = "穿透透明度 %d%%";
 "menu.resetPosition" = "重置窗口位置";
 "menu.reloadHTML" = "重载HTML";
 "menu.checkForUpdates" = "检查更新…";
