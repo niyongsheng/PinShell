@@ -9,4 +9,9 @@ extension WKWebView {
         wantsLayer = true
         layer?.isOpaque = false
     }
+
+    /// 加载本地 HTML 并放行所在目录：相对引用的 css/js/图片自动加载
+    func loadLocalHTMLFile(_ url: URL) {
+        loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+    }
 }

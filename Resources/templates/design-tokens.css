@@ -65,8 +65,16 @@
   /* 微交互与投影 */
   --ps-press-scale: scale(0.95);    /* 全系统按压态 */
   --ps-shadow-product: 0 3px 5px 30px rgba(0, 0, 0, 0.22);  /* 仅产品图可用 */
+  --ps-shadow-float: 0 1px 2px rgba(0, 0, 0, 0.08), 0 6px 14px rgba(0, 0, 0, 0.10);  /* 悬浮外壳投影：替代被关闭的窗口阴影；全出血（铺满窗口）的模板会被窗口边界裁掉，勿用 */
 }
 
 /* 显示级负字距样例（Apple tight）：用于 17px 以上标题
    .display-tight { letter-spacing: -0.28px; font-weight: 600; }
    正文：.body-text { font-size: var(--ps-fs-body); line-height: 1.47; letter-spacing: -0.374px; } */
+
+/* 悬浮卡配方：外壳元素挂 .ps-float 获得投影，脱离桌面「贴纸感」。
+   注意：外壳若铺满窗口（inset: 0），投影超出窗口边界会被裁掉，此配方无效；
+   仅悬浮元素（胶囊、内缩卡片）有可见投影。 */
+.ps-float {
+  box-shadow: var(--ps-shadow-float);
+}

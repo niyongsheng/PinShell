@@ -54,9 +54,12 @@ enum TemplateStore {
         }
     }
 
+    /// 无状态，复用避免每次打开模板库都新建
+    private static let decoder = JSONDecoder()
+
     private static func readManifest(in dir: URL) -> [TemplateItem]? {
         guard let data = try? Data(contentsOf: dir.appendingPathComponent("manifest.json")),
-              let manifest = try? JSONDecoder().decode(Manifest.self, from: data) else {
+              let manifest = try? decoder.decode(Manifest.self, from: data) else {
             return nil
         }
         return manifest.templates

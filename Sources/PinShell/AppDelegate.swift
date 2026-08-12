@@ -15,11 +15,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItemController.scheduleAutomaticUpdateCheck()   // 启动 5s 后静默检查更新（24h 节流）
 
         // 加载优先级：openFiles 队列 > CLI 参数 > 上次打开路径 > 内置占位页
-        var target = queuedFile.map(URL.init(fileURLWithPath:))
+        let queued = queuedFile.map(URL.init(fileURLWithPath:))
         queuedFile = nil
-        if target == nil { target = pendingFile }
-        if target == nil { target = AppState.lastHTMLURL }
-        if target == nil { target = Bundle.main.url(forResource: "Placeholder", withExtension: "html") }
+        let target = queued
+            ?? pendingFile
+            ?? AppState.lastHTMLURL
+            ?? Bundle.main.url(forResource: "Placeholder", withExtension: "html")
 
         if let url = target { windowController.loadHTML(url) }
         windowController.showWindow()

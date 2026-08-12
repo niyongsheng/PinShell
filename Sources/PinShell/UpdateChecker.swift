@@ -9,6 +9,15 @@ enum UpdateChecker {
     /// 浏览器兜底跳转的发布页
     static let releasesPageURL = URL(string: "https://github.com/\(repo)/releases")!
 
+    // MARK: - 检查策略常量
+
+    /// 自动检查节流：距上次检查超过该时长才再查
+    static let checkInterval: TimeInterval = 24 * 3600
+    /// 启动后延迟自动检查的时长（不打断首次使用）
+    static let autoCheckDelay: TimeInterval = 5
+    /// 请求超时（国内访问 GitHub 可能慢）
+    static let requestTimeout: TimeInterval = 15
+
     /// 当前安装版本（由 CI 打 tag 时写入 Info.plist）
     static var currentVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
@@ -27,7 +36,17 @@ enum UpdateChecker {
         let htmlURL: URL?
 
         /// 去掉 tag 的 "v" 前缀，用于展示与"跳过此版本"比对
-        var versionLabel: String { String(tagName.dropFirst(tagName.hasPrefix("v") || tagName.hasPrefix("V") ? 1 : 0)) }
+        var versionLabel: String { UpdateChecker.stripVPrefix(tagName) }
+
+        /// 展示用摘要：name 优先，body 截断到 limit；都没有则用兜底文案
+        func excerpt(limit: Int = 500) -> String {
+            if let name, !name.isEmpty { return name }
+            guard let body else {
+                return String(format: NSLocalizedString("update.availableMessage", comment: ""), versionLabel)
+            }
+            let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.count > limit ? String(trimmed.prefix(limit)) + "…" : trimmed
+        }
 
         enum CodingKeys: String, CodingKey {
             case tagName = "tag_name"
@@ -42,7 +61,7 @@ enum UpdateChecker {
         var request = URLRequest(url: latestAPIURL)
         // GitHub API 强制要求 User-Agent，缺失返回 403
         request.setValue("PinShell/\(currentVersion)", forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 15
+        request.timeoutInterval = requestTimeout
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -74,9 +93,13 @@ enum UpdateChecker {
         return .orderedSame
     }
 
+    /// 去掉前导 v/V 前缀（tag "v1.2.3" → "1.2.3"）
+    private static func stripVPrefix(_ s: String) -> String {
+        String(s.drop(while: { $0 == "v" || $0 == "V" }))
+    }
+
     private static func parse(_ version: String) -> [Int] {
-        version
-            .trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
+        stripVPrefix(version)
             .split(separator: ".")
             .map { Int($0.prefix(while: \.isNumber)) ?? 0 }
     }

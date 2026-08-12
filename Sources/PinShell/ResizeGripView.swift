@@ -42,9 +42,10 @@ final class ResizeGripView: NSView {
         let dy = p.y - startPoint.y               // AppKit y 向上：上拖变高
         let w = max(Self.minWidth, startFrame.width + dx)
         let h = max(Self.minHeight, startFrame.height + dy)
+        // display: false —— 连续拖动由系统合并重绘，避免每帧强制全窗口刷新
         window.setFrame(NSRect(origin: startFrame.origin,
                                size: NSSize(width: w, height: h)),
-                        display: true)
+                        display: false)
     }
 
     override func resetCursorRects() {
@@ -59,9 +60,9 @@ final class ResizeGripView: NSView {
         tri.line(to: NSPoint(x: bounds.maxX - 1, y: bounds.minY + 1))
         tri.line(to: NSPoint(x: bounds.maxX - 1, y: bounds.minY + 9))
         tri.close()
-        NSColor(calibratedWhite: 122/255, alpha: 0.35).setFill()
+        NSColor.pinshellInkMuted.withAlphaComponent(0.35).setFill()
         tri.fill()
-        NSColor(calibratedWhite: 122/255, alpha: 0.9).setStroke()
+        NSColor.pinshellInkMuted.withAlphaComponent(0.9).setStroke()
         tri.lineWidth = 1
         tri.stroke()
     }

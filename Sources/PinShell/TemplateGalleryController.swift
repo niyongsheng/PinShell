@@ -60,9 +60,7 @@ final class TemplateGalleryController: NSObject, NSWindowDelegate {
         previewBox.wantsLayer = true
         previewBox.layer?.cornerRadius = 18
         previewBox.layer?.borderWidth = 1
-        // logo 品牌红 #FD3532
-        previewBox.layer?.borderColor = NSColor(calibratedRed: 253/255, green: 53/255,
-                                                blue: 50/255, alpha: 0.8).cgColor
+        previewBox.layer?.borderColor = NSColor.pinshellBrandRed.withAlphaComponent(0.8).cgColor
         previewBox.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.10).cgColor
         previewBox.addSubview(previewWebView)
 
@@ -196,7 +194,7 @@ final class TemplateGalleryController: NSObject, NSWindowDelegate {
                                       height: size.height)
         previewWebView.layer?.setAffineTransform(CGAffineTransform(scaleX: scale, y: scale))
         if let url = TemplateStore.fileURL(for: item) {
-            previewWebView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+            previewWebView.loadLocalHTMLFile(url)
         }
     }
 
@@ -233,9 +231,8 @@ final class TemplateGalleryController: NSObject, NSWindowDelegate {
     }
 
     @objc private func passthroughChanged(_ notification: Notification) {
-        if let enabled = notification.userInfo?["enabled"] as? Bool {
-            passthroughSwitch.state = enabled ? .on : .off
-        }
+        // 通知只作变化信号，状态一律从 AppState 读（单一事实来源）
+        passthroughSwitch.state = AppState.passthroughEnabled ? .on : .off
     }
 }
 

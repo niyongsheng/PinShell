@@ -124,46 +124,59 @@ final class StatusItemController: NSObject {
 
     // MARK: - 更新检查
 
-    /// 启动后静默自动检查：距上次检查超过 24h 才查，延迟 5s 不打断首次使用
+    /// 启动后静默自动检查：距上次检查超过 checkInterval 才查，延迟 autoCheckDelay 不打断首次使用
     func scheduleAutomaticUpdateCheck() {
-        if let last = AppState.lastUpdateCheckDate, Date().timeIntervalSince(last) < 24 * 3600 {
+        if let last = AppState.lastUpdateCheckDate,
+           Date().timeIntervalSince(last) < UpdateChecker.checkInterval {
             return
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + UpdateChecker.autoCheckDelay) { [weak self] in
             self?.performCheck(automatic: true)
         }
     }
+
+    private var isChecking = false
 
     @objc private func checkForUpdates(_ sender: Any?) {
         performCheck(automatic: false)
     }
 
     private func performCheck(automatic: Bool) {
+        guard !isChecking else { return }   // 已有检查在进行，忽略重复触发
+        isChecking = true
         Task { @MainActor in
             let result = await UpdateChecker.check()
+            isChecking = false
             AppState.lastUpdateCheckDate = Date()
             switch result {
             case .upToDate:
                 // 自动检查静默；手动检查才提示"已是最新"
-                if !automatic { showUpToDateAlert() }
+                if !automatic {
+                    showMessageAlert(title: NSLocalizedString("update.upToDate", comment: ""),
+                                     message: String(format: NSLocalizedString("update.upToDateMessage", comment: ""),
+                                                    UpdateChecker.currentVersion))
+                }
             case .updateAvailable(let release):
                 showUpdateAlert(release)
             case .failed(let message):
                 // 自动检查失败静默（国内访问 GitHub 可能不稳，不打扰用户）
-                if !automatic { showCheckFailedAlert(message) }
+                if !automatic {
+                    showMessageAlert(title: NSLocalizedString("update.checkFailed", comment: ""),
+                                     message: String(format: NSLocalizedString("update.checkFailedMessage", comment: ""),
+                                                    message))
+                }
             }
         }
     }
 
     private func showUpdateAlert(_ release: UpdateChecker.ReleaseInfo) {
-        NSApp.activate(ignoringOtherApps: true)   // accessory 应用下弹窗需先激活
         let alert = NSAlert()
         alert.messageText = String(format: NSLocalizedString("update.availableTitle", comment: ""), release.versionLabel)
-        alert.informativeText = releaseNotesExcerpt(release)
+        alert.informativeText = release.excerpt()
         alert.addButton(withTitle: NSLocalizedString("update.download", comment: ""))
         alert.addButton(withTitle: NSLocalizedString("update.later", comment: ""))
         alert.addButton(withTitle: NSLocalizedString("update.skip", comment: ""))
-        let response = alert.runModal()
+        let response = alert.runAppModal()
         if response == .alertFirstButtonReturn {
             NSWorkspace.shared.open(release.htmlURL ?? UpdateChecker.releasesPageURL)
         } else if response == .alertThirdButtonReturn {
@@ -171,32 +184,20 @@ final class StatusItemController: NSObject {
         }
     }
 
-    /// release 说明摘录：优先 GitHub 的 name，body 截断到 500 字
-    private func releaseNotesExcerpt(_ release: UpdateChecker.ReleaseInfo) -> String {
-        if let name = release.name, !name.isEmpty { return name }
-        guard let body = release.body else {
-            return String(format: NSLocalizedString("update.availableMessage", comment: ""), release.versionLabel)
-        }
-        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.count > 500 ? String(trimmed.prefix(500)) + "…" : trimmed
-    }
-
-    private func showUpToDateAlert() {
-        NSApp.activate(ignoringOtherApps: true)
+    private func showMessageAlert(title: String, message: String) {
         let alert = NSAlert()
-        alert.messageText = NSLocalizedString("update.upToDate", comment: "")
-        alert.informativeText = String(format: NSLocalizedString("update.upToDateMessage", comment: ""),
-                                       UpdateChecker.currentVersion)
+        alert.messageText = title
+        alert.informativeText = message
         alert.addButton(withTitle: "OK")
-        alert.runModal()
+        alert.runAppModal()
     }
+}
 
-    private func showCheckFailedAlert(_ message: String) {
+private extension NSAlert {
+    /// accessory 应用弹模态框前必须先激活，否则窗口不出现（设计风险 R3）
+    @discardableResult
+    func runAppModal() -> NSApplication.ModalResponse {
         NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.messageText = NSLocalizedString("update.checkFailed", comment: "")
-        alert.informativeText = String(format: NSLocalizedString("update.checkFailedMessage", comment: ""), message)
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        return runModal()
     }
 }

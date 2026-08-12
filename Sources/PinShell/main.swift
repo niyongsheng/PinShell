@@ -18,8 +18,7 @@ if CommandLine.arguments.count > 1 {
     }
     // 基于调用进程 cwd 解析为绝对路径 —— 绝不能把相对路径交给另一进程
     let url = URL(fileURLWithPath: arg).standardizedFileURL
-    var isDir: ObjCBool = false
-    if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), !isDir.boolValue {
+    if url.isRegularFile {
         pendingFile = url
     } else {
         FileHandle.standardError.write(Data("PinShell: 文件不存在或不是普通文件: \(arg)\n".utf8))
@@ -59,4 +58,3 @@ let delegate = AppDelegate()
 delegate.pendingFile = pendingFile
 app.delegate = delegate
 app.run()
-print("DBG app.run() returned")

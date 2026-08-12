@@ -82,13 +82,10 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
 
     func loadHTML(_ url: URL) {
         let resolved = url.standardizedFileURL
-        var isDir: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: resolved.path, isDirectory: &isDir),
-              !isDir.boolValue else { return }
+        guard resolved.isRegularFile else { return }
         currentURL = resolved
-        // 允许读取 HTML 所在目录：相对引用的 css/js/图片自动加载
-        webView.loadFileURL(resolved, allowingReadAccessTo: resolved.deletingLastPathComponent())
-        if AppState.lastHTMLURL != resolved { AppState.lastHTMLURL = resolved }   // 重载同文件时跳过重复写
+        webView.loadLocalHTMLFile(resolved)
+        AppState.lastHTMLURL = resolved
     }
 
     func reloadHTML() {
@@ -99,13 +96,13 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         panel.ignoresMouseEvents = enabled   // 窗口级开关：穿透 + 禁拖动一次生效
         grip.isHidden = enabled
         AppState.passthroughEnabled = enabled
-        NotificationCenter.default.post(name: .pinshellPassthroughChanged, object: nil,
-                                        userInfo: ["enabled": enabled])
+        // 通知只作变化信号，观察者一律从 AppState 读状态（单一事实来源）
+        NotificationCenter.default.post(name: .pinshellPassthroughChanged, object: nil)
     }
 
     @discardableResult
     func togglePassthrough() -> Bool {
-        let next = !panel.ignoresMouseEvents
+        let next = !AppState.passthroughEnabled
         setPassthrough(next)
         return next
     }
@@ -159,6 +156,6 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
 }
 
 extension Notification.Name {
-    /// 穿透开关变化（userInfo["enabled"]: Bool）——菜单项与模板库开关同步
+    /// 穿透开关变化信号（观察者从 AppState 读状态）——菜单项与模板库开关同步
     static let pinshellPassthroughChanged = Notification.Name("PinShell.passthroughChanged")
 }
