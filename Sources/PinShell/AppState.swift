@@ -1,10 +1,12 @@
 import AppKit
 
-/// UserDefaults 持久化（spec 2.5）：窗口 frame / 上次 HTML 路径 / 穿透开关
+/// UserDefaults 持久化（spec 2.5）：窗口 frame / 上次 HTML 路径 / 穿透开关 / 更新检查
 enum AppState {
     private static let kFrame = "windowFrame"
     private static let kHTMLPath = "lastHTMLPath"
     private static let kPassthrough = "passthroughEnabled"
+    private static let kLastUpdateCheck = "lastUpdateCheckDate"
+    private static let kSkippedVersion = "skippedUpdateVersion"
 
     static var windowFrame: NSRect? {
         get {
@@ -26,5 +28,17 @@ enum AppState {
     static var passthroughEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: kPassthrough) }
         set { UserDefaults.standard.set(newValue, forKey: kPassthrough) }
+    }
+
+    /// 上次自动检查更新的时间（距今 ≤24h 不再重复检查）
+    static var lastUpdateCheckDate: Date? {
+        get { UserDefaults.standard.object(forKey: kLastUpdateCheck) as? Date }
+        set { UserDefaults.standard.set(newValue, forKey: kLastUpdateCheck) }
+    }
+
+    /// 用户选择"跳过此版本"的版本号（该版本不再提醒）
+    static var skippedVersion: String? {
+        get { UserDefaults.standard.string(forKey: kSkippedVersion) }
+        set { UserDefaults.standard.set(newValue, forKey: kSkippedVersion) }
     }
 }

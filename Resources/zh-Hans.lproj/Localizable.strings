@@ -5,7 +5,20 @@
 "menu.passthrough.off" = "鼠标穿透：关闭";
 "menu.resetPosition" = "重置窗口位置";
 "menu.reloadHTML" = "重载HTML";
+"menu.checkForUpdates" = "检查更新…";
 "menu.quit" = "退出 PinShell";
+
+/* 更新检查 */
+"update.availableTitle" = "发现新版本 v%@";
+"update.availableMessage" = "PinShell 有新版本 v%@ 可用，详情见发布页。";
+"update.download" = "去下载";
+"update.later" = "稍后提醒";
+"update.skip" = "跳过此版本";
+"update.upToDate" = "已是最新版本";
+"update.upToDateMessage" = "PinShell v%@ 已是最新版本。";
+"update.checkFailed" = "检查更新失败";
+"update.checkFailedMessage" = "%@";
+"update.httpError" = "HTTP %@";
 
 /* 文件选择器 */
 "openPanel.title" = "选择 HTML 文件";

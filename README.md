@@ -1,5 +1,7 @@
 # PinShell
 
+![logo](./Resources/logo.svg)
+
 A lightweight macOS overlay shell. Pin any local HTML file as a global, always-on-top floating window with click-through support — built for screen-recording overlays (OBS, Cap, QuickTime) and live-streaming badges.
 
 ![PinShell preview](screenshots/preview.png)
@@ -13,6 +15,7 @@ All UI, carousels, and animations live in your HTML/CSS/JS. PinShell is a thin n
 - Load any local HTML file via menu bar (⌘O) or CLI
 - Remembers window position, size, last file, and click-through state
 - No Dock icon — lives in the menu bar
+- Update check against GitHub Releases: auto every 24h, or manually via menu (⌘U)
 
 ## Quick Start
 
@@ -36,6 +39,7 @@ Launch PinShell, then use the menu bar icon:
 | Click-Through: On/Off | ⌘T | Toggle click-through (off = draggable) |
 | Reset Window Position | ⌘0 | Move window back to bottom-right |
 | Reload HTML | ⌘R | Reload the current file |
+| Check for Updates… | ⌘U | Check GitHub Releases for a new version |
 | Quit PinShell | ⌘Q | Quit |
 
 ### Built-in templates

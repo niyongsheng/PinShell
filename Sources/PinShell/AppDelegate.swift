@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         windowController = OverlayWindowController()
         statusItemController = StatusItemController(windowController: windowController)
+        statusItemController.scheduleAutomaticUpdateCheck()   // 启动 5s 后静默检查更新（24h 节流）
 
         // 加载优先级：openFiles 队列 > CLI 参数 > 上次打开路径 > 内置占位页
         var target = queuedFile.map(URL.init(fileURLWithPath:))
