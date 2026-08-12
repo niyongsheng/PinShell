@@ -1,5 +1,8 @@
 # PinShell
 
+[![Release](https://img.shields.io/github/v/tag/niyongsheng/PinShell?style=flat&label=Release&color=FD3532)](https://github.com/niyongsheng/PinShell/releases)
+[![Platform](https://img.shields.io/badge/macOS-13%2B-black?style=flat&logo=apple&logoColor=white)](https://github.com/niyongsheng/PinShell#quick-start)
+
 ![logo](./Resources/logo.svg)
 
 A lightweight macOS overlay shell. Pin any local HTML file as a global, always-on-top floating window with click-through support — built for screen-recording overlays (OBS, Cap, QuickTime) and live-streaming badges.
