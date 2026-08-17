@@ -7,7 +7,7 @@
 
 A lightweight macOS overlay shell. Pin any local HTML file as a global, always-on-top floating window with click-through support — built for screen-recording overlays (OBS, Cap, QuickTime) and live-streaming badges.
 
-![PinShell preview](screenshots/preview.png)
+![PinShell preview](https://github.com/user-attachments/assets/01c4796f-1f02-4f2c-b099-61d2eeb9bc3a)
 
 All UI, carousels, and animations live in your HTML/CSS/JS. PinShell is a thin native wrapper (NSPanel + WKWebView) — no built-in business logic.
 
@@ -49,7 +49,7 @@ Launch PinShell, then use the menu bar icon:
 
 The gallery (⌘L) ships four ready-to-use overlays:
 
-![Badge Carousel](screenshots/template-badge-carousel.png) ![Social Capsule Rail](screenshots/template-social-rail.png) ![Watermark Badge](screenshots/template-watermark.png)
+ ![Watermark Badge](screenshots/template-watermark.png)
 
 - **Badge Carousel** — rotating social badges (X / WeChat / Bilibili), 5s carousel
 - **LIVE Status Dot** — pulsing recording-status pill
@@ -78,17 +78,6 @@ If PinShell is already running, the file loads immediately in the existing windo
 - Relative css/js/images in the same folder work out of the box
 - In click-through mode all mouse events pass through — don't rely on HTML clicks
 - Reuse `examples/design-tokens.css` for the design system
-
-## Structure
-
-```
-Sources/PinShell/   AppKit source (menu bar, overlay panel, template gallery, WebView, CLI)
-Resources/          Info.plist, app icon, built-in templates, localizations
-scripts/            icon generator (logo.svg → .icns)
-examples/           design tokens + carousel badge demo
-```
-
-Regenerate the app icon after editing `Resources/logo.svg`: `make icon` (background: `make icon ICON_BG=272729`).
 
 ## License
 
