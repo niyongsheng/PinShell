@@ -1,15 +1,14 @@
 import AppKit
-import UniformTypeIdentifiers
+import PinShellCore
 
 /// 状态栏菜单（spec 2.4）：程序唯一入口，无主应用窗口。
 /// 保持 macOS 原生样式：logo 生成的 template 图标 + 原生 NSMenu。
 final class StatusItemController: NSObject {
     private let statusItem: NSStatusItem
     private let windowController: OverlayWindowController
-    /// 首次打开模板库时才构建（避免启动即建第二个 WKWebView + 读 manifest）
-    private lazy var galleryController = TemplateGalleryController(windowController: windowController)
-    private var passthroughItem: NSMenuItem!
-    private var passthroughOpacityLabel: NSTextField!
+    /// 首次打开控制台时才构建（避免启动即建第二个 WKWebView + 扫描模板目录）
+    private lazy var consoleController = ConsoleController(windowController: windowController)
+    private var windowStateItem: NSMenuItem!
 
     init(windowController: OverlayWindowController) {
         self.windowController = windowController
@@ -37,35 +36,39 @@ final class StatusItemController: NSObject {
         menu.addItem(header)
         menu.addItem(.separator())
 
-        // 内容：模板库 / 选文件 / 重载
-        let gallery = NSMenuItem(title: NSLocalizedString("menu.templates", comment: ""),
-                                 action: #selector(openGallery(_:)), keyEquivalent: "l")
-        gallery.target = self
-        menu.addItem(gallery)
-
-        let open = NSMenuItem(title: NSLocalizedString("menu.chooseHTML", comment: ""),
-                              action: #selector(chooseHTML(_:)), keyEquivalent: "o")
-        open.target = self
-        menu.addItem(open)
-
-        let reload = NSMenuItem(title: NSLocalizedString("menu.reloadHTML", comment: ""),
-                                action: #selector(reloadHTML(_:)), keyEquivalent: "r")
-        reload.target = self
-        menu.addItem(reload)
+        // 内容：控制台
+        let console = NSMenuItem(title: NSLocalizedString("menu.console", comment: ""),
+                                 action: #selector(openConsole(_:)), keyEquivalent: "k")
+        console.target = self
+        menu.addItem(console)
 
         menu.addItem(.separator())
 
-        // 穿透：位置复位 / 开关 / 透明度滑块
-        let reset = NSMenuItem(title: NSLocalizedString("menu.resetPosition", comment: ""),
-                               action: #selector(resetPosition(_:)), keyEquivalent: "0")
-        reset.target = self
-        menu.addItem(reset)
+        // 位置：四角预设子菜单；窗口状态：交互 / 穿透
+        let position = NSMenuItem(title: NSLocalizedString("menu.position", comment: ""),
+                                  action: nil, keyEquivalent: "")
+        let positionMenu = NSMenu()
+        let corners: [(corner: WindowAnchor, titleKey: String, shortcut: String)] = [
+            (.topLeft, "menu.position.topLeft", ""),
+            (.topRight, "menu.position.topRight", ""),
+            (.bottomLeft, "menu.position.bottomLeft", ""),
+            (.bottomRight, "menu.position.bottomRight", "0"),   // 沿用原 ⌘0 复位快捷键
+        ]
+        for entry in corners {
+            let item = NSMenuItem(title: NSLocalizedString(entry.titleKey, comment: ""),
+                                  action: #selector(moveToCorner(_:)),
+                                  keyEquivalent: entry.shortcut)
+            item.representedObject = entry.corner.rawValue
+            item.target = self
+            positionMenu.addItem(item)
+        }
+        position.submenu = positionMenu
+        menu.addItem(position)
 
-        passthroughItem = NSMenuItem(title: "", action: #selector(togglePassthrough(_:)), keyEquivalent: "t")
-        passthroughItem.target = self
-        menu.addItem(passthroughItem)
-        updatePassthroughItem(passthroughItem)
-        menu.addItem(makePassthroughOpacityItem())
+        windowStateItem = NSMenuItem(title: "", action: #selector(togglePassthrough(_:)), keyEquivalent: "t")
+        windowStateItem.target = self
+        menu.addItem(windowStateItem)
+        updateWindowStateItem(windowStateItem)
 
         menu.addItem(.separator())
 
@@ -83,85 +86,28 @@ final class StatusItemController: NSObject {
         statusItem.menu = menu
     }
 
-    private func updatePassthroughItem(_ item: NSMenuItem) {
-        let enabled = AppState.passthroughEnabled
-        item.state = enabled ? .on : .off
-        item.title = enabled
-            ? NSLocalizedString("menu.passthrough.on", comment: "")
-            : NSLocalizedString("menu.passthrough.off", comment: "")
+    private func updateWindowStateItem(_ item: NSMenuItem) {
+        item.title = AppState.passthroughEnabled
+            ? NSLocalizedString("menu.windowState.passthrough", comment: "")
+            : NSLocalizedString("menu.windowState.interactive", comment: "")
     }
 
-    /// 穿透透明度滑块（0.3~1.0）：拖动实时注入 CSS 变量，穿透开关状态不受影响
-    private func makePassthroughOpacityItem() -> NSMenuItem {
-        let item = NSMenuItem()
-        // 约束布局：label 固有宽度 + slider 吃掉剩余，本地化文案长短都不错位
-        let container = NSStackView()
-        container.orientation = .horizontal
-        container.alignment = .centerY
-        container.spacing = 10
-        container.edgeInsets = NSEdgeInsets(top: 0, left: 14, bottom: 0, right: 14)
-        container.frame = NSRect(x: 0, y: 0, width: 240, height: 30)
-        container.translatesAutoresizingMaskIntoConstraints = false
-
-        let opacity = AppState.passthroughOpacity
-        let label = NSTextField(labelWithString: Self.opacityLabelText(opacity))
-        label.font = .menuFont(ofSize: 13)
-        label.textColor = .secondaryLabelColor
-        passthroughOpacityLabel = label
-
-        let slider = NSSlider(value: opacity, minValue: 0.3, maxValue: 1.0,
-                              target: self, action: #selector(changePassthroughOpacity(_:)))
-        slider.isContinuous = true
-        slider.setContentHuggingPriority(.defaultLow, for: .horizontal)
-
-        container.addArrangedSubview(label)
-        container.addArrangedSubview(slider)
-        item.view = container
-        return item
-    }
-
-    private static func opacityLabelText(_ opacity: Double) -> String {
-        String(format: NSLocalizedString("menu.passthroughOpacity", comment: ""),
-               Int((opacity * 100).rounded()))
-    }
-
-    @objc private func changePassthroughOpacity(_ sender: NSSlider) {
-        windowController.setPassthroughOpacity(sender.doubleValue)
-        passthroughOpacityLabel.stringValue = Self.opacityLabelText(sender.doubleValue)
-    }
-
-    @objc private func openGallery(_ sender: Any?) {
-        galleryController.show()
+    @objc private func openConsole(_ sender: Any?) {
+        consoleController.show()
     }
     @objc private func passthroughChanged(_ notification: Notification) {
-        updatePassthroughItem(passthroughItem)   // 模板库开关联动菜单项
-    }
-
-    @objc private func chooseHTML(_ sender: Any?) {
-        let openPanel = NSOpenPanel()
-        openPanel.title = NSLocalizedString("openPanel.title", comment: "")
-        openPanel.prompt = NSLocalizedString("openPanel.prompt", comment: "")
-        var types: [UTType] = [.html]
-        if let htm = UTType(filenameExtension: "htm") { types.append(htm) }
-        openPanel.allowedContentTypes = types
-        openPanel.canChooseDirectories = false
-        openPanel.allowsMultipleSelection = false
-        NSApp.activate(ignoringOtherApps: true)   // accessory 应用下可能被忽略（设计风险 R3）
-        guard openPanel.runModal() == .OK, let url = openPanel.url else { return }
-        windowController.loadHTML(url)
+        updateWindowStateItem(windowStateItem)   // 控制台开关联动菜单项
     }
 
     @objc private func togglePassthrough(_ sender: NSMenuItem) {
         windowController.togglePassthrough()
-        updatePassthroughItem(sender)
+        updateWindowStateItem(sender)
     }
 
-    @objc private func resetPosition(_ sender: Any?) {
-        windowController.resetToDefaultFrame()
-    }
-
-    @objc private func reloadHTML(_ sender: Any?) {
-        windowController.reloadHTML()
+    @objc private func moveToCorner(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let corner = WindowAnchor(rawValue: raw) else { return }
+        windowController.moveToCorner(corner)
     }
 
     @objc private func quit(_ sender: Any?) {
@@ -236,14 +182,5 @@ final class StatusItemController: NSObject {
         alert.informativeText = message
         alert.addButton(withTitle: "OK")
         alert.runAppModal()
-    }
-}
-
-private extension NSAlert {
-    /// accessory 应用弹模态框前必须先激活，否则窗口不出现（设计风险 R3）
-    @discardableResult
-    func runAppModal() -> NSApplication.ModalResponse {
-        NSApp.activate(ignoringOtherApps: true)
-        return runModal()
     }
 }

@@ -8,9 +8,11 @@ extension URL {
     }
 }
 
-extension NSColor {
-    /// 品牌色：#FD3532（logo 品牌红），使用时按需调 alpha
-    static let pinshellBrandRed = NSColor(calibratedRed: 253/255, green: 53/255, blue: 50/255, alpha: 1)
-    /// 中性 muted 灰：深浅内容上都可读的描边/标记
-    static let pinshellInkMuted = NSColor(calibratedWhite: 122/255, alpha: 1)
+extension NSAlert {
+    /// accessory 应用弹模态框前必须先激活，否则窗口不出现（设计风险 R3）。
+    @discardableResult
+    func runAppModal() -> NSApplication.ModalResponse {
+        NSApp.activate(ignoringOtherApps: true)
+        return runModal()
+    }
 }

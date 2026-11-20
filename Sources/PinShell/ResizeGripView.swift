@@ -76,3 +76,8 @@ final class ResizeGripView: NSView {
                                                        y: image.size.height / 2))
     }()
 }
+
+private extension NSColor {
+    /// 缩放手柄标记用灰：深浅内容上都可读。
+    static let pinshellInkMuted = NSColor(calibratedWhite: 122 / 255, alpha: 1)
+}

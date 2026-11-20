@@ -1,0 +1,476 @@
+import AppKit
+import PinShellCore
+
+/// 控制台左侧栏：搜索 + 模板 source list + MCP 服务入口。
+final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate, NSMenuDelegate {
+    var onSelectTemplate: ((TemplateItem) -> Void)?
+    var onSelectMCP: (() -> Void)?
+    var onSelectAbout: (() -> Void)?
+    var onApplyTemplate: ((TemplateItem) -> Void)?
+    var onEditTemplate: ((TemplateItem) -> Void)?
+    var onDeleteTemplate: ((TemplateItem) -> Void)?
+
+    private let searchField = NSSearchField()
+    private let tableView = NSTableView()
+    private let scrollView = NSScrollView()
+    private var rows: [Row] = []
+    private var allTemplates: [TemplateItem] = []
+    private var selectedTemplateURL: URL?
+    private var contextTemplate: TemplateItem?
+    private var suppressSelectionCallback = false
+
+    private enum Row {
+        case section(String)
+        case template(TemplateItem)
+        case mcp
+        case about
+
+        var isSection: Bool {
+            if case .section = self { return true }
+            return false
+        }
+    }
+
+    override func loadView() {
+        let root = NSView()
+        root.wantsLayer = true
+        view = root
+        build()
+    }
+
+    // MARK: - 装配
+
+    private func build() {
+        searchField.placeholderString = NSLocalizedString("console.search", comment: "")
+        searchField.sendsSearchStringImmediately = true
+        searchField.delegate = self
+        searchField.target = self
+        searchField.action = #selector(searchChanged)
+        searchField.font = .systemFont(ofSize: 12)
+        searchField.translatesAutoresizingMaskIntoConstraints = false
+
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("main"))
+        column.resizingMask = .autoresizingMask
+        tableView.addTableColumn(column)
+        tableView.headerView = nil
+        tableView.style = .sourceList
+        tableView.rowHeight = 46
+        tableView.intercellSpacing = NSSize(width: 0, height: 2)
+        tableView.backgroundColor = .clear
+        tableView.selectionHighlightStyle = .regular
+        tableView.allowsEmptySelection = false
+        tableView.floatsGroupRows = false
+        tableView.dataSource = self
+        tableView.delegate = self
+        tableView.target = self
+        tableView.doubleAction = #selector(doubleClicked)
+
+        let contextMenu = NSMenu()
+        contextMenu.delegate = self
+        tableView.menu = contextMenu
+
+        scrollView.documentView = tableView
+        scrollView.hasVerticalScroller = true
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+
+        view.addSubview(searchField)
+        view.addSubview(scrollView)
+        NSLayoutConstraint.activate([
+            searchField.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
+            searchField.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
+            searchField.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+
+            scrollView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 8),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+    }
+
+    // MARK: - 数据
+
+    func reloadTemplates(selecting url: URL?) {
+        if let url { selectedTemplateURL = url }
+        let target = selectedTemplateURL
+        allTemplates = TemplateStore.load()
+        reloadRowsAndSelect(target: target)
+    }
+
+    /// 重建行并恢复选中。reloadData 会临时改动选中行并回调，
+    /// 期间必须屏蔽回调，避免把 selectedTemplateURL 改写成第一行。
+    private func reloadRowsAndSelect(target: URL?) {
+        let wasSuppressed = suppressSelectionCallback
+        suppressSelectionCallback = true
+        defer { suppressSelectionCallback = wasSuppressed }
+        rebuildRows()
+        selectCurrentRow(target: target)
+    }
+
+    /// 目录内容变化后的静默刷新：保持当前选中行，不触发页面切换回调。
+    @discardableResult
+    func refreshTemplatesKeepingSelection() -> [TemplateItem] {
+        let selected = selectionKind()
+        allTemplates = TemplateStore.load()
+        rebuildRows()
+        restoreSelection(selected)
+        return allTemplates
+    }
+
+    private enum SelectionKind {
+        case template(URL)
+        case mcp
+        case about
+        case none
+    }
+
+    private func selectionKind() -> SelectionKind {
+        let row = tableView.selectedRow
+        guard rows.indices.contains(row) else { return .none }
+        switch rows[row] {
+        case .template(let item): return .template(item.url)
+        case .mcp: return .mcp
+        case .about: return .about
+        case .section: return .none
+        }
+    }
+
+    private func restoreSelection(_ kind: SelectionKind) {
+        guard let index = rowIndex(for: kind) else { return }
+        select(row: index, notify: false)
+    }
+
+    private func rowIndex(for kind: SelectionKind) -> Int? {
+        switch kind {
+        case .template(let url):
+            return rows.firstIndex { row in
+                guard case .template(let item) = row else { return false }
+                return item.url.standardizedFileURL == url.standardizedFileURL
+            }
+        case .mcp:
+            return rows.firstIndex { if case .mcp = $0 { return true }; return false }
+        case .about:
+            return rows.firstIndex { if case .about = $0 { return true }; return false }
+        case .none:
+            return nil
+        }
+    }
+
+    private func firstTemplateIndex() -> Int? {
+        rows.firstIndex { if case .template = $0 { return true }; return false }
+    }
+
+    /// 选中指定行；notify 为 true 时触发页面切换回调。
+    private func select(row index: Int, notify: Bool) {
+        let wasSuppressed = suppressSelectionCallback
+        suppressSelectionCallback = true
+        tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+        tableView.scrollRowToVisible(index)
+        suppressSelectionCallback = wasSuppressed
+        guard notify else { return }
+        switch rows[index] {
+        case .template(let item):
+            selectedTemplateURL = item.url
+            onSelectTemplate?(item)
+        case .mcp:
+            onSelectMCP?()
+        case .about:
+            onSelectAbout?()
+        case .section:
+            break
+        }
+    }
+
+    func selectFirstTemplate() {
+        guard let index = firstTemplateIndex() else { return }
+        select(row: index, notify: true)
+    }
+
+    func selectMCP() {
+        guard let index = rows.firstIndex(where: {
+            if case .mcp = $0 { return true }
+            return false
+        }) else { return }
+        select(row: index, notify: true)
+    }
+
+    func selectAbout() {
+        guard let index = rows.firstIndex(where: {
+            if case .about = $0 { return true }
+            return false
+        }) else { return }
+        select(row: index, notify: true)
+    }
+
+    var hasTemplates: Bool { !allTemplates.isEmpty }
+
+    private var query: String {
+        searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func filteredTemplates() -> [TemplateItem] {
+        let q = query
+        guard !q.isEmpty else { return allTemplates }
+        return allTemplates.filter {
+            $0.name.localizedCaseInsensitiveContains(q)
+                || $0.description.localizedCaseInsensitiveContains(q)
+                || $0.file.localizedCaseInsensitiveContains(q)
+        }
+    }
+
+    private func rebuildRows() {
+        let templates = filteredTemplates()
+        rows = [.section(NSLocalizedString("console.sidebar.templates", comment: ""))]
+        rows.append(contentsOf: templates.map(Row.template))
+        rows.append(.section(NSLocalizedString("console.sidebar.services", comment: "")))
+        rows.append(.mcp)
+        rows.append(.about)
+        tableView.reloadData()
+    }
+
+    private func selectCurrentRow(target: URL? = nil) {
+        let selectedURL = target ?? selectedTemplateURL
+        // 先按完整路径匹配；悬浮窗可能加载的是仓库/别处的同名副本，再按文件名兜底
+        let exact = rows.firstIndex { row in
+            if case .template(let item) = row {
+                return item.url.standardizedFileURL == selectedURL?.standardizedFileURL
+            }
+            return false
+        }
+        let byName = rows.firstIndex { row in
+            guard case .template(let item) = row,
+                  let selected = selectedURL else { return false }
+            return item.url.lastPathComponent == selected.lastPathComponent
+        }
+        guard let targetIndex = exact ?? byName ?? firstTemplateIndex() else {
+            tableView.deselectAll(nil)
+            return
+        }
+        select(row: targetIndex, notify: true)
+    }
+
+    private var selectedTemplate: TemplateItem? {
+        let row = tableView.selectedRow
+        guard rows.indices.contains(row), case .template(let item) = rows[row] else { return nil }
+        return item
+    }
+
+    // MARK: - 交互
+
+    @objc private func doubleClicked() {
+        guard let item = selectedTemplate else { return }
+        onApplyTemplate?(item)
+    }
+
+    // MARK: - 右键菜单
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        let row = tableView.clickedRow
+        guard rows.indices.contains(row), case .template(let item) = rows[row] else {
+            contextTemplate = nil
+            return
+        }
+        contextTemplate = item
+        if tableView.selectedRow != row {
+            tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        }
+
+        let applyItem = NSMenuItem(title: NSLocalizedString("console.sidebar.apply", comment: ""),
+                                   action: #selector(contextApply), keyEquivalent: "")
+        applyItem.target = self
+        menu.addItem(applyItem)
+
+        let editItem = NSMenuItem(title: NSLocalizedString("console.sidebar.edit", comment: ""),
+                                  action: #selector(contextEdit), keyEquivalent: "")
+        editItem.target = self
+        menu.addItem(editItem)
+
+        menu.addItem(.separator())
+
+        let deleteItem = NSMenuItem(title: NSLocalizedString("console.sidebar.delete", comment: ""),
+                                    action: #selector(contextDelete), keyEquivalent: "")
+        deleteItem.target = self
+        menu.addItem(deleteItem)
+    }
+
+    @objc private func contextApply() {
+        if let item = contextTemplate { onApplyTemplate?(item) }
+    }
+
+    @objc private func contextEdit() {
+        if let item = contextTemplate { onEditTemplate?(item) }
+    }
+
+    @objc private func contextDelete() {
+        if let item = contextTemplate { onDeleteTemplate?(item) }
+    }
+
+    func controlTextDidChange(_ obj: Notification) {
+        searchChanged()
+    }
+
+    @objc private func searchChanged() {
+        reloadRowsAndSelect(target: selectedTemplateURL)
+    }
+
+    func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
+
+    func tableView(_ tableView: NSTableView, isGroupRow row: Int) -> Bool {
+        rows[row].isSection
+    }
+
+    func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
+        !rows[row].isSection
+    }
+
+    func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+        rows[row].isSection ? 28 : 46
+    }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        switch rows[row] {
+        case .section(let title):
+            let cell = NSTableCellView()
+            let label = NSTextField(labelWithString: title)
+            label.font = .systemFont(ofSize: 11, weight: .semibold)
+            label.textColor = .secondaryLabelColor
+            label.translatesAutoresizingMaskIntoConstraints = false
+            cell.addSubview(label)
+            NSLayoutConstraint.activate([
+                label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 10),
+                label.bottomAnchor.constraint(equalTo: cell.bottomAnchor, constant: -4),
+            ])
+            return cell
+
+        case .template(let item):
+            let cell = SidebarCellView()
+            cell.configure(symbol: "rectangle.on.rectangle",
+                           title: item.name,
+                           subtitle: item.description.isEmpty ? item.file : item.description,
+                           trailing: "\(NumberFormat.text(item.size.width, fractionDigits: 0))×"
+                                     + "\(NumberFormat.text(item.size.height, fractionDigits: 0))")
+            return cell
+
+        case .mcp:
+            let cell = SidebarCellView()
+            cell.configure(symbol: "terminal",
+                           title: NSLocalizedString("console.mcp.navTitle", comment: ""),
+                           subtitle: NSLocalizedString("console.mcp.navSubtitle", comment: ""),
+                           trailing: nil)
+            return cell
+
+        case .about:
+            let cell = SidebarCellView()
+            cell.configure(symbol: "info.circle",
+                           title: NSLocalizedString("console.about.title", comment: ""),
+                           subtitle: NSLocalizedString("console.about.navSubtitle", comment: ""),
+                           trailing: "v\(UpdateChecker.currentVersion)")
+            return cell
+        }
+    }
+
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        guard !suppressSelectionCallback else { return }
+        let row = tableView.selectedRow
+        guard rows.indices.contains(row) else { return }
+        switch rows[row] {
+        case .template(let item):
+            selectedTemplateURL = item.url
+            onSelectTemplate?(item)
+        case .mcp:
+            onSelectMCP?()
+        case .about:
+            onSelectAbout?()
+        case .section:
+            break
+        }
+    }
+
+}
+
+// MARK: - 侧栏单元格
+
+private final class SidebarCellView: NSTableCellView {
+    private let symbolView = NSImageView()
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let subtitleLabel = NSTextField(labelWithString: "")
+    private let trailingLabel = NSTextField(labelWithString: "")
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        build()
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    private func build() {
+        symbolView.imageScaling = .scaleProportionallyDown
+        symbolView.contentTintColor = .secondaryLabelColor
+        symbolView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            symbolView.widthAnchor.constraint(equalToConstant: 18),
+            symbolView.heightAnchor.constraint(equalToConstant: 18),
+        ])
+
+        titleLabel.font = .systemFont(ofSize: 12.5, weight: .medium)
+        titleLabel.textColor = .labelColor
+        titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        subtitleLabel.font = .systemFont(ofSize: 10.5)
+        subtitleLabel.textColor = .secondaryLabelColor
+        subtitleLabel.lineBreakMode = .byTruncatingTail
+        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        trailingLabel.font = .monospacedDigitSystemFont(ofSize: 9.5, weight: .regular)
+        trailingLabel.textColor = .tertiaryLabelColor
+        trailingLabel.alignment = .right
+        trailingLabel.setContentHuggingPriority(.required, for: .horizontal)
+        trailingLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+        trailingLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        addSubview(symbolView)
+        addSubview(titleLabel)
+        addSubview(subtitleLabel)
+        addSubview(trailingLabel)
+
+        NSLayoutConstraint.activate([
+            symbolView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            symbolView.centerYAnchor.constraint(equalTo: centerYAnchor),
+
+            titleLabel.leadingAnchor.constraint(equalTo: symbolView.trailingAnchor, constant: 10),
+            titleLabel.topAnchor.constraint(equalTo: topAnchor, constant: 7),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingLabel.leadingAnchor, constant: -8),
+
+            subtitleLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 1),
+            subtitleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            subtitleLabel.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -6),
+
+            trailingLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            trailingLabel.topAnchor.constraint(equalTo: topAnchor, constant: 6),
+        ])
+    }
+
+    func configure(symbol: String, title: String, subtitle: String, trailing: String?) {
+        let configuration = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+        symbolView.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+            .withSymbolConfiguration(configuration)
+        titleLabel.stringValue = title
+        subtitleLabel.stringValue = subtitle
+        trailingLabel.stringValue = trailing ?? ""
+        trailingLabel.isHidden = trailing == nil
+    }
+
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet {
+            let emphasized = backgroundStyle == .emphasized
+            titleLabel.textColor = emphasized ? .alternateSelectedControlTextColor : .labelColor
+            subtitleLabel.textColor = emphasized ? .alternateSelectedControlTextColor : .secondaryLabelColor
+            trailingLabel.textColor = emphasized ? .alternateSelectedControlTextColor : .tertiaryLabelColor
+            symbolView.contentTintColor = emphasized ? .alternateSelectedControlTextColor : .secondaryLabelColor
+        }
+    }
+}

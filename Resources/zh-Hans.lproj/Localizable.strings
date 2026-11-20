@@ -1,11 +1,12 @@
 /* 菜单 */
-"menu.templates" = "模板库…";
-"menu.chooseHTML" = "选择HTML文件…";
-"menu.passthrough.on" = "鼠标穿透：开启";
-"menu.passthrough.off" = "鼠标穿透：关闭";
-"menu.passthroughOpacity" = "穿透透明度 %d%%";
-"menu.resetPosition" = "重置窗口位置";
-"menu.reloadHTML" = "重载HTML";
+"menu.console" = "控制台";
+"menu.windowState.interactive" = "窗口状态：交互";
+"menu.windowState.passthrough" = "窗口状态：穿透";
+"menu.position" = "窗口位置";
+"menu.position.topLeft" = "左上角";
+"menu.position.topRight" = "右上角";
+"menu.position.bottomLeft" = "左下角";
+"menu.position.bottomRight" = "右下角";
 "menu.checkForUpdates" = "检查更新…";
 "menu.quit" = "退出 PinShell";
 
@@ -21,13 +22,131 @@
 "update.checkFailedMessage" = "%@";
 "update.httpError" = "HTTP %@";
 
-/* 文件选择器 */
-"openPanel.title" = "选择 HTML 文件";
-"openPanel.prompt" = "打开";
+/* 控制台 */
+"console.title" = "PinShell 控制台";
+"console.search" = "搜索内容";
+"console.noFile" = "未加载文件";
+"console.chip.frame" = "窗口";
+"console.chip.frameTooltip" = "当前悬浮窗实际尺寸";
+"console.chip.visible" = "可见";
+"console.chip.hidden" = "隐藏";
+"console.chip.interactive" = "交互";
+"console.chip.passthrough" = "穿透";
+"console.chip.watching" = "自动重载";
+"console.apply" = "启用";
 
-/* 模板库窗口 */
-"gallery.title" = "模板库";
-"gallery.openFolder" = "打开模板文件夹";
-"gallery.resetPosition" = "重置位置";
-"gallery.apply" = "应用";
-"gallery.passthrough" = "鼠标穿透";
+/* 控制台 · 位置锚点 */
+"console.anchor.topLeft" = "左上";
+"console.anchor.top" = "顶部";
+"console.anchor.topRight" = "右上";
+"console.anchor.left" = "左侧";
+"console.anchor.center" = "居中";
+"console.anchor.right" = "右侧";
+"console.anchor.bottomLeft" = "左下";
+"console.anchor.bottom" = "底部";
+"console.anchor.bottomRight" = "右下";
+
+/* 控制台 · 复制反馈 */
+"console.events.copied" = "已复制";
+
+/* 控制台 · MCP 页 */
+"console.mcp.channel" = "本机控制通道";
+"console.mcp.copy" = "复制路径";
+
+/* 控制台 · 新布局 */
+"console.sidebar.templates" = "模板";
+"console.sidebar.services" = "服务";
+"console.sidebar.apply" = "启用";
+"console.sidebar.edit" = "编辑";
+"console.sidebar.delete" = "删除";
+"console.detail.delete" = "删除";
+"console.position.auto" = "自动";
+"console.toolbar.show" = "显示悬浮窗";
+"console.toolbar.hide" = "隐藏悬浮窗";
+"console.toolbar.reload" = "重载 HTML";
+"console.toolbar.edit" = "编辑模板";
+"console.toolbar.folder" = "在 Finder 中显示";
+"console.toolbar.templates" = "模板操作";
+"console.toolbar.restoreBuiltins" = "恢复内置模板";
+"console.toolbar.revealFolder" = "打开模板文件夹";
+
+/* 控制台 · 删除模板 */
+"console.delete.title" = "删除“%@”？";
+"console.delete.info" = "模板文件会从模板库中移除，此操作无法撤销。";
+"console.delete.builtinInfo" = "这是内置模板。删除后可在工具栏「模板操作」中恢复。";
+"console.delete.confirm" = "删除";
+"console.delete.cancel" = "取消";
+"console.delete.errorTitle" = "无法删除模板";
+"console.error.ok" = "好";
+
+/* 控制台 · 空模板库 */
+"console.empty.title" = "没有模板";
+"console.empty.subtitle" = "可在工具栏「模板操作」中恢复内置模板，或把 HTML 文件放进模板文件夹。";
+"console.empty.openFolder" = "打开模板文件夹";
+
+/* 控制台 · MCP */
+"console.mcp.title" = "MCP 服务";
+"console.mcp.navTitle" = "MCP";
+"console.mcp.navSubtitle" = "Stdio · AI agent";
+"console.mcp.ready" = "Stdio · 已就绪";
+"console.mcp.config" = "手动接入配置";
+"console.mcp.tools" = "可用工具";
+"console.mcp.prompts" = "可用提示词";
+"console.mcp.copyConfig" = "复制配置";
+"console.mcp.clients.title" = "客户端自动配置";
+"console.mcp.clients.subtitle" = "检测本机已安装的 MCP 客户端，一键写入 PinShell 服务配置。";
+"console.mcp.clients.auto" = "自动配置";
+"console.mcp.clients.reveal" = "查看配置文件";
+"console.mcp.clients.remove" = "移除配置";
+"console.mcp.clients.refresh" = "重新检测";
+"console.mcp.clients.configured" = "已配置 (Stdio)";
+"console.mcp.clients.stale" = "路径已变更";
+"console.mcp.clients.notConfigured" = "未配置";
+"console.mcp.clients.notDetected" = "未安装";
+"console.mcp.clients.notDetectedHint" = "未检测到该客户端";
+"console.mcp.clients.staleHint" = "配置指向 %@，选择“自动配置”更新。";
+"console.mcp.clients.errorTitle" = "无法写入 %@ 配置";
+"console.mcp.clients.errorJSON" = "配置文件不是有效的 JSON，未做修改：\n%@";
+"console.mcp.clients.errorStructure" = "mcpServers 字段格式异常，未做修改：\n%@";
+"console.mcp.clients.errorUnreadable" = "无法读取配置文件（权限或编码问题），未做修改：\n%@";
+"console.mcp.clients.hint" = "写入后重启对应客户端即可生效。";
+
+/* 控制台 · 关于 */
+"console.about.title" = "关于";
+"console.about.navSubtitle" = "版本信息";
+"console.about.subtitle" = "予 AI 一扇明窗，以代码为笺，于屏隅之间，晤谈、呈示、回响。";
+"console.about.version" = "版本 %@";
+"console.about.github" = "GitHub";
+"console.about.issues" = "问题反馈";
+"console.about.releases" = "更新日志";
+"console.about.copyright" = "Apache License 2.0 · © 2026 niyongsheng";
+
+/* 控制台 · 模板编辑弹窗 */
+"console.editor.title" = "编辑模板";
+"console.editor.section.info" = "模板信息";
+"console.editor.section.window" = "窗口外观";
+"console.editor.name" = "标题";
+"console.editor.description" = "副标题";
+"console.editor.size" = "尺寸";
+"console.editor.customSize" = "自定义";
+"console.editor.position" = "位置";
+"console.editor.coordinates" = "坐标";
+"console.editor.custom" = "自定义…";
+"console.editor.opacity" = "整窗透明度";
+"console.editor.radius" = "圆角";
+"console.editor.passthrough" = "鼠标穿透";
+"console.editor.passthroughHint" = "开启后点击直达桌面";
+"console.editor.order" = "排序";
+"console.editor.orderHint" = "数字越小越靠前";
+"console.editor.points" = "pt";
+"console.editor.preview" = "窗口预览";
+"console.editor.restore" = "还原";
+"console.editor.restoreHint" = "恢复为模板当前已保存的值";
+"console.editor.builtin" = "内置模板";
+"console.editor.user" = "用户模板";
+"console.editor.save" = "保存";
+"console.editor.cancel" = "取消";
+"console.editor.invalidSize" = "宽高至少为 80×40。";
+"console.editor.invalidPosition" = "请输入有效的 X、Y 坐标。";
+"console.editor.invalidOrder" = "排序必须是整数。";
+"console.editor.invalidTitle" = "标题不能为空。";

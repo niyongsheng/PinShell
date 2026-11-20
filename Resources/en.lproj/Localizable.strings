@@ -1,11 +1,12 @@
 /* 菜单 */
-"menu.templates" = "Templates…";
-"menu.chooseHTML" = "Choose HTML File…";
-"menu.passthrough.on" = "Click-Through: On";
-"menu.passthrough.off" = "Click-Through: Off";
-"menu.passthroughOpacity" = "Click-Through Opacity %d%%";
-"menu.resetPosition" = "Reset Window Position";
-"menu.reloadHTML" = "Reload HTML";
+"menu.console" = "Console";
+"menu.windowState.interactive" = "Window State: Interactive";
+"menu.windowState.passthrough" = "Window State: Passthrough";
+"menu.position" = "Window Position";
+"menu.position.topLeft" = "Top Left";
+"menu.position.topRight" = "Top Right";
+"menu.position.bottomLeft" = "Bottom Left";
+"menu.position.bottomRight" = "Bottom Right";
 "menu.checkForUpdates" = "Check for Updates…";
 "menu.quit" = "Quit PinShell";
 
@@ -21,13 +22,131 @@
 "update.checkFailedMessage" = "%@";
 "update.httpError" = "HTTP %@";
 
-/* 文件选择器 */
-"openPanel.title" = "Choose an HTML File";
-"openPanel.prompt" = "Open";
+/* 控制台 */
+"console.title" = "PinShell Console";
+"console.search" = "Search content";
+"console.noFile" = "No file loaded";
+"console.chip.frame" = "Window";
+"console.chip.frameTooltip" = "Actual overlay window size";
+"console.chip.visible" = "Visible";
+"console.chip.hidden" = "Hidden";
+"console.chip.interactive" = "Interactive";
+"console.chip.passthrough" = "Passthrough";
+"console.chip.watching" = "Auto-reload";
+"console.apply" = "Enable";
 
-/* 模板库窗口 */
-"gallery.title" = "Templates";
-"gallery.openFolder" = "Open Templates Folder";
-"gallery.resetPosition" = "Reset Position";
-"gallery.apply" = "Apply";
-"gallery.passthrough" = "Click-Through";
+/* 控制台 · 位置锚点 */
+"console.anchor.topLeft" = "Top Left";
+"console.anchor.top" = "Top";
+"console.anchor.topRight" = "Top Right";
+"console.anchor.left" = "Left";
+"console.anchor.center" = "Center";
+"console.anchor.right" = "Right";
+"console.anchor.bottomLeft" = "Bottom Left";
+"console.anchor.bottom" = "Bottom";
+"console.anchor.bottomRight" = "Bottom Right";
+
+/* 控制台 · 复制反馈 */
+"console.events.copied" = "Copied";
+
+/* 控制台 · MCP 页 */
+"console.mcp.channel" = "Local Control Channel";
+"console.mcp.copy" = "Copy Path";
+
+/* 控制台 · 新布局 */
+"console.sidebar.templates" = "Templates";
+"console.sidebar.services" = "Services";
+"console.sidebar.apply" = "Enable";
+"console.sidebar.edit" = "Edit";
+"console.sidebar.delete" = "Delete";
+"console.detail.delete" = "Delete";
+"console.position.auto" = "Auto";
+"console.toolbar.show" = "Show Overlay";
+"console.toolbar.hide" = "Hide Overlay";
+"console.toolbar.reload" = "Reload HTML";
+"console.toolbar.edit" = "Edit Template";
+"console.toolbar.folder" = "Reveal in Finder";
+"console.toolbar.templates" = "Template Actions";
+"console.toolbar.restoreBuiltins" = "Restore Built-in Templates";
+"console.toolbar.revealFolder" = "Open Templates Folder";
+
+/* 控制台 · 删除模板 */
+"console.delete.title" = "Delete “%@”?";
+"console.delete.info" = "The template file will be removed from your library. This cannot be undone.";
+"console.delete.builtinInfo" = "This is a built-in template. You can restore it later from Template Actions in the toolbar.";
+"console.delete.confirm" = "Delete";
+"console.delete.cancel" = "Cancel";
+"console.delete.errorTitle" = "Couldn’t Delete Template";
+"console.error.ok" = "OK";
+
+/* 控制台 · 空模板库 */
+"console.empty.title" = "No Templates";
+"console.empty.subtitle" = "Restore built-in templates from Template Actions in the toolbar, or drop an HTML file into the templates folder.";
+"console.empty.openFolder" = "Open Templates Folder";
+
+/* 控制台 · MCP */
+"console.mcp.title" = "MCP Service";
+"console.mcp.navTitle" = "MCP";
+"console.mcp.navSubtitle" = "Stdio · AI agent";
+"console.mcp.ready" = "Stdio · ready";
+"console.mcp.config" = "Manual Configuration";
+"console.mcp.tools" = "Available Tools";
+"console.mcp.prompts" = "Available Prompts";
+"console.mcp.copyConfig" = "Copy Config";
+"console.mcp.clients.title" = "Client Auto-Configuration";
+"console.mcp.clients.subtitle" = "Detects installed MCP clients and writes the PinShell server configuration for you.";
+"console.mcp.clients.auto" = "Auto-configure";
+"console.mcp.clients.reveal" = "Show Config File";
+"console.mcp.clients.remove" = "Remove Config";
+"console.mcp.clients.refresh" = "Detect Again";
+"console.mcp.clients.configured" = "Configured (Stdio)";
+"console.mcp.clients.stale" = "Path changed";
+"console.mcp.clients.notConfigured" = "Not configured";
+"console.mcp.clients.notDetected" = "Not installed";
+"console.mcp.clients.notDetectedHint" = "This client was not detected";
+"console.mcp.clients.staleHint" = "Configured command is %@. Choose Auto-configure to update it.";
+"console.mcp.clients.errorTitle" = "Couldn’t configure %@";
+"console.mcp.clients.errorJSON" = "The config file is not valid JSON, so it was left unchanged:\n%@";
+"console.mcp.clients.errorStructure" = "Unexpected mcpServers format, so the file was left unchanged:\n%@";
+"console.mcp.clients.errorUnreadable" = "Couldn’t read the config file (permissions or encoding issue), so it was left unchanged:\n%@";
+"console.mcp.clients.hint" = "Restart the client after configuring for the change to take effect.";
+
+/* 控制台 · 关于 */
+"console.about.title" = "About";
+"console.about.navSubtitle" = "Version info";
+"console.about.subtitle" = "A bright window for AI: code as paper, a corner of the screen as its place — to converse, to present, to echo.";
+"console.about.version" = "Version %@";
+"console.about.github" = "GitHub";
+"console.about.issues" = "Report an Issue";
+"console.about.releases" = "Release Notes";
+"console.about.copyright" = "Apache License 2.0 · © 2026 niyongsheng";
+
+/* 控制台 · 模板编辑弹窗 */
+"console.editor.title" = "Edit Template";
+"console.editor.section.info" = "Template Info";
+"console.editor.section.window" = "Window Appearance";
+"console.editor.name" = "Title";
+"console.editor.description" = "Subtitle";
+"console.editor.size" = "Size";
+"console.editor.customSize" = "Custom";
+"console.editor.position" = "Position";
+"console.editor.coordinates" = "Coordinates";
+"console.editor.custom" = "Custom…";
+"console.editor.opacity" = "Window Opacity";
+"console.editor.radius" = "Corner Radius";
+"console.editor.passthrough" = "Click-Through";
+"console.editor.passthroughHint" = "Clicks pass through to the desktop";
+"console.editor.order" = "Order";
+"console.editor.orderHint" = "Lower numbers come first";
+"console.editor.points" = "pt";
+"console.editor.preview" = "Window Preview";
+"console.editor.restore" = "Revert";
+"console.editor.restoreHint" = "Restore the values currently saved in this template";
+"console.editor.builtin" = "Built-in";
+"console.editor.user" = "User Template";
+"console.editor.save" = "Save";
+"console.editor.cancel" = "Cancel";
+"console.editor.invalidSize" = "Width and height must be at least 80×40.";
+"console.editor.invalidPosition" = "Enter valid X and Y coordinates.";
+"console.editor.invalidOrder" = "Order must be an integer.";
+"console.editor.invalidTitle" = "Title cannot be empty.";
