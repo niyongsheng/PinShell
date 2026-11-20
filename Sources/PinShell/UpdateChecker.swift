@@ -66,7 +66,8 @@ enum UpdateChecker {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
                 let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-                return .failed(String(format: NSLocalizedString("update.httpError", comment: ""), code))
+                // 本地化文案占位符是 %@，必须传对象；直接传 Int 会被当指针解引用而崩溃
+                return .failed(String(format: NSLocalizedString("update.httpError", comment: ""), String(code)))
             }
             let release = try JSONDecoder().decode(ReleaseInfo.self, from: data)
             let latest = release.versionLabel
