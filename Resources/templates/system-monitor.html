@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>系统状态</title>
+<meta name="description" content="CPU / 内存 / 磁盘监控，可由 agent 推送实时数据">
+<meta name="pinshell:size" content="320x200">
+<meta name="pinshell:radius" content="18">
+<meta name="pinshell:order" content="7">
+<link rel="stylesheet" href="design-tokens.css">
+<style>
+  @property --value {
+    syntax: '<number>';
+    initial-value: 0;
+    inherits: false;
+  }
+  * { box-sizing: border-box; }
+  /* 画布 reset 由 design-tokens.css 提供，这里只补充模板特有项 */
+  body {
+    color: #f5f5f7;
+    user-select: none;
+  }
+  .panel {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 14px 16px 12px;
+    background: rgba(28, 28, 30, 0.86);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 18px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
+  }
+  header { display: flex; align-items: center; justify-content: space-between; }
+  .title { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 650; letter-spacing: -0.1px; }
+  .pulse {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #30d158;
+    box-shadow: 0 0 0 0 rgba(48, 209, 88, 0.6);
+    animation: pulse 2.4s ease-out infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(48, 209, 88, 0.55); }
+    70% { box-shadow: 0 0 0 7px rgba(48, 209, 88, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(48, 209, 88, 0); }
+  }
+  .clock { font-size: 10.5px; font-variant-numeric: tabular-nums; color: rgba(255, 255, 255, 0.42); }
+  .gauges { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 4px 0; }
+  .metric { display: flex; flex-direction: column; align-items: center; gap: 7px; flex: 1; }
+  .gauge {
+    --value: 0;
+    --color: #2997ff;
+    position: relative;
+    width: 66px; height: 66px; border-radius: 50%;
+    background: conic-gradient(var(--color) calc(var(--value) * 1%), rgba(255, 255, 255, 0.08) 0);
+    transition: --value 0.6s cubic-bezier(.2,.8,.2,1);
+  }
+  .gauge::before {
+    content: '';
+    position: absolute; inset: 6px; border-radius: 50%;
+    background: #1c1c1e;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .value {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums;
+    letter-spacing: -0.3px; z-index: 1;
+  }
+  .label {
+    font-size: 10.5px; font-weight: 500; letter-spacing: 0.2px;
+    color: rgba(255, 255, 255, 0.48);
+  }
+  footer {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 9.5px; color: rgba(255, 255, 255, 0.30);
+  }
+  .hint {
+    font-family: "SF Mono", ui-monospace, monospace;
+    color: rgba(255, 255, 255, 0.25);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    max-width: 58%;
+  }
+  .source.live { color: #30d158; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <header>
+    <div class="title"><span class="pulse"></span>系统状态</div>
+    <div class="clock" id="clock">--:--</div>
+  </header>
+
+  <div class="gauges">
+    <div class="metric">
+      <div class="gauge" id="cpuGauge" style="--color:#2997ff"><span class="value" id="cpuValue">0%</span></div>
+      <div class="label">CPU</div>
+    </div>
+    <div class="metric">
+      <div class="gauge" id="memoryGauge" style="--color:#30d158"><span class="value" id="memoryValue">0%</span></div>
+      <div class="label">内存</div>
+    </div>
+    <div class="metric">
+      <div class="gauge" id="diskGauge" style="--color:#ff9f0a"><span class="value" id="diskValue">0%</span></div>
+      <div class="label">磁盘</div>
+    </div>
+  </div>
+
+  <footer>
+    <span class="source" id="source">模拟数据</span>
+    <span class="hint">PinShell emit system:stats</span>
+  </footer>
+</div>
+
+<script>
+  const bridge = window.pinshell || { emit() {}, on() {}, log() {} };
+  const metrics = { cpu: 26, memory: 58, disk: 42 };
+  let realData = false;
+  let lastRealAt = 0;
+
+  const els = {
+    cpu: { gauge: document.getElementById('cpuGauge'), value: document.getElementById('cpuValue') },
+    memory: { gauge: document.getElementById('memoryGauge'), value: document.getElementById('memoryValue') },
+    disk: { gauge: document.getElementById('diskGauge'), value: document.getElementById('diskValue') },
+  };
+  const sourceEl = document.getElementById('source');
+  const clockEl = document.getElementById('clock');
+
+  function renderMetric(key) {
+    const value = Math.max(0, Math.min(100, Math.round(metrics[key])));
+    els[key].gauge.style.setProperty('--value', String(value));
+    els[key].value.textContent = value + '%';
+
+    const color = value >= 85 ? '#ff453a'
+      : key === 'cpu' ? '#2997ff'
+      : key === 'memory' ? '#30d158'
+      : '#ff9f0a';
+    els[key].gauge.style.setProperty('--color', color);
+  }
+
+  function renderAll() {
+    renderMetric('cpu');
+    renderMetric('memory');
+    renderMetric('disk');
+  }
+
+  function tickClock() {
+    const now = new Date();
+    clockEl.textContent = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function simulate() {
+    if (realData && Date.now() - lastRealAt < 8000) return;
+    if (realData && Date.now() - lastRealAt >= 8000) {
+      realData = false;
+      sourceEl.textContent = '模拟数据';
+      sourceEl.classList.remove('live');
+    }
+    const drift = (key, range) => {
+      metrics[key] = Math.max(4, Math.min(96, metrics[key] + (Math.random() - 0.5) * range));
+    };
+    drift('cpu', 14);
+    drift('memory', 5);
+    drift('disk', 1.5);
+    renderAll();
+  }
+
+  bridge.on('system:stats', data => {
+    if (!data || typeof data !== 'object') return;
+    for (const key of ['cpu', 'memory', 'disk']) {
+      const value = Number(data[key]);
+      if (Number.isFinite(value)) metrics[key] = Math.max(0, Math.min(100, value));
+    }
+    realData = true;
+    lastRealAt = Date.now();
+    sourceEl.textContent = '实时数据';
+    sourceEl.classList.add('live');
+    renderAll();
+  });
+
+  tickClock();
+  renderAll();
+  setInterval(tickClock, 1000);
+  setInterval(simulate, 2200);
+  bridge.emit('system:ready', { metrics: { ...metrics } });
+</script>
+</body>
+</html>

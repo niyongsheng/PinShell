@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>桌面宠物</title>
+<meta name="description" content="会漂浮、眨眼、打瞌睡，还会回应点击和 agent 消息的小猫">
+<meta name="pinshell:size" content="180x180">
+<meta name="pinshell:radius" content="0">
+<meta name="pinshell:order" content="8">
+<link rel="stylesheet" href="design-tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  /* 画布 reset 由 design-tokens.css 提供，这里只补充模板特有项 */
+  body {
+    user-select: none; -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .stage {
+    position: absolute; inset: 0;
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 10px;
+  }
+  .pet-wrap {
+    position: relative;
+    width: 128px; height: 124px;
+    cursor: pointer;
+    animation: float 3.2s ease-in-out infinite;
+    filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.25));
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+  .pet-wrap.jump { animation: jump 0.5s cubic-bezier(.2,.8,.2,1); }
+  @keyframes jump {
+    0% { transform: translateY(0) scale(1, 1); }
+    35% { transform: translateY(-17px) scale(0.96, 1.05); }
+    65% { transform: translateY(0) scale(1.05, 0.95); }
+    100% { transform: translateY(0) scale(1, 1); }
+  }
+  svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  .tail {
+    transform-origin: 118px 112px;
+    animation: wag 1.35s ease-in-out infinite;
+  }
+  @keyframes wag {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(-13deg); }
+  }
+  .eyes { transform-origin: 80px 72px; animation: blink 4.6s infinite; }
+  @keyframes blink {
+    0%, 43%, 49%, 100% { transform: scaleY(1); }
+    46% { transform: scaleY(0.08); }
+  }
+  .ear-left { transform-origin: 60px 44px; animation: twitch 5.5s ease-in-out infinite; }
+  .ear-right { transform-origin: 100px 44px; animation: twitch 5.5s ease-in-out 0.18s infinite; }
+  @keyframes twitch {
+    0%, 88%, 100% { transform: rotate(0deg); }
+    91% { transform: rotate(-7deg); }
+    94% { transform: rotate(3deg); }
+  }
+  .shadow {
+    position: absolute; bottom: 2px; left: 50%; width: 74px; height: 12px;
+    transform: translateX(-50%); border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(0, 0, 0, 0.30), rgba(0, 0, 0, 0));
+    animation: shadowPulse 3.2s ease-in-out infinite;
+  }
+  @keyframes shadowPulse {
+    0%, 100% { transform: translateX(-50%) scaleX(1); opacity: 0.9; }
+    50% { transform: translateX(-50%) scaleX(0.86); opacity: 0.6; }
+  }
+  .speech {
+    position: absolute; top: 0; left: 50%;
+    transform: translate(-50%, -4px) scale(0.96);
+    max-width: 164px; padding: 7px 11px;
+    border-radius: 12px;
+    background: rgba(28, 28, 30, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.30);
+    color: #f5f5f7; font-size: 10.5px; line-height: 1.3; text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+  .speech::after {
+    content: ''; position: absolute; bottom: -5px; left: 50%;
+    width: 10px; height: 10px; transform: translateX(-50%) rotate(45deg);
+    background: rgba(28, 28, 30, 0.88);
+    border-right: 1px solid rgba(255, 255, 255, 0.10);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  }
+  .speech.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  .hearts { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .heart {
+    position: absolute; font-size: 12px; color: #ff6b8b;
+    animation: heartUp 1.1s ease-out forwards;
+  }
+  @keyframes heartUp {
+    0% { opacity: 0; transform: translateY(0) scale(0.6); }
+    20% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-46px) scale(1.15); }
+  }
+
+  /* ── 打瞌睡：眼睛闭上，呼吸放慢，头顶飘 Zzz ─────────────────── */
+  .pet-wrap.sleeping { animation-duration: 6.4s; }
+  .eyes { transition: transform 0.3s ease; }
+  .pet-wrap.sleeping .eyes { animation: none; transform: scaleY(0.08); }
+  .pet-wrap.sleeping .tail { animation-duration: 4.2s; }
+  .pet-wrap.sleeping .ear-left,
+  .pet-wrap.sleeping .ear-right { animation-play-state: paused; }
+  .pet-wrap.sleeping .shadow { animation-duration: 6.4s; }
+  .zzz {
+    position: absolute; top: -2px; right: 2px;
+    padding: 2px 6px;
+    border-radius: 8px;
+    background: rgba(28, 28, 30, 0.66);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 9.5px; font-weight: 600; letter-spacing: 0.06em;
+    color: rgba(255, 255, 255, 0.8);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  .pet-wrap.sleeping .zzz { opacity: 1; animation: zzzFloat 2.8s ease-in-out infinite; }
+  @keyframes zzzFloat {
+    0%, 100% { transform: translateY(0) rotate(-4deg); opacity: 0.25; }
+    50% { transform: translateY(-5px) rotate(4deg); opacity: 0.75; }
+  }
+
+  /* ── 声音开关：默认低调，悬停或静音时更明显 ─────────────────── */
+  .sound {
+    position: absolute; right: 4px; bottom: 4px;
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 50%;
+    background: rgba(28, 28, 30, 0.72);
+    color: rgba(255, 255, 255, 0.55);
+    cursor: pointer; z-index: 3;
+    opacity: 0.4;
+    transition: opacity 0.18s ease, background 0.18s ease,
+                color 0.18s ease, transform 0.12s ease;
+  }
+  .sound:hover { opacity: 1; background: rgba(255, 255, 255, 0.12); color: #ffffff; }
+  .sound:active { transform: scale(0.9); }
+  .sound.muted { opacity: 0.8; color: #ff9f0a; }
+  .sound svg { width: 11px; height: 11px; display: block; }
+  .sound:focus-visible { outline: 2px solid var(--ps-primary-focus); outline-offset: 1px; opacity: 1; }
+
+  /* 窗口不可见时暂停动画，避免后台空耗 GPU */
+  html.page-hidden .pet-wrap,
+  html.page-hidden .tail,
+  html.page-hidden .eyes,
+  html.page-hidden .ear-left,
+  html.page-hidden .ear-right,
+  html.page-hidden .shadow,
+  html.page-hidden .heart,
+  html.page-hidden .zzz { animation-play-state: paused !important; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pet-wrap, .tail, .eyes, .ear-left, .ear-right, .shadow,
+    .heart, .zzz, .speech { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="speech" id="speech"></div>
+  <div class="hearts" id="hearts"></div>
+  <div class="pet-wrap" id="pet">
+    <div class="zzz">Zzz</div>
+    <div class="shadow"></div>
+    <svg viewBox="0 0 160 150" aria-label="桌面宠物">
+      <!-- 尾巴 -->
+      <g class="tail">
+        <path d="M114 112 C140 114 146 94 136 82 C130 75 120 78 121 88"
+              fill="none" stroke="#e89b4b" stroke-width="10" stroke-linecap="round"/>
+        <path d="M114 112 C140 114 146 94 136 82 C130 75 120 78 121 88"
+              fill="none" stroke="#f6b36a" stroke-width="7" stroke-linecap="round"/>
+      </g>
+
+      <!-- 身体 -->
+      <ellipse cx="80" cy="113" rx="39" ry="29" fill="#f2a65a"/>
+      <ellipse cx="80" cy="120" rx="25" ry="19" fill="#ffe8cc"/>
+      <ellipse cx="52" cy="134" rx="12" ry="7" fill="#f7c184"/>
+      <ellipse cx="108" cy="134" rx="12" ry="7" fill="#f7c184"/>
+
+      <!-- 耳朵 -->
+      <g class="ear-left">
+        <path d="M48 54 L56 25 L76 44 Z" fill="#f2a65a" stroke="#e18f3f" stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M55 49 L59 33 L69 45 Z" fill="#ffb3c2"/>
+      </g>
+      <g class="ear-right">
+        <path d="M112 54 L104 25 L84 44 Z" fill="#f2a65a" stroke="#e18f3f" stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M105 49 L101 33 L91 45 Z" fill="#ffb3c2"/>
+      </g>
+
+      <!-- 头部 -->
+      <circle cx="80" cy="72" r="35" fill="#f6b36a"/>
+      <path d="M60 92 Q80 104 100 92 Q94 108 80 108 Q66 108 60 92 Z" fill="#ffe8cc"/>
+
+      <!-- 眼睛 -->
+      <g class="eyes">
+        <ellipse cx="66" cy="72" rx="4.4" ry="5.8" fill="#3a2a20"/>
+        <ellipse cx="94" cy="72" rx="4.4" ry="5.8" fill="#3a2a20"/>
+        <circle cx="67.6" cy="70" r="1.5" fill="#ffffff"/>
+        <circle cx="95.6" cy="70" r="1.5" fill="#ffffff"/>
+      </g>
+
+      <!-- 鼻子与嘴 -->
+      <path d="M77 84 L83 84 L80 87 Z" fill="#e2758a"/>
+      <path d="M80 87 Q80 92 74 92 M80 87 Q80 92 86 92"
+            fill="none" stroke="#a05a3c" stroke-width="1.4" stroke-linecap="round"/>
+
+      <!-- 腮红与胡须 -->
+      <ellipse cx="55" cy="83" rx="6.5" ry="3.6" fill="#ffb3c2" opacity="0.75"/>
+      <ellipse cx="105" cy="83" rx="6.5" ry="3.6" fill="#ffb3c2" opacity="0.75"/>
+      <g stroke="#c77a45" stroke-width="1.2" stroke-linecap="round" opacity="0.75">
+        <path d="M44 78 L56 80"/><path d="M44 84 L56 84"/>
+        <path d="M116 78 L104 80"/><path d="M116 84 L104 84"/>
+      </g>
+    </svg>
+  </div>
+  <button class="sound" id="soundBtn" type="button" aria-label="关闭声音"></button>
+</div>
+
+<script>
+  const bridge = window.pinshell || { emit() {}, on() {}, log() {} };
+  const pet = document.getElementById('pet');
+  const speech = document.getElementById('speech');
+  const hearts = document.getElementById('hearts');
+  const soundBtn = document.getElementById('soundBtn');
+
+  const messages = ['你好呀 ✨', '今天也要加油！', '记得喝口水 🥤', '陪你一起工作', '需要休息一下吗？', '摸鱼也要适度哦'];
+  const wakeMessages = ['唔…睡醒啦', '我在呢 ✨', '伸个懒腰～'];
+  const MUTED_KEY = 'pinshell.pet.muted.v1';
+  const SLEEP_AFTER = 45000;
+
+  let messageIndex = 0;
+  let wakeIndex = 0;
+  let taps = 0;
+  let speechTimer = null;
+  let jumpTimer = null;
+  let sleepTimer = null;
+  let sleeping = false;
+  let muted = loadMuted();
+
+  // ── 声音：Web Audio 合成，不依赖任何外部音频文件 ─────────────────
+  const SPEAKER_ON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h2.1L8.4 3.6v8.8L5.1 10H3z"/><path d="M10.7 6.1a2.7 2.7 0 0 1 0 3.8"/><path d="M12.4 4.4a5.1 5.1 0 0 1 0 7.2"/></svg>';
+  const SPEAKER_OFF = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h2.1L8.4 3.6v8.8L5.1 10H3z"/><path d="m10.8 6.2 3.4 3.6m0-3.6-3.4 3.6"/></svg>';
+
+  let audioContext = null;
+
+  function loadMuted() {
+    try { return localStorage.getItem(MUTED_KEY) === '1'; } catch (error) { return false; }
+  }
+
+  function ensureAudio() {
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtor) return null;
+    if (!audioContext) {
+      try { audioContext = new AudioCtor(); } catch (error) { return null; }
+    }
+    if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
+    return audioContext;
+  }
+
+  function tone(options) {
+    if (muted) return;
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const {
+      frequency, endFrequency, type = 'sine',
+      duration = 0.25, gain = 0.06, delay = 0,
+    } = options;
+    try {
+      const start = ctx.currentTime + delay;
+      const osc = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const env = ctx.createGain();
+
+      filter.type = 'lowpass';
+      filter.frequency.value = 2400;
+      osc.type = type;
+      osc.frequency.setValueAtTime(frequency, start);
+      if (endFrequency && endFrequency !== frequency) {
+        osc.frequency.exponentialRampToValueAtTime(endFrequency, start + duration * 0.85);
+      }
+      env.gain.setValueAtTime(0.0001, start);
+      env.gain.exponentialRampToValueAtTime(gain, start + 0.015);
+      env.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+      osc.connect(filter).connect(env).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + duration + 0.02);
+    } catch (error) {}
+  }
+
+  function meow(scale = 1) {
+    tone({ frequency: 560 * scale, endFrequency: 860 * scale, type: 'triangle', duration: 0.3, gain: 0.075 });
+    tone({ frequency: 1180 * scale, endFrequency: 940 * scale, type: 'sine', duration: 0.22, gain: 0.02, delay: 0.03 });
+  }
+
+  function chime() {
+    tone({ frequency: 880, duration: 0.45, gain: 0.05 });
+    tone({ frequency: 1318.51, duration: 0.55, gain: 0.045, delay: 0.12 });
+  }
+
+  function purr() {
+    tone({ frequency: 190, endFrequency: 150, type: 'sine', duration: 0.9, gain: 0.022 });
+  }
+
+  function renderSound() {
+    soundBtn.innerHTML = muted ? SPEAKER_OFF : SPEAKER_ON;
+    soundBtn.classList.toggle('muted', muted);
+    soundBtn.title = muted ? '开启声音' : '关闭声音';
+    soundBtn.setAttribute('aria-label', soundBtn.title);
+  }
+
+  soundBtn.addEventListener('click', event => {
+    event.stopPropagation();
+    muted = !muted;
+    try { localStorage.setItem(MUTED_KEY, muted ? '1' : '0'); } catch (error) {}
+    renderSound();
+    wake();
+    if (muted) {
+      say('已静音', 1400);
+    } else {
+      tone({ frequency: 660, endFrequency: 880, duration: 0.18, gain: 0.05 });
+      say('声音已开启', 1400);
+    }
+  });
+
+  // ── 说话 / 反馈 ─────────────────────────────────────────────────
+  function say(text, duration = 2200) {
+    speech.textContent = String(text).slice(0, 60);
+    speech.classList.add('show');
+    clearTimeout(speechTimer);
+    speechTimer = setTimeout(() => speech.classList.remove('show'), duration);
+  }
+
+  function spawnHearts(count = 3) {
+    for (let i = 0; i < count; i += 1) {
+      const heart = document.createElement('span');
+      heart.className = 'heart';
+      heart.textContent = '♥';
+      heart.style.left = (50 + (Math.random() - 0.5) * 56) + '%';
+      heart.style.bottom = (36 + Math.random() * 18) + 'px';
+      heart.style.animationDelay = (i * 70) + 'ms';
+      hearts.appendChild(heart);
+      setTimeout(() => heart.remove(), 1300 + i * 70);
+    }
+  }
+
+  function bounce() {
+    pet.classList.remove('jump');
+    void pet.offsetWidth;
+    pet.classList.add('jump');
+    clearTimeout(jumpTimer);
+    jumpTimer = setTimeout(() => pet.classList.remove('jump'), 520);
+  }
+
+  // ── 打瞌睡：45 秒无互动后睡着，点击或消息唤醒 ─────────────────────
+  function scheduleSleep() {
+    clearTimeout(sleepTimer);
+    if (sleeping) return;
+    sleepTimer = setTimeout(fallAsleep, SLEEP_AFTER);
+  }
+
+  function fallAsleep() {
+    if (sleeping) return;
+    sleeping = true;
+    pet.classList.add('sleeping');
+    say('Zzz…', 2400);
+    purr();
+    bridge.emit('pet:sleep', { at: Date.now() });
+  }
+
+  function wake() {
+    clearTimeout(sleepTimer);
+    if (sleeping) {
+      sleeping = false;
+      pet.classList.remove('sleeping');
+      bridge.emit('pet:wake', { at: Date.now() });
+    }
+    scheduleSleep();
+  }
+
+  // ── 点击互动 ─────────────────────────────────────────────────────
+  function pickMessage() {
+    say(messages[messageIndex % messages.length]);
+    messageIndex += 1;
+  }
+
+  function react() {
+    taps += 1;
+    const wasSleeping = sleeping;
+    wake();
+
+    if (wasSleeping) {
+      say(wakeMessages[wakeIndex % wakeMessages.length], 2200);
+      wakeIndex += 1;
+      spawnHearts(2);
+      meow(0.82);
+    } else {
+      pickMessage();
+      spawnHearts(2 + Math.floor(Math.random() * 3));
+      meow(0.9 + (taps % 6) * 0.05);
+    }
+
+    bounce();
+    bridge.emit('pet:tap', { count: taps, woke: wasSleeping });
+  }
+
+  pet.addEventListener('click', react);
+
+  // ── agent 消息 ───────────────────────────────────────────────────
+  function handleAgentMessage(data) {
+    const text = typeof data === 'string' ? data : (data && (data.text || data.message));
+    if (!text) return;
+    wake();
+    say(text, 3600);
+    spawnHearts(2);
+    chime();
+  }
+
+  bridge.on('agent:message', handleAgentMessage);
+  bridge.on('pet:message', handleAgentMessage);
+
+  // 窗口不可见时挂起动画；回来时重新计时，但不强行叫醒睡着的猫
+  document.addEventListener('visibilitychange', () => {
+    document.documentElement.classList.toggle('page-hidden', document.hidden);
+    if (!document.hidden && !sleeping) scheduleSleep();
+  });
+
+  renderSound();
+  setTimeout(() => {
+    if (taps === 0) say('你好呀 ✨', 1800);
+    scheduleSleep();
+  }, 500);
+  bridge.emit('pet:ready', { at: Date.now(), muted });
+</script>
+</body>
+</html>

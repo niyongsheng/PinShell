@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>目标进度</title>
+<title>B站粉丝目标</title>
+<meta name="description" content="实时读取 B 站粉丝数并显示目标进度">
+<meta name="pinshell:size" content="280x64">
+<meta name="pinshell:order" content="2">
 <link rel="stylesheet" href="design-tokens.css">
 <style>
 .card {
@@ -26,6 +29,9 @@
   gap: 12px;
 }
 .title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   letter-spacing: 0.02em;
   color: var(--ps-body-muted);
@@ -33,13 +39,35 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px; height: 16px;
+  border-radius: 5px;
+  background: #00a1d6;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+.live-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: #6e6e73;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+.live-dot.on {
+  background: #30d158;
+  box-shadow: 0 0 0 3px rgba(48, 209, 88, 0.14);
+}
+.live-dot.error { background: #ff9f0a; }
 .nums {
   font-size: 13px; font-weight: 600;
-  font-variant-numeric: tabular-nums;   /* 数字等宽，更新不抖动 */
+  font-variant-numeric: tabular-nums;
   color: var(--ps-body-on-dark);
   white-space: nowrap;
 }
-.nums .cur { color: var(--ps-primary-on-dark); }   /* 当前值点亮 */
+.nums .cur { color: var(--ps-primary-on-dark); }
 .track {
   position: relative;
   height: 6px;
@@ -52,10 +80,9 @@
   height: 100%;
   width: 0;
   border-radius: inherit;
-  background: linear-gradient(90deg, #FD3532, #FF7A1A);   /* 品牌红 → 暖橙 */
+  background: linear-gradient(90deg, #FD3532, #FF7A1A);
   transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
-/* 扫过高光：亮度流动感 */
 .fill::after {
   content: "";
   position: absolute;
@@ -73,33 +100,79 @@
 <body>
 <div class="card ps-dim-surface">
   <div class="head">
-    <span class="title" id="title">订阅目标</span>
-    <span class="nums"><span class="cur" id="cur">128</span><span id="total"> / 500</span></span>
+    <span class="title"><span class="brand">B</span>B站粉丝<span class="live-dot" id="dot"></span></span>
+    <span class="nums"><span class="cur" id="cur">--</span><span id="total"> / 100</span></span>
   </div>
   <div class="track"><div class="fill" id="fill"></div></div>
 </div>
 <script>
-// 业务数据：直播中自行更新（PinShell 不介入）
-const TARGET = { current: 128, goal: 500 };
-const titleEl = document.getElementById("title");
-const curEl = document.getElementById("cur");
-const totalEl = document.getElementById("total");
-const fillEl = document.getElementById("fill");
+// ── 配置：把 uid 换成你的 B 站 UID，goal 换成目标粉丝数 ─────────────
+const CONFIG = {
+  uid: 241980240,   // 倪永胜（可用 B 站个人空间的 UID）
+  goal: 100,        // 目标粉丝数
+  refreshMs: 60000, // 每分钟刷新一次（通过 pinshell.fetch 原生代理）
+};
+// ────────────────────────────────────────────────────────────────────
+
+const bridge = window.pinshell || { on() {}, emit() {} };
+const curEl = document.getElementById('cur');
+const totalEl = document.getElementById('total');
+const fillEl = document.getElementById('fill');
+const dotEl = document.getElementById('dot');
+
+let current = 52;   // 最近一次已知值；加载后会被实时数据覆盖
+
 function render() {
-  curEl.textContent = TARGET.current;
-  totalEl.textContent = " / " + TARGET.goal;
-  fillEl.style.width = Math.min(100, (TARGET.current / TARGET.goal) * 100) + "%";
+  curEl.textContent = current.toLocaleString('zh-CN');
+  totalEl.textContent = ' / ' + CONFIG.goal.toLocaleString('zh-CN');
+  fillEl.style.width = Math.min(100, (current / Math.max(1, CONFIG.goal)) * 100) + '%';
 }
-render();
-// 演示节奏：进度持续推进（业务接入时删除本段）
-let demo = TARGET.current;
-setInterval(() => {
-  if (document.hidden) return;   // 遮挡/后台时停止唤醒
-  demo += 7;
-  if (demo > TARGET.goal) demo = 20;
-  TARGET.current = demo;
+
+function setLive(on, error = false) {
+  dotEl.classList.toggle('on', on);
+  dotEl.classList.toggle('error', !on && error);
+}
+
+function update(followers) {
+  const value = Number(followers);
+  if (!Number.isFinite(value) || value < 0) return;
+  current = value;
   render();
-}, 4000);
+  setLive(true);
+}
+
+// B 站接口要求 Referer；HTML 不能自定义 Referer，交给原生 pinshell.fetch 代理
+async function fetchFollowers() {
+  if (!window.pinshell || typeof window.pinshell.fetch !== 'function') {
+    setLive(false);
+    return;
+  }
+  try {
+    const text = await window.pinshell.fetch(
+      `https://api.bilibili.com/x/relation/stat?vmid=${encodeURIComponent(CONFIG.uid)}`,
+      { headers: { Referer: 'https://www.bilibili.com/' } }
+    );
+    const data = JSON.parse(text);
+    if (data && data.code === 0 && data.data) {
+      update(data.data.follower);
+    } else {
+      setLive(false, true);
+    }
+  } catch (error) {
+    setLive(false, true);
+  }
+}
+
+// 也允许 agent / CLI 直接推送：PinShell emit bilibili:stats '{"followers":123}'
+bridge.on('bilibili:stats', data => {
+  if (data && (data.followers || data.follower)) {
+    update(data.followers ?? data.follower);
+  }
+});
+
+render();
+fetchFollowers();
+setInterval(fetchFollowers, CONFIG.refreshMs);
 </script>
 </body>
 </html>

@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>待办事项</title>
+<meta name="description" content="可新增、勾选和清理的浮动待办清单">
+<meta name="pinshell:size" content="300x360">
+<meta name="pinshell:radius" content="20">
+<meta name="pinshell:order" content="6">
+<link rel="stylesheet" href="design-tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  /* 画布 reset 由 design-tokens.css 提供，这里只补充模板特有项 */
+  body {
+    color: #f5f5f7;
+    user-select: none;
+  }
+  .panel {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; gap: 12px;
+    padding: 16px;
+    background: rgba(28, 28, 30, 0.86);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 20px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
+    overflow: hidden;
+  }
+  header { display: flex; align-items: flex-start; justify-content: space-between; }
+  .title { font-size: 16px; font-weight: 650; letter-spacing: -0.2px; }
+  .date { margin-top: 2px; font-size: 10.5px; color: rgba(255, 255, 255, 0.45); }
+  .count {
+    min-width: 34px; padding: 3px 9px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 600; text-align: center;
+    color: #2997ff; background: rgba(41, 151, 255, 0.13);
+  }
+  .progress-track {
+    height: 4px; border-radius: 999px; overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .progress-bar {
+    height: 100%; width: 0%; border-radius: inherit;
+    background: linear-gradient(90deg, #2997ff, #64d2ff);
+    transition: width 0.28s cubic-bezier(.2,.8,.2,1);
+  }
+  .add-row { display: flex; gap: 8px; }
+  .add-row input {
+    flex: 1; min-width: 0; height: 34px; padding: 0 12px;
+    border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.10);
+    background: rgba(255, 255, 255, 0.06);
+    color: #f5f5f7; font: inherit; font-size: 12.5px; outline: none;
+  }
+  .add-row input::placeholder { color: rgba(255, 255, 255, 0.32); }
+  .add-row input:focus { border-color: rgba(41, 151, 255, 0.7); background: rgba(41, 151, 255, 0.08); }
+  .add-row button {
+    width: 34px; height: 34px; flex: none;
+    border: 0; border-radius: 10px;
+    background: linear-gradient(180deg, #3aa0ff, #0077e6);
+    color: #fff; font-size: 20px; font-weight: 400; line-height: 1;
+    cursor: pointer; transition: transform 0.12s ease, filter 0.12s ease;
+  }
+  .add-row button:hover { filter: brightness(1.08); }
+  .add-row button:active { transform: scale(0.94); }
+  ul {
+    flex: 1; margin: 0; padding: 0 2px 0 0; list-style: none;
+    overflow-y: auto; scrollbar-width: none;
+  }
+  ul::-webkit-scrollbar { display: none; }
+  li {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 6px 9px 2px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+    animation: itemIn 0.22s cubic-bezier(.2,.8,.2,1) both;
+  }
+  li:last-child { border-bottom: 0; }
+  @keyframes itemIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .check {
+    width: 18px; height: 18px; flex: none; border-radius: 50%;
+    border: 1.6px solid rgba(255, 255, 255, 0.28);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.16s ease;
+  }
+  .check:hover { border-color: #2997ff; }
+  .check svg { width: 10px; height: 10px; opacity: 0; transform: scale(0.6); transition: all 0.16s ease; }
+  li.done .check { background: #2997ff; border-color: #2997ff; }
+  li.done .check svg { opacity: 1; transform: scale(1); }
+  .text {
+    flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.35;
+    color: #f5f5f7; transition: color 0.16s ease, opacity 0.16s ease;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  li.done .text { color: rgba(255, 255, 255, 0.35); text-decoration: line-through; }
+  .remove {
+    width: 20px; height: 20px; flex: none; border: 0; border-radius: 6px;
+    background: transparent; color: rgba(255, 255, 255, 0.28);
+    font-size: 15px; line-height: 1; cursor: pointer;
+    opacity: 0; transition: opacity 0.16s ease, background 0.16s ease, color 0.16s ease;
+  }
+  li:hover .remove { opacity: 1; }
+  .remove:hover { background: rgba(255, 69, 58, 0.18); color: #ff6961; }
+  .empty {
+    padding: 22px 0; text-align: center; font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.32);
+  }
+  footer {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 10.5px; color: rgba(255, 255, 255, 0.42);
+  }
+  .clear {
+    border: 0; padding: 4px 8px; border-radius: 7px; cursor: pointer;
+    background: transparent; color: rgba(255, 255, 255, 0.45);
+    font: inherit; font-size: 10.5px;
+    transition: background 0.16s ease, color 0.16s ease;
+  }
+  .clear:hover { background: rgba(255, 255, 255, 0.08); color: #f5f5f7; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <header>
+    <div>
+      <div class="title">待办事项</div>
+      <div class="date" id="date"></div>
+    </div>
+    <div class="count" id="count">0/0</div>
+  </header>
+
+  <div class="progress-track"><div class="progress-bar" id="progress"></div></div>
+
+  <div class="add-row">
+    <input id="newTodo" maxlength="80" placeholder="添加待办，回车确认" autocomplete="off">
+    <button id="addBtn" aria-label="添加">+</button>
+  </div>
+
+  <ul id="list"></ul>
+
+  <footer>
+    <span id="summary">还没有待办</span>
+    <button class="clear" id="clearBtn">清除已完成</button>
+  </footer>
+</div>
+
+<script>
+  const bridge = window.pinshell || { emit() {}, log() {} };
+  const storageKey = 'pinshell.todo.v1';
+  const seed = [
+    { id: 1, text: '回复邮件', done: true },
+    { id: 2, text: '整理今天的会议记录', done: false },
+    { id: 3, text: '喝水，起来活动一下', done: false },
+  ];
+
+  let items = load();
+  let nextId = items.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+
+  const listEl = document.getElementById('list');
+  const inputEl = document.getElementById('newTodo');
+  const countEl = document.getElementById('count');
+  const summaryEl = document.getElementById('summary');
+  const progressEl = document.getElementById('progress');
+  const dateEl = document.getElementById('date');
+
+  dateEl.textContent = new Date().toLocaleDateString('zh-CN', {
+    month: 'long', day: 'numeric', weekday: 'short'
+  });
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {}
+    return seed.map(item => ({ ...item }));
+  }
+
+  function save() {
+    try { localStorage.setItem(storageKey, JSON.stringify(items)); } catch (e) {}
+    const done = items.filter(item => item.done).length;
+    bridge.emit('todo:changed', { total: items.length, done });
+  }
+
+  function render() {
+    listEl.textContent = '';
+
+    if (items.length === 0) {
+      const empty = document.createElement('li');
+      empty.className = 'empty';
+      empty.textContent = '今天还没有待办，享受当下 ✨';
+      listEl.appendChild(empty);
+    }
+
+    for (const item of items) {
+      const li = document.createElement('li');
+      li.className = item.done ? 'done' : '';
+      li.dataset.id = String(item.id);
+
+      const check = document.createElement('div');
+      check.className = 'check';
+      check.innerHTML = '<svg viewBox="0 0 12 12" fill="none"><path d="M2.2 6.2 4.8 8.8 9.8 3.4" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      check.addEventListener('click', () => toggle(item.id));
+
+      const text = document.createElement('div');
+      text.className = 'text';
+      text.textContent = item.text;
+
+      const remove = document.createElement('button');
+      remove.className = 'remove';
+      remove.textContent = '×';
+      remove.setAttribute('aria-label', '删除');
+      remove.addEventListener('click', () => removeItem(item.id));
+
+      li.append(check, text, remove);
+      listEl.appendChild(li);
+    }
+
+    const done = items.filter(item => item.done).length;
+    const total = items.length;
+    countEl.textContent = `${done}/${total}`;
+    summaryEl.textContent = total === 0
+      ? '还没有待办'
+      : (done === total ? '全部完成，太棒了' : `还有 ${total - done} 项待办`);
+    progressEl.style.width = total === 0 ? '0%' : `${Math.round(done / total * 100)}%`;
+    save();
+  }
+
+  function add() {
+    const text = inputEl.value.trim();
+    if (!text) return;
+    items.push({ id: nextId++, text, done: false });
+    inputEl.value = '';
+    render();
+    listEl.scrollTop = listEl.scrollHeight;
+  }
+
+  function toggle(id) {
+    const item = items.find(entry => entry.id === id);
+    if (!item) return;
+    item.done = !item.done;
+    render();
+  }
+
+  function removeItem(id) {
+    items = items.filter(entry => entry.id !== id);
+    render();
+  }
+
+  document.getElementById('addBtn').addEventListener('click', add);
+  inputEl.addEventListener('keydown', event => {
+    if (event.key === 'Enter') add();
+  });
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    items = items.filter(item => !item.done);
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>

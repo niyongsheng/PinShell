@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>角标水印</title>
+<title>时间水印</title>
+<meta name="description" content="低对比度常驻实时时间水印">
+<meta name="pinshell:size" content="200x56">
+<meta name="pinshell:order" content="5">
 <link rel="stylesheet" href="design-tokens.css">
 <style>
 .wm {
@@ -11,7 +14,7 @@
   right: 8px; bottom: 8px;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   height: 36px;
   padding: 0 14px;
   background: #141416;
@@ -21,35 +24,30 @@
   white-space: nowrap;
   overflow: hidden;
 }
-/* 品牌红点（logo #FD3532） */
-.dot {
-  width: 6px; height: 6px;
-  border-radius: 9999px;
-  background: #FD3532;
+.clock {
+  width: 12px; height: 12px;
+  flex: none;
+  stroke: rgba(255, 255, 255, 0.55);
+  fill: none;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .time {
-  font-size: 13px; font-weight: 600;
+  font-size: 14px; font-weight: 600;
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;   /* 等宽数字，秒跳动不抖动 */
   color: #FFFFFF;
 }
-.sep {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.35);
+.divider {
+  width: 1px; height: 12px;
+  flex: none;
+  background: rgba(255, 255, 255, 0.14);
 }
 .date {
-  font-size: 11px;
+  font-size: 10.5px;
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.65);
-}
-.name {
-  font-size: 11px; font-weight: 600;
-  letter-spacing: -0.12px;
-  color: rgba(255, 255, 255, 0.85);
-}
-.handle {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(255, 255, 255, 0.55);
 }
 /* 穿透模式（PinShell 给 <html> 加 passthrough class）：只淡背景，文字保持实 —— 全权由 HTML 控制。
    透明度数值来自菜单滑块（--ps-passthrough-opacity，token 默认值见 design-tokens.css）。
@@ -62,24 +60,23 @@ html.passthrough .wm {
 </head>
 <body>
 <div class="wm ps-float">
-  <span class="dot"></span>
+  <svg class="clock" viewBox="0 0 16 16" aria-hidden="true">
+    <circle cx="8" cy="8" r="6.2"/>
+    <path d="M8 4.4V8l2.5 1.5"/>
+  </svg>
   <span class="time" id="time">--:--:--</span>
-  <span class="sep">·</span>
+  <span class="divider"></span>
   <span class="date" id="date">--</span>
-  <span class="sep">·</span>
-  <span class="name">PinShell</span>
-  <span class="sep">·</span>
-  <span class="handle">@niyongsheng</span>
 </div>
 <script>
-// 实时时钟：每秒刷新（时间信息由业务 HTML 自己维护，PinShell 不介入）
+// 实时时钟：每秒刷新
 const timeEl = document.getElementById("time");
 const dateEl = document.getElementById("date");
 const pad = n => String(n).padStart(2, "0");
 function tick() {
   const d = new Date();
   timeEl.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-  dateEl.textContent = `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  dateEl.textContent = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 tick();
 setInterval(tick, 1000);
