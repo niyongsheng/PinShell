@@ -1,11 +1,11 @@
 import AppKit
+import Darwin
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    /// CLI 传入的 HTML（本进程宿主模式）
-    var pendingFile: URL?
-
     private var statusItemController: StatusItemController!
     private var windowController: OverlayWindowController!
+    private var controlServer: ControlServer?
+    private var controlHost: ControlHost?
     /// openFiles 事件可能早于 applicationDidFinishLaunching 到达，先缓冲（只取第一个）
     private var queuedFile: String?
 
@@ -13,13 +13,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = AppState.registerDefaults   // 默认值注册（穿透透明度等）
         windowController = OverlayWindowController()
         statusItemController = StatusItemController(windowController: windowController)
+
+        // 单实例锁 = 控制 socket。第二个实例激活已有 App 后退出。
+        let server = ControlServer()
+        if server.start() {
+            controlServer = server
+            controlHost = ControlHost(windowController: windowController, server: server)
+        } else {
+            activateOtherInstance()
+            NSApp.terminate(nil)
+            return
+        }
+
         statusItemController.scheduleAutomaticUpdateCheck()   // 启动 5s 后静默检查更新（24h 节流）
 
-        // 加载优先级：openFiles 队列 > CLI 参数 > 上次打开路径 > 内置占位页
+        // 加载优先级：openFiles 队列 > 上次打开路径 > 内置占位页
         let queued = queuedFile.map(URL.init(fileURLWithPath:))
         queuedFile = nil
         let target = queued
-            ?? pendingFile
             ?? AppState.lastHTMLURL
             ?? Bundle.main.url(forResource: "Placeholder", withExtension: "html")
 
@@ -27,11 +38,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController.showWindow()
     }
 
-    // MARK: - 文件打开事件（CLI / open -a 路由到这里）
+    func applicationWillTerminate(_ notification: Notification) {
+        controlServer?.stop()
+    }
+
+    // MARK: - 文件打开事件（open -a / Finder 路由到这里）
 
     func application(_ sender: NSApplication, openFiles filenames: [String]) {
         if let wc = windowController {
-            if let first = filenames.first { wc.loadHTML(URL(fileURLWithPath: first)) }
+            if let first = filenames.first {
+                wc.setWatching(false)   // Finder/open -a 等同于不带 --watch 的 show
+                wc.loadHTML(URL(fileURLWithPath: first))
+            }
         } else {
             queuedFile = filenames.first
         }
@@ -42,4 +60,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         false   // 菜单栏常驻应用，无主窗口
     }
 
+    // MARK: - 单实例
+
+    private func activateOtherInstance() {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+        NSWorkspace.shared.runningApplications
+            .first { $0.bundleIdentifier == bundleID && $0.processIdentifier != getpid() }?
+            .activate(options: [])
+    }
 }
