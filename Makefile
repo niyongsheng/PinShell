@@ -2,6 +2,7 @@
 APP_NAME  := PinShell
 CONFIG    := release
 APP       := build/$(APP_NAME).app
+PKG       := build/$(APP_NAME).pkg
 
 # ARCH: native（默认）或 universal（arm64 + x86_64）
 ARCH      ?= native
@@ -14,7 +15,7 @@ endif
 # 产物路径动态定位（universal 时位于 .build/apple/Products/Release）
 BIN_PATH := $(shell swift build -c $(CONFIG) $(SWIFT_ARCH) --show-bin-path)
 
-.PHONY: build app icon menubar-icon run install universal clean
+.PHONY: build app icon menubar-icon run install pkg universal clean
 
 build: ## 编译 release 二进制
 	swift build -c $(CONFIG) $(SWIFT_ARCH)
@@ -49,6 +50,19 @@ install: app ## 安装到 /Applications 并启动
 	rm -rf "/Applications/$(APP_NAME).app"
 	cp -R "$(APP)" "/Applications/"
 	open "/Applications/$(APP_NAME).app"
+
+# 不依赖 app：CI 里 tag 构建可能已用 ARCH=universal 生成，避免被重建成 native
+pkg: ## 组装 .pkg 安装包（需先 make app 或 make universal）
+	@test -d "$(APP)" || { echo "error: $(APP) 不存在，请先执行 make app"; exit 1; }
+	rm -rf build/pkg-scripts
+	mkdir -p build/pkg-scripts
+	cp scripts/pkg-postinstall build/pkg-scripts/postinstall
+	chmod +x build/pkg-scripts/postinstall
+	VERSION=$$(plutil -extract CFBundleShortVersionString raw Resources/Info.plist); \
+	pkgbuild --component "$(APP)" --install-location /Applications \
+		--identifier com.pinshell.app.pkg --version "$$VERSION" \
+		--scripts build/pkg-scripts "$(PKG)"
+	@echo "PKG: $(PKG)"
 
 universal: ## 双架构构建（Apple Silicon + Intel）
 	$(MAKE) app ARCH=universal

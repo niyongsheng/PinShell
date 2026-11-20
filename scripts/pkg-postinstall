@@ -1,0 +1,26 @@
+#!/bin/bash
+# PinShell.pkg postinstall
+#
+# 目的：解决未公证（ad-hoc 签名）应用被 Gatekeeper 拦截的问题。
+# Installer 安装后再清除隔离标记，首次启动时不会再触发
+# "无法打开，因为无法验证开发者" 的提示。
+#
+# 注意：本脚本由 Installer 以 root 执行，必须始终 exit 0，
+# 否则安装会被判定失败（即使清理动作本身出错）。
+set -u
+
+APP="/Applications/PinShell.app"
+XATTR="/usr/bin/xattr"
+CHOWN="/usr/sbin/chown"
+
+# 清除应用包及其内容的 com.apple.quarantine
+if [ -d "$APP" ] && [ -x "$XATTR" ]; then
+    "$XATTR" -dr com.apple.quarantine "$APP" 2>/dev/null || true
+fi
+
+# 修正归属，避免 CI runner 的 uid/gid 被保留进 /Applications
+if [ -d "$APP" ] && [ -x "$CHOWN" ]; then
+    "$CHOWN" -R root:wheel "$APP" 2>/dev/null || true
+fi
+
+exit 0

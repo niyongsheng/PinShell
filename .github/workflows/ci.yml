@@ -13,6 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Run tests
+        run: swift test
+
       # 打 tag 时把版本写进 Info.plist，make app 组装 bundle 时一并生效
       - name: Set version from tag
         if: startsWith(github.ref, 'refs/tags/v')
@@ -44,6 +47,12 @@ jobs:
       - name: Package ZIP
         run: zip -ry "PinShell.zip" "build/PinShell.app"
 
+      # postinstall 会清除 /Applications/PinShell.app 的 com.apple.quarantine
+      - name: Package PKG
+        run: |
+          make pkg
+          pkgutil --payload-files build/PinShell.pkg
+
       - name: Upload app (artifact)
         uses: actions/upload-artifact@v4
         with:
@@ -62,6 +71,12 @@ jobs:
           name: PinShell.zip
           path: PinShell.zip
 
+      - name: Upload PKG (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PinShell.pkg
+          path: build/PinShell.pkg
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
@@ -70,6 +85,11 @@ jobs:
       contents: write
 
     steps:
+      # 生成 What's Changed 需要完整 tag 历史
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v4
         with:
           name: PinShell.dmg
@@ -80,18 +100,62 @@ jobs:
           name: PinShell.zip
           path: release-artifacts
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: PinShell.pkg
+          path: release-artifacts
+
       - name: Get version from tag
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
-      - name: Rename artifacts to versioned names
+      - name: Prepare release assets
         run: |
           cd release-artifacts
-          mv PinShell.dmg "PinShell-${{ steps.version.outputs.VERSION }}.dmg"
-          mv PinShell.zip "PinShell-${{ steps.version.outputs.VERSION }}.zip"
+          VERSION="${{ steps.version.outputs.VERSION }}"
+
+          mv PinShell.dmg "PinShell-${VERSION}.dmg"
+          mv PinShell.zip "PinShell-${VERSION}.zip"
+          mv PinShell.pkg "PinShell-${VERSION}-mac-universal.pkg"
+          # 稳定文件名，便于 README / 官网永远指向最新安装包：
+          # https://github.com/niyongsheng/PinShell/releases/latest/download/PinShell.pkg
+          cp "PinShell-${VERSION}-mac-universal.pkg" PinShell.pkg
+
+          ls -lh
+
+      - name: Compose release body
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          VERSION="${TAG#v}"
+          BASE="https://github.com/${REPO}/releases/download/${TAG}"
+          PREV_TAG=$(git describe --tags --abbrev=0 --exclude "$TAG" HEAD 2>/dev/null || true)
+          {
+            echo "## Download"
+            echo
+            echo "| Platform | Installer |"
+            echo "| --- | --- |"
+            echo "| macOS 13+ (Apple Silicon & Intel) | [PinShell-${VERSION}-mac-universal.pkg](${BASE}/PinShell-${VERSION}-mac-universal.pkg) |"
+            echo
+            echo "> **Gatekeeper:** if macOS blocks the downloaded package, run \`xattr -dr com.apple.quarantine ~/Downloads/PinShell-*.pkg\` before opening it. The installer clears the quarantine flag from the app automatically."
+            if [ -n "$PREV_TAG" ]; then
+              CHANGES=$(git log --no-merges --reverse --format='- %s (%h)' "${PREV_TAG}..HEAD" | grep -E '^- (feat|fix|perf)(\(|:)' || true)
+              echo
+              echo "## What's Changed"
+              echo
+              if [ -n "$CHANGES" ]; then
+                echo "$CHANGES"
+                echo
+              fi
+              echo "**Full Changelog**: https://github.com/${REPO}/compare/${PREV_TAG}...${TAG}"
+            fi
+          } > release-body.md
+          cat release-body.md
 
       - name: GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: ${{ github.ref_name }}
+          body_path: release-body.md
           files: release-artifacts/*
-          generate_release_notes: true
