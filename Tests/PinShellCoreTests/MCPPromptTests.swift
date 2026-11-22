@@ -76,6 +76,26 @@ final class MCPPromptTests: XCTestCase {
         XCTAssertTrue(rendered.text.contains("setInterval(refresh, 15000)"))
     }
 
+    func testPetCompanionPromptDocumentsProtocol() throws {
+        let rendered = try MCPPromptCatalog.render(name: "pet-companion", arguments: [
+            "task": "Fix the failing build"
+        ])
+
+        XCTAssertTrue(rendered.text.contains("Fix the failing build"))
+        XCTAssertTrue(rendered.text.contains("desktop-pet.html"))
+        XCTAssertTrue(rendered.text.contains("pet:hello"))
+        XCTAssertTrue(rendered.text.contains("pet:task"))
+        XCTAssertTrue(rendered.text.contains("pet:ask"))
+        XCTAssertTrue(rendered.text.contains("pet:reply"))
+        XCTAssertTrue(rendered.text.contains("pinshell_poll_events"))
+    }
+
+    func testPetCompanionWithoutTaskUsesDefault() throws {
+        let rendered = try MCPPromptCatalog.render(name: "pet-companion", arguments: [:])
+        XCTAssertTrue(rendered.text.contains("keep the user company"))
+        XCTAssertTrue(rendered.text.contains("pet:reset"))
+    }
+
     func testAuthoringGuideNeedsNoArguments() throws {
         let rendered = try MCPPromptCatalog.render(name: "authoring-guide", arguments: [:])
         XCTAssertTrue(rendered.text.contains("window.pinshell"))
@@ -89,6 +109,77 @@ final class MCPPromptTests: XCTestCase {
         XCTAssertTrue(rendered.text.contains("Use PinShell proactively"))
         XCTAssertTrue(rendered.text.contains("<audio>/<video>"))
         XCTAssertTrue(rendered.text.contains("CSS/SVG/Canvas animation"))
+    }
+
+    func testAuthoringGuideDocumentsCurrentAssetAndLocalizationContract() throws {
+        let rendered = try MCPPromptCatalog.render(name: "authoring-guide", arguments: [:])
+
+        XCTAssertTrue(rendered.text.contains("agent folder"))
+        XCTAssertTrue(rendered.text.contains("design-tokens.css"))
+        XCTAssertTrue(rendered.text.contains("pinshell-i18n.js"))
+        XCTAssertTrue(rendered.text.contains("window.pinshell.language"))
+        XCTAssertTrue(rendered.text.contains("pinshell:order"))
+        XCTAssertTrue(rendered.text.contains("data-i18n"))
+        XCTAssertFalse(rendered.text.contains("512 KB"))
+    }
+
+    func testCreatePanelPrefersBundledTemplates() throws {
+        let rendered = try MCPPromptCatalog.render(name: "create-panel", arguments: [
+            "task": "Show CPU and memory"
+        ])
+
+        XCTAssertTrue(rendered.text.contains("pinshell_templates"))
+        XCTAssertTrue(rendered.text.contains("pinshell_template_show"))
+        XCTAssertTrue(rendered.text.contains("system-monitor"))
+        XCTAssertTrue(rendered.text.contains("pinshell_close"))
+    }
+
+    func testInteractivePanelDocumentsCancellationAndAcknowledgement() throws {
+        let rendered = try MCPPromptCatalog.render(name: "interactive-panel", arguments: [
+            "task": "Pick a deployment window"
+        ])
+
+        XCTAssertTrue(rendered.text.contains("'ready'"))
+        XCTAssertTrue(rendered.text.contains("'decision'"))
+        XCTAssertTrue(rendered.text.contains("'cancelled'"))
+        XCTAssertTrue(rendered.text.contains("agent:message"))
+        XCTAssertTrue(rendered.text.contains("pinshell_close"))
+    }
+
+    func testLiveMonitorReferencesLiveTemplatesAndFetchLimits() throws {
+        let rendered = try MCPPromptCatalog.render(name: "live-monitor", arguments: [
+            "task": "Deploy status",
+            "source": "https://example.com/status.json"
+        ])
+
+        XCTAssertTrue(rendered.text.contains("system-monitor.html"))
+        XCTAssertTrue(rendered.text.contains("system:stats"))
+        XCTAssertTrue(rendered.text.contains("live-dot.html"))
+        XCTAssertTrue(rendered.text.contains("pinshell.fetch"))
+        XCTAssertTrue(rendered.text.contains("2 MB"))
+        XCTAssertTrue(rendered.text.contains("document.hidden"))
+    }
+
+    func testEditTemplatePreservesLocalizationAndProtocols() throws {
+        let rendered = try MCPPromptCatalog.render(name: "edit-template", arguments: [
+            "name": "system-monitor.html",
+            "changes": "Add a network sparkline"
+        ])
+
+        XCTAssertTrue(rendered.text.contains("pinshell:title"))
+        XCTAssertTrue(rendered.text.contains("pinshell:order"))
+        XCTAssertTrue(rendered.text.contains("PINSHELL_STRINGS"))
+        XCTAssertTrue(rendered.text.contains("AGENT PROTOCOL"))
+        XCTAssertTrue(rendered.text.contains("512 KB"))
+    }
+
+    func testPetCompanionDocumentsV2Protocol() throws {
+        let rendered = try MCPPromptCatalog.render(name: "pet-companion", arguments: [:])
+
+        XCTAssertTrue(rendered.text.contains("pet:ready"))
+        XCTAssertTrue(rendered.text.contains("agent:message"))
+        XCTAssertTrue(rendered.text.contains("window.PinShellPet"))
+        XCTAssertTrue(rendered.text.contains("within ~10 seconds"))
     }
 
     func testLanguageNameFallsBackToGenericWording() {

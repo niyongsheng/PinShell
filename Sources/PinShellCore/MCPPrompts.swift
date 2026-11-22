@@ -74,47 +74,112 @@ public enum MCPPromptCatalog {
     public static var interactionGuide: String {
         """
         User interaction:
-        - Reply to the user in \(userLanguageName), the operating system language, and write every panel label, message, and error in it. Switch when the user writes in another language or asks.
-        - Use PinShell proactively when a visual, interactive, or live response is clearer than text (progress, status, choices, confirmations, alerts); show the panel without asking first. Keep it small, dismiss it when done, and never duplicate chat text.
+        - Reply to the user in \(userLanguageName), the operating system language, and switch when the user writes in another language or asks. On-screen copy should follow window.pinshell.templateLanguage, then window.pinshell.languages, then window.pinshell.language (all BCP-47); if unavailable, use the same language as your reply.
+        - Use PinShell proactively when a visual, interactive, or live response is clearer than text (progress, status, choices, confirmations, alerts); show the panel without asking first. Reuse a bundled template when it fits, keep the panel small, dismiss it when done, and never duplicate chat text.
         - Rich media is welcome: inline SVG or https images, CSS/SVG/Canvas animation, emoji, short <audio>/<video> clips, and synthesized sound. Keep it light; make sound brief, quiet, and non-repeating; never block first paint.
+        - Accessibility: use real buttons and controls, show a visible keyboard focus state, and honor prefers-reduced-motion for animation and sound-driven flourishes.
         """
     }
 
     /// HTML 作者契约；所有面板类 prompt 共用，避免各处描述漂移。
     public static var authoringGuide: String {
     """
-    PinShell shows local HTML in a transparent, always-on-top macOS overlay. \
-    The page has no browser chrome and lives at a fixed window size.
+    PinShell shows local HTML in a transparent, always-on-top macOS overlay with no browser \
+    chrome, at a fixed window size. Two delivery targets:
+    - pinshell_html writes a complete document into PinShell's agent folder and shows it.
+      Only that folder is readable: inline CSS/JS and use data: URLs for assets.
+      design-tokens.css and pinshell-i18n.js are NOT available there.
+    - Templates live in PinShell's templates folder, where design-tokens.css and
+      pinshell-i18n.js are bundled next to every template. Use pinshell_template_write and
+      pinshell_template_show for reusable panels, localized copy, and anything worth keeping.
 
     Window metadata (put in <head>):
       <title>Panel title</title>
       <meta name="description" content="What this panel shows">
+      <script type="application/json" id="pinshell:i18n">
+      {
+        "default": "en",
+        "fallback": "en",
+        "languages": {
+          "en": {
+            "meta": { "name": "Panel title", "description": "What this panel shows" },
+            "ui": { "key": "English text" }
+          }
+        }
+      }
+      </script>
       <meta name="pinshell:size" content="320x120">
       <meta name="pinshell:position" content="bottom-right">
       <meta name="pinshell:passthrough" content="false">
       <meta name="pinshell:opacity" content="0.92">
       <meta name="pinshell:radius" content="18">
+      <meta name="pinshell:order" content="10">
     Position accepts top-left|top|top-right|left|center|right|bottom-left|bottom|bottom-right, or "x,y".
+    Order is the template library sort key; lower values sort first.
+
+    Localization (for templates worth keeping):
+      Put one JSON block in <head> (see above). Schema:
+        default: the inline/default language.
+        fallback: language used for missing keys (usually en).
+        languages.<tag>.meta.name/description: template library metadata.
+        languages.<tag>.ui: page copy. The default language's UI stays inline;
+        non-default ui is merged over fallback, then inline copy.
+      The app chooses a language from: selected template language → system preferences →
+      fallback. window.pinshell.templateLanguage is the selected tag;
+      window.pinshell.languages is the ordered preference list.
+      Load <script src="pinshell-i18n.js"></script> after the block.
+      Static copy: data-i18n="key"; attributes: data-i18n-placeholder|title|aria-label="key".
+      Dynamic: PS.t('key', 'default copy', { name: value }); arrays: PS.list('key', [ … ]);
+      raw data: PS.get('key', fallback); formatting locale: PS.locale.
+      Non-default ui must cover every data-i18n / PS.t / PS.list / PS.get key.
+      Legacy <meta name="pinshell:title" lang="en"> + window.PINSHELL_STRINGS still works,
+      but prefer the JSON block. Append ?lang=en to preview a language in a browser.
+      Agent-folder pages cannot load the helper: inline dictionaries and use
+      window.pinshell.languages / navigator.languages.
 
     Base CSS:
       html, body { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; }
       body { font: 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; color: #fff; user-select: none; }
     Floating content needs its own background, padding, and rounded corners; the window itself is transparent.
+    In templates, link design-tokens.css and reuse its --ps-* tokens instead of copying colors or radii.
 
     JS bridge (window.pinshell):
+      version                     bridge version
+      language                    current app language (BCP-47)
+      languages                   ordered template language preferences
+      templateLanguage            language selected for this template, or null
       setSize(w, h) / setPosition('bottom-right' | x, y) / setPassthrough(bool) / setOpacity(0..1) / setRadius(px)
-      emit(name, data)             page -> agent, read with pinshell_poll_events
-      on(name, callback)           agent -> page, sent with pinshell_emit; callback receives data
-      log(...)                     forwarded to the agent as a log event
-      await fetch(url, {headers})  https only, GET, 15 s timeout, 2 MB cap
+      emit(name, data)            page -> agent, read with pinshell_poll_events
+      on(name, callback)          agent -> page, sent with pinshell_emit; callback receives data
+      log(...)                    forwarded to the agent as a log event
+      await fetch(url, {headers}) https-only GET, 15 s timeout, 2 MB cap, up to 20 headers
+    Limits: bridge messages ≤ 64 KB; emitted names are truncated to 256 chars; log text to 4096 chars.
 
     Delivery rules:
+    - Call pinshell_templates first and reuse a bundled template when it fits;
+      pinshell_template_show accepts a file name or title and applies the template's metadata.
     - pinshell_html writes a complete document, shows it, and waits for load by default.
-    - pinshell_eval updates the live DOM; prefer it over reloading for small updates.
-    - pinshell_emit dispatches events into the page; pinshell_poll_events long-polls up to 10 s for page events.
-    - Keep the panel compact and readable at its declared size, avoid layout shift, and respect prefers-reduced-motion.
+    - pinshell_eval updates the live DOM and returns the JSON result; prefer it over reloading.
+    - pinshell_emit dispatches events into the page; pinshell_poll_events long-polls up to 10 s.
+    - Close the panel with pinshell_close when the task is done and the user no longer needs it.
+    - Keep the panel compact and readable at its declared size, avoid layout shift, and respect
+      prefers-reduced-motion.
 
     \(interactionGuide)
+    """
+    }
+
+    /// 内置模板与事件协议清单；供需要“先复用再新建”的 prompt 共用。
+    public static var templateLibraryGuide: String {
+    """
+    Bundled templates (list with pinshell_templates; prefer reusing one over new HTML):
+      badge-carousel, goal-progress (in: bilibili:stats), live-dot (obs:status),
+      social-rail, watermark, decision-maker, todo (out: todo:changed),
+      system-monitor (in: system:stats), desktop-pet (pet:* both ways),
+      pomodoro (in: pomodoro:command; out: pomodoro:changed/complete/skip).
+      pinshell_template_show accepts a file name or title and applies the template's metadata.
+      pinshell_template_read returns the HTML, including any AGENT PROTOCOL or data-protocol
+      comment — read it before pushing events.
     """
     }
 
@@ -126,13 +191,19 @@ public enum MCPPromptCatalog {
         progress, status, comparisons, choices, confirmations, alerts — show a compact panel \
         without asking first; prefer buttons + pinshell_poll_events over typed questions. \
         Keep panels small, close them when done, and never repeat what chat already says. \
-        pinshell_html renders HTML; pinshell_eval updates the live DOM; \
-        pinshell_emit and pinshell_poll_events exchange events. \
-        Window hints: <meta name="pinshell:size|position|passthrough|opacity|radius">. \
+        Call pinshell_templates first and reuse a bundled template when it fits; read its \
+        protocol comment before pushing events. pinshell_html renders HTML in an isolated \
+        agent folder (inline its assets); pinshell_eval updates the live DOM; pinshell_emit and \
+        pinshell_poll_events exchange events. \
+        Window hints: <meta name="pinshell:size|position|passthrough|opacity|radius|order">. \
+        Templates support pinshell:title/subtitle lang variants and pinshell-i18n.js; \
+        window.pinshell.language is the app language. \
         window.pinshell: setSize, setPosition, setPassthrough, setOpacity, setRadius, \
         emit, on, log, and an https-only fetch. \
-        Reply in \(userLanguageName) (the OS language) and write on-screen \
-        copy in it; panels may use images, animation, sound, and video.
+        The bundled desktop pet can be driven with pet:* events; use the pet-companion \
+        prompt to connect it to your work. \
+        Reply in \(userLanguageName) (the OS language) and write on-screen copy in the app \
+        language; panels may use images, animation, sound, and video.
         """
     }
 
@@ -140,7 +211,7 @@ public enum MCPPromptCatalog {
         MCPPromptDefinition(
             name: "create-panel",
             title: "Create a panel",
-            description: "Author a complete PinShell overlay panel and display it.",
+            description: "Author a PinShell overlay panel, reusing a bundled template when it fits, and display it.",
             arguments: [
                 MCPPromptArgument(name: "task",
                                   description: "What the panel should show or do."),
@@ -167,7 +238,7 @@ public enum MCPPromptCatalog {
         MCPPromptDefinition(
             name: "live-monitor",
             title: "Create a live monitor",
-            description: "Build a panel that refreshes from an https endpoint or agent-pushed updates.",
+            description: "Build a panel that refreshes from an https endpoint or agent-pushed updates, reusing live templates when they fit.",
             arguments: [
                 MCPPromptArgument(name: "task",
                                   description: "What metric or state the panel should display."),
@@ -180,9 +251,19 @@ public enum MCPPromptCatalog {
             ]
         ),
         MCPPromptDefinition(
+            name: "pet-companion",
+            title: "Desktop pet companion",
+            description: "Show the desktop pet and keep it in sync with your work through pet:* events.",
+            arguments: [
+                MCPPromptArgument(name: "task",
+                                  description: "What you are working on, shown by the pet.",
+                                  required: false)
+            ]
+        ),
+        MCPPromptDefinition(
             name: "edit-template",
             title: "Edit a template",
-            description: "Read, modify, and write a PinShell template while preserving its metadata.",
+            description: "Read, modify, and write a PinShell template while preserving metadata, localization, and agent protocols.",
             arguments: [
                 MCPPromptArgument(name: "name",
                                   description: "Template file name, e.g. todo.html."),
@@ -193,7 +274,7 @@ public enum MCPPromptCatalog {
         MCPPromptDefinition(
             name: "authoring-guide",
             title: "HTML authoring guide",
-            description: "The full PinShell HTML, window metadata, JS bridge, and user-interaction contract.",
+            description: "The full PinShell HTML, window metadata, localization, JS bridge, and user-interaction contract.",
             arguments: []
         )
     ]
@@ -214,6 +295,8 @@ public enum MCPPromptCatalog {
             text = try interactivePanel(arguments)
         case "live-monitor":
             text = try liveMonitor(arguments)
+        case "pet-companion":
+            text = try petCompanion(arguments)
         case "edit-template":
             text = try editTemplate(arguments)
         case "authoring-guide":
@@ -241,16 +324,23 @@ public enum MCPPromptCatalog {
 
         \(authoringGuide)
 
+        \(templateLibraryGuide)
+
         Workflow:
-        1. Write one complete HTML document.
-        2. Call pinshell_html with html and wait: true; pass size/position only when they should override the hints above.
-        3. Reply with one line describing what is on screen. If the panel expects a response, call pinshell_poll_events with timeout_ms 10000 and handle the returned events.
+        1. Call pinshell_templates. If a bundled template already covers the task, call
+           pinshell_template_show with its file name and pass size/position only to override the
+           hints; do not rewrite it. Otherwise write one complete HTML document.
+        2. Call pinshell_html with html and wait: true; pass size/position only when they should
+           override the hints above.
+        3. Reply with one line describing what is on screen. If the panel expects a response,
+           call pinshell_poll_events with timeout_ms 10000 and handle the returned events.
+           Close it with pinshell_close when the user is done.
         """
     }
 
     private static func interactivePanel(_ arguments: [String: String]) throws -> String {
         let task = try required("task", prompt: "interactive-panel", in: arguments)
-        let options = trimmed(arguments["options"]) ?? "design labels that fit the task"
+        let options = trimmed(arguments["options"]) ?? "none supplied - design 2-4 clear options that fit the task"
         return """
         Build a PinShell overlay panel that collects a decision or short input from the user and reports it back to you.
 
@@ -262,19 +352,20 @@ public enum MCPPromptCatalog {
         \(authoringGuide)
 
         Interaction rules:
-        - Render real buttons or clickable cards; make them keyboard-accessible and show a visible focus state.
-        - On activation, call pinshell.emit('decision', { id, label, value }) exactly once, then switch to a submitted state and disable further submission.
-        - After load, call pinshell.emit('ready', { at: Date.now() }) so the agent knows the UI is live.
-        - Acknowledge from the agent side with pinshell_emit('agent:message', {...}) or update the DOM with pinshell_eval; do not reload the page for small changes.
+        - Render real buttons or clickable cards; make them keyboard-accessible and show a visible focus state. Prefer choices over typing; trim and cap free-text input.
+        - After load, call window.pinshell.emit('ready', { at: Date.now(), choices: [...] }) so the agent knows the UI is live.
+        - On activation, call window.pinshell.emit('decision', { id, label, value }) exactly once, then switch to a submitted state and disable further submission.
+        - Provide a cancel path: call window.pinshell.emit('cancelled', { at: Date.now() }) and leave the panel visible until the agent closes it.
+        - Listen with window.pinshell.on('agent:message', ...) for acknowledgements. Acknowledge from the agent side with pinshell_emit('agent:message', {...}) or update the DOM with pinshell_eval; do not reload the page for small changes.
 
-        Workflow: call pinshell_html with the complete document and wait: true, then call pinshell_poll_events with timeout_ms 10000 and keep polling while waiting for 'ready' or 'decision'. Act on the event and reply to the user.
+        Workflow: call pinshell_html with the complete document and wait: true, then call pinshell_poll_events with timeout_ms 10000 and keep polling while waiting for ready, decision, or cancelled. Act on the event, reply to the user, update the panel with pinshell_eval or pinshell_emit('agent:message', {...}), and close it with pinshell_close once the decision is handled and the user no longer needs it.
         """
     }
 
     private static func liveMonitor(_ arguments: [String: String]) throws -> String {
         let task = try required("task", prompt: "live-monitor", in: arguments)
         let source = trimmed(arguments["source"])
-            ?? "none specified - use data the agent pushes with pinshell_eval"
+            ?? "none specified - render a calm static shell and push updates with pinshell_eval"
         let seconds = clampedInterval(arguments["interval"])
         let milliseconds = seconds * 1000
         return """
@@ -289,12 +380,68 @@ public enum MCPPromptCatalog {
         \(authoringGuide)
 
         Implementation rules:
-        - For an https endpoint, refresh inside the page with setInterval(refresh, \(milliseconds)). Call await pinshell.fetch(url, {headers}) and parse the response; keep the last good value visible while a refresh is in flight.
-        - On fetch failure, show a small, non-blocking error state and retry on the next tick. Never clear the panel because one request failed.
-        - If the agent supplies the data, render a static shell and push updates with pinshell_eval; do not reload the page.
+        - Reuse a live template when it fits instead of building from scratch:
+          system-monitor.html (system:stats), live-dot.html (obs:status), or
+          goal-progress.html (bilibili:stats). Show it with pinshell_template_show and push
+          updates with pinshell_emit; read its data-protocol comment first with pinshell_template_read.
+        - For an https endpoint, refresh inside the page with setInterval(refresh, \(milliseconds)).
+          Call await pinshell.fetch(url, {headers}) and parse the response. It supports GET only,
+          https only, a 15 s timeout, a 2 MB cap, and up to 20 headers.
+        - Keep the last good value visible while a refresh is in flight. On failure, show a small,
+          non-blocking error state and retry on the next tick; never clear the panel for one failure.
+        - If the agent supplies the data, render a static shell and push updates with pinshell_eval;
+          do not reload the page. If the template exposes an event protocol, prefer pinshell_emit.
         - Render meaningful content immediately; do not block first paint on network I/O.
+        - Slow or pause polling while the page is hidden (document.hidden) and resume on visibility.
 
-        Workflow: call pinshell_html with the complete document, then confirm what is visible. For agent-pushed updates, keep the panel open and call pinshell_eval as data arrives.
+        Workflow: call pinshell_html with the complete document (or pinshell_template_show for a
+        bundled template), then confirm what is visible. For agent-pushed updates, keep the panel
+        open and update it as data arrives; close it when the user asks or the task ends.
+        """
+    }
+
+    private static func petCompanion(_ arguments: [String: String]) throws -> String {
+        let task = trimmed(arguments["task"]) ?? "keep the user company while you work"
+        return """
+        Use PinShell's desktop pet as a live companion for this task.
+
+        Task:
+        \(task)
+
+        Setup:
+        1. Call pinshell_template_show with name "desktop-pet.html" and wait: true.
+           If it is missing, ask the user to restore built-ins from the console toolbar;
+           do not recreate the pet unless asked.
+        2. Announce yourself: pinshell_emit { event: "pet:hello", data: { name: "<your name>" } }.
+        3. Read the template's AGENT PROTOCOL comment with pinshell_template_read when you need the full contract.
+
+        Agent → page (pinshell_emit):
+        - pet:say { text, mood?, tone?, duration? } — one short line (under ~40 characters); tone: calm|happy|excited|worried|thinking; mood: idle|happy|thinking|working|excited|sleepy|worried|alert.
+        - pet:mood { mood, holdMs? } — body language before, during, and after work.
+        - pet:task { label, progress?, status? } — status: running|done|failed|waiting; progress 0..1; done and failed auto-dismiss.
+        - pet:animate { name } — jump|spin|shake|dance|wave|nod|dizzy.
+        - pet:celebrate { text? } / pet:alert { text?, level? } — outcome feedback; keep the detail in chat.
+        - pet:reply { requestId, text, mood? } — answer pet:ask.
+        - pet:reset — clear the task, mood, and pending question.
+        - agent:message { text } — legacy alias for pet:say.
+        - window.PinShellPet exposes say/mood/animate/task/celebrate/alert/reset/state for pinshell_eval.
+
+        Page → agent (pinshell_poll_events):
+        - pet:ready { version, mood, muted, affection, moods[], features[] } — the pet is live.
+        - pet:tap { area, count, mood, affection }, pet:pet { affection, mood }, pet:ask { requestId, text, mood }, pet:sleep { at }, pet:wake { at }.
+
+        Etiquette:
+        - Keep it ambient: at most one update every ~10 seconds, and never repeat what chat already says.
+        - Use the pet for mood and status; use a normal panel for anything longer than one line.
+        - While the pet is visible and the user is waiting on you, call pinshell_poll_events with timeout_ms 10000 between steps. Answer pet:ask in the same turn, echoing requestId within ~10 seconds.
+        - The pet works without an agent. Never make the task's success depend on it, and never block on a reply.
+
+        Workflow:
+        1. Show the pet and emit pet:hello; wait for pet:ready when you need its features or state.
+        2. Before long work, emit pet:mood "thinking"; for multi-step jobs, emit pet:task with progress updates.
+        3. On success, pet:celebrate with a short line; on failure, pet:alert and keep the detail in chat.
+        4. While waiting for the user, poll for pet:ask and pet:tap and react briefly.
+        5. When done, emit pet:mood "happy" plus pet:say, or pet:reset if the pet should rest.
         """
     }
 
@@ -309,10 +456,23 @@ public enum MCPPromptCatalog {
         \(changes)
 
         Steps:
-        1. Call pinshell_template_read with name "\(name)". If it does not exist, call pinshell_templates first and choose the closest file.
-        2. Modify the complete HTML document. Preserve its <meta name="pinshell:*"> values, <title>, and <meta name="description"> unless the change explicitly overrides them. Preserve asset references (for example design-tokens.css) and the established visual style.
-        3. Call pinshell_template_write with the full document. Writes are limited to flat .html/.htm files inside PinShell's templates folder.
-        4. The console refreshes automatically and a currently shown template reloads in place. Confirm the file you wrote and what changed.
+        1. Call pinshell_template_read with name "\(name)". If it does not exist, call
+           pinshell_templates first and choose the closest file.
+        2. Modify the complete HTML document. Preserve unless the change explicitly overrides:
+           - <title>, <meta name="description">, and every <meta name="pinshell:*"> value,
+             including size/position/passthrough/opacity/radius/order;
+           - <html lang> and the pinshell:title/pinshell:subtitle variants for other languages;
+           - design-tokens.css and pinshell-i18n.js references, PINSHELL_STRINGS dictionaries,
+             and data-i18n keys;
+           - the established visual style and asset references;
+           - AGENT PROTOCOL / data-protocol comments and event names (pet:*, system:stats,
+             obs:status, bilibili:stats, pomodoro:command). Update them when the protocol changes.
+        3. When adding UI copy, update the inline default text and the non-default language
+           dictionaries together so translations do not drift.
+        4. Call pinshell_template_write with the full document. Writes are limited to flat
+           .html/.htm files inside PinShell's templates folder, up to 512 KB.
+        5. The console refreshes automatically and a currently shown template reloads in place.
+           Confirm the file you wrote and what changed.
 
         If the change adds interactivity or live updates, follow this contract:
         \(authoringGuide)
@@ -321,11 +481,16 @@ public enum MCPPromptCatalog {
 
     private static func authoringGuidePrompt() -> String {
         """
-        Use this contract when writing HTML for PinShell.
+        Use this contract when authoring HTML for PinShell.
 
         \(authoringGuide)
 
-        Workflow: show a document with pinshell_html, update it with pinshell_eval, send events into it with pinshell_emit, and receive page events with pinshell_poll_events. Save reusable panels with pinshell_template_write.
+        \(templateLibraryGuide)
+
+        Workflow: check pinshell_templates first; show a document with pinshell_html (or a
+        template with pinshell_template_show), update it with pinshell_eval, send events into it
+        with pinshell_emit, and receive page events with pinshell_poll_events. Save reusable
+        panels with pinshell_template_write, and close panels with pinshell_close when done.
         """
     }
 
