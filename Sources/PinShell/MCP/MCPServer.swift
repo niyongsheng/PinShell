@@ -175,9 +175,7 @@ final class MCPServer {
     }
 
     private func write(_ object: [String: Any]) {
-        guard JSONSerialization.isValidJSONObject(object),
-              let data = try? JSONSerialization.data(withJSONObject: object),
-              let json = String(data: data, encoding: .utf8) else { return }
+        let json = ControlWire.jsonText(JSONValue(any: object))
         FileHandle.standardOutput.write(Data((json + "\n").utf8))
     }
 }

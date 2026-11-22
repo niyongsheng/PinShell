@@ -65,9 +65,9 @@ final class ControlServer {
     }
 
     func broadcast(_ event: ControlEvent) {
-        guard let data = try? ControlWire.encodeLine(event) else { return }
         queue.async { [weak self] in
-            guard let self else { return }
+            guard let self, !self.clients.isEmpty,
+                  let data = try? ControlWire.encodeLine(event) else { return }
             for connection in self.clients.values {
                 connection.send(eventData: data)
             }
