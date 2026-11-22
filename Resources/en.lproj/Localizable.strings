@@ -13,8 +13,9 @@
 
 /* 更新检查 */
 "update.availableTitle" = "PinShell v%@ is available";
-"update.availableMessage" = "A new version (v%@) of PinShell is available. See the release page for details.";
-"update.download" = "Go to Download";
+"update.availableMessage" = "A new version (v%@) of PinShell is available. You can download and install it now.";
+"update.download" = "Download & Install";
+"update.installHint" = "The system Installer will open after the download. Reopen PinShell once installation finishes.";
 "update.later" = "Later";
 "update.skip" = "Skip This Version";
 "update.upToDate" = "You're up to date";
@@ -22,6 +23,22 @@
 "update.checkFailed" = "Update Check Failed";
 "update.checkFailedMessage" = "%@";
 "update.httpError" = "HTTP %@";
+
+/* 更新下载 */
+"update.windowTitle" = "Software Update";
+"update.downloadingTitle" = "Downloading PinShell v%@";
+"update.cancel" = "Cancel";
+"update.cancelling" = "Cancelling…";
+"update.verifying" = "Verifying installer…";
+"update.openingInstaller" = "Opening Installer…";
+"update.installFailed" = "Update Download Failed";
+"update.retry" = "Retry";
+"update.openReleasePage" = "Open Release Page";
+"update.packageUnavailableTitle" = "No Installer in This Release";
+"update.packageUnavailable" = "This release does not provide an automatic installer. Download it manually from the release page.";
+"update.sizeMismatch" = "Installer size mismatch (expected %@, got %@).";
+"update.checksumMismatch" = "Installer verification failed. Try again or download it manually from the release page.";
+"update.openInstallerFailed" = "Could not open the system Installer.";
 
 /* 控制台 */
 "console.title" = "PinShell Console";

@@ -13,8 +13,9 @@
 
 /* 更新检查 */
 "update.availableTitle" = "发现新版本 v%@";
-"update.availableMessage" = "PinShell 有新版本 v%@ 可用，详情见发布页。";
-"update.download" = "去下载";
+"update.availableMessage" = "PinShell 有新版本 v%@ 可用，可立即下载安装包。";
+"update.download" = "下载并安装";
+"update.installHint" = "下载完成后会打开系统安装器；安装完成后请重新打开 PinShell。";
 "update.later" = "稍后提醒";
 "update.skip" = "跳过此版本";
 "update.upToDate" = "已是最新版本";
@@ -22,6 +23,22 @@
 "update.checkFailed" = "检查更新失败";
 "update.checkFailedMessage" = "%@";
 "update.httpError" = "HTTP %@";
+
+/* 更新下载 */
+"update.windowTitle" = "软件更新";
+"update.downloadingTitle" = "正在下载 PinShell v%@";
+"update.cancel" = "取消";
+"update.cancelling" = "正在取消…";
+"update.verifying" = "正在校验安装包…";
+"update.openingInstaller" = "正在打开安装器…";
+"update.installFailed" = "更新下载失败";
+"update.retry" = "重试";
+"update.openReleasePage" = "打开发布页";
+"update.packageUnavailableTitle" = "该版本未提供自动安装包";
+"update.packageUnavailable" = "请前往发布页手动下载安装。";
+"update.sizeMismatch" = "安装包大小不匹配（期望 %@，实际 %@）。";
+"update.checksumMismatch" = "安装包校验失败，请重试或前往发布页手动下载。";
+"update.openInstallerFailed" = "无法打开系统安装器。";
 
 /* 控制台 */
 "console.title" = "PinShell 控制台";

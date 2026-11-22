@@ -10,6 +10,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private lazy var consoleController = ConsoleController(windowController: windowController)
     private var windowStateItem: NSMenuItem!
     private var visibilityItem: NSMenuItem!
+    /// 下载安装包时惰性创建（只在主线程使用）
+    private var updateInstaller: UpdateInstaller?
+    private var installTask: Task<Void, Never>?
 
     init(windowController: OverlayWindowController) {
         self.windowController = windowController
@@ -160,7 +163,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     private func performCheck(automatic: Bool) {
-        guard !isChecking else { return }   // 已有检查在进行，忽略重复触发
+        // 已有检查在进行或正在下载安装包，忽略重复触发
+        guard !isChecking, installTask == nil else { return }
         isChecking = true
         Task { @MainActor in
             let result = await UpdateChecker.check()
@@ -190,15 +194,66 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private func showUpdateAlert(_ release: UpdateChecker.ReleaseInfo) {
         let alert = NSAlert()
         alert.messageText = String(format: NSLocalizedString("update.availableTitle", comment: ""), release.versionLabel)
-        alert.informativeText = release.excerpt()
+        alert.informativeText = release.excerpt() + "\n\n" + NSLocalizedString("update.installHint", comment: "")
         alert.addButton(withTitle: NSLocalizedString("update.download", comment: ""))
         alert.addButton(withTitle: NSLocalizedString("update.later", comment: ""))
         alert.addButton(withTitle: NSLocalizedString("update.skip", comment: ""))
         let response = alert.runAppModal()
         if response == .alertFirstButtonReturn {
-            NSWorkspace.shared.open(release.htmlURL ?? UpdateChecker.releasesPageURL)
+            if release.pkgAsset != nil {
+                startInstall(release)
+            } else {
+                // 旧版本发布没有 pkg，退化为打开发布页手动下载
+                showMessageAlert(title: NSLocalizedString("update.packageUnavailableTitle", comment: ""),
+                                 message: NSLocalizedString("update.packageUnavailable", comment: ""))
+                NSWorkspace.shared.open(release.htmlURL ?? UpdateChecker.releasesPageURL)
+            }
         } else if response == .alertThirdButtonReturn {
             AppState.skippedVersion = release.versionLabel   // 该版本不再提醒
+        }
+    }
+
+    // MARK: - 下载安装包
+
+    private func startInstall(_ release: UpdateChecker.ReleaseInfo) {
+        guard installTask == nil else { return }
+        installTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            let installer = self.updateInstaller ?? UpdateInstaller()
+            self.updateInstaller = installer
+
+            let result: Result<Void, Error>
+            do {
+                try await installer.install(release)
+                result = .success(())
+            } catch {
+                result = .failure(error)
+            }
+
+            // 先清空任务，错误弹窗里的「重试」才能再次进入
+            self.installTask = nil
+            if case .failure(let error) = result, !(error is CancellationError) {
+                self.showInstallError(error, release: release)
+            }
+        }
+    }
+
+    private func showInstallError(_ error: Error, release: UpdateChecker.ReleaseInfo) {
+        let alert = NSAlert()
+        alert.messageText = NSLocalizedString("update.installFailed", comment: "")
+        alert.informativeText = error.localizedDescription
+        alert.addButton(withTitle: NSLocalizedString("update.retry", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("update.openReleasePage", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("update.cancel", comment: ""))
+
+        switch alert.runAppModal() {
+        case .alertFirstButtonReturn:
+            startInstall(release)
+        case .alertSecondButtonReturn:
+            NSWorkspace.shared.open(release.htmlURL ?? UpdateChecker.releasesPageURL)
+        default:
+            break
         }
     }
 

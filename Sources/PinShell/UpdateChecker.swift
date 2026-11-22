@@ -1,7 +1,8 @@
 import Foundation
+import PinShellCore
 
 /// 从 GitHub Releases 检查新版本（无第三方依赖，纯 URLSession）。
-/// 仅做检测与提示，不做自动下载/安装（应用为 ad-hoc 签名）。
+/// 检测与提示、下载安装包交给 UpdateInstaller；不做原地替换（应用为 ad-hoc 签名）。
 enum UpdateChecker {
     /// 与 git remote 对应的仓库
     static let repo = "niyongsheng/PinShell"
@@ -23,36 +24,12 @@ enum UpdateChecker {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
     }
 
+    typealias ReleaseInfo = UpdateRelease
+
     enum Result {
         case upToDate
         case updateAvailable(ReleaseInfo)
         case failed(String)
-    }
-
-    struct ReleaseInfo: Decodable {
-        let tagName: String
-        let name: String?
-        let body: String?
-        let htmlURL: URL?
-
-        /// 去掉 tag 的 "v" 前缀，用于展示与"跳过此版本"比对
-        var versionLabel: String { UpdateChecker.stripVPrefix(tagName) }
-
-        /// 展示用摘要：name 优先，body 截断到 limit；都没有则用兜底文案
-        func excerpt(limit: Int = 500) -> String {
-            if let name, !name.isEmpty { return name }
-            guard let body else {
-                return String(format: NSLocalizedString("update.availableMessage", comment: ""), versionLabel)
-            }
-            let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.count > limit ? String(trimmed.prefix(limit)) + "…" : trimmed
-        }
-
-        enum CodingKeys: String, CodingKey {
-            case tagName = "tag_name"
-            case name, body
-            case htmlURL = "html_url"
-        }
     }
 
     /// 完整检查：拉取最新 release，与当前版本及用户跳过的版本比较。
@@ -71,7 +48,7 @@ enum UpdateChecker {
             }
             let release = try JSONDecoder().decode(ReleaseInfo.self, from: data)
             let latest = release.versionLabel
-            if compare(latest, currentVersion) != .orderedDescending {
+            if VersionNumber.compare(latest, currentVersion) != .orderedDescending {
                 return .upToDate
             }
             if latest == AppState.skippedVersion {
@@ -82,26 +59,15 @@ enum UpdateChecker {
             return .failed(error.localizedDescription)
         }
     }
+}
 
-    /// 版本号比较："1.2.3" → [1,2,3]，非数字段按 0 处理（如 "1.0.0-beta1" → [1,0,0]），缺位补 0
-    static func compare(_ a: String, _ b: String) -> ComparisonResult {
-        let pa = parse(a), pb = parse(b)
-        for i in 0..<max(pa.count, pb.count) {
-            let x = pa.count > i ? pa[i] : 0
-            let y = pb.count > i ? pb[i] : 0
-            if x != y { return x < y ? .orderedAscending : .orderedDescending }
+extension UpdateRelease {
+    /// 展示用摘要：优先 release body，其次 name；截断到 limit，都没有则用兜底文案。
+    func excerpt(limit: Int = 500) -> String {
+        let text = (body ?? name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            return String(format: NSLocalizedString("update.availableMessage", comment: ""), versionLabel)
         }
-        return .orderedSame
-    }
-
-    /// 去掉前导 v/V 前缀（tag "v1.2.3" → "1.2.3"）
-    private static func stripVPrefix(_ s: String) -> String {
-        String(s.drop(while: { $0 == "v" || $0 == "V" }))
-    }
-
-    private static func parse(_ version: String) -> [Int] {
-        stripVPrefix(version)
-            .split(separator: ".")
-            .map { Int($0.prefix(while: \.isNumber)) ?? 0 }
+        return text.count > limit ? String(text.prefix(limit)) + "…" : text
     }
 }

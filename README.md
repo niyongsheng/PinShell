@@ -17,7 +17,7 @@
 - MCP server and CLI share one control socket; pages can push events back to the agent.
 - Control console (⌘K): templates, live preview, template editor, MCP info, About.
 - Ten starter templates: badges, goals, LIVE dot, todo, system monitor, desktop pet, pomodoro, watermark, social rail, decision maker.
-- Menu-bar only, no Dock icon; update check against GitHub Releases.
+- Menu-bar only, no Dock icon; update check against GitHub Releases, with in-app installer download (SHA-256 verified) handed off to the system Installer.
 
 ## Install
 
@@ -51,7 +51,7 @@ Launch PinShell, then use the menu-bar icon:
 | Window Position ▸ | ⌘0 | Place the overlay in a screen corner (⌘0 = bottom-right) |
 | Window State: Interactive / Passthrough | ⌘T | Toggle click-through |
 | Show Window | ⌘H | Toggle the overlay (checked = shown) |
-| Check for Updates… | ⌘U | Check GitHub Releases |
+| Check for Updates… | ⌘U | Check GitHub Releases; download and install updates |
 | Quit PinShell | ⌘Q | Quit |
 
 Click and type inside the overlay; hold **⌘** and drag to move it; resize from the bottom-right grip (min 80×40). Passthrough sends mouse events to the app below.
