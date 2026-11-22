@@ -3,12 +3,13 @@ import PinShellCore
 
 /// 状态栏菜单（spec 2.4）：程序唯一入口，无主应用窗口。
 /// 保持 macOS 原生样式：logo 生成的 template 图标 + 原生 NSMenu。
-final class StatusItemController: NSObject {
+final class StatusItemController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let windowController: OverlayWindowController
     /// 首次打开控制台时才构建（避免启动即建第二个 WKWebView + 扫描模板目录）
     private lazy var consoleController = ConsoleController(windowController: windowController)
     private var windowStateItem: NSMenuItem!
+    private var visibilityItem: NSMenuItem!
 
     init(windowController: OverlayWindowController) {
         self.windowController = windowController
@@ -70,6 +71,13 @@ final class StatusItemController: NSObject {
         menu.addItem(windowStateItem)
         updateWindowStateItem(windowStateItem)
 
+        // 窗口显隐：开关项（勾选 = 显示），紧跟在窗口状态下方
+        visibilityItem = NSMenuItem(title: NSLocalizedString("menu.showWindow", comment: ""),
+                                    action: #selector(toggleVisibility(_:)), keyEquivalent: "h")
+        visibilityItem.target = self
+        menu.addItem(visibilityItem)
+        updateVisibilityItem()
+
         menu.addItem(.separator())
 
         // 应用：更新检查 / 退出
@@ -83,7 +91,13 @@ final class StatusItemController: NSObject {
         quit.target = self
         menu.addItem(quit)
 
+        menu.delegate = self
         statusItem.menu = menu
+    }
+
+    /// 每次展开菜单时兜底刷新显隐开关（外部路径直接 orderOut 时也能保持一致）
+    func menuWillOpen(_ menu: NSMenu) {
+        updateVisibilityItem()
     }
 
     private func updateWindowStateItem(_ item: NSMenuItem) {
@@ -92,11 +106,23 @@ final class StatusItemController: NSObject {
             : NSLocalizedString("menu.windowState.interactive", comment: "")
     }
 
+    private func updateVisibilityItem() {
+        guard let item = visibilityItem else { return }
+        let visible = windowController.isWindowVisible
+        item.state = visible ? .on : .off
+        item.isEnabled = visible || windowController.currentURL != nil
+    }
+
     @objc private func openConsole(_ sender: Any?) {
         consoleController.show()
     }
     @objc private func passthroughChanged(_ notification: Notification) {
         updateWindowStateItem(windowStateItem)   // 控制台开关联动菜单项
+    }
+
+    @objc private func toggleVisibility(_ sender: Any?) {
+        windowController.toggleVisibility()
+        updateVisibilityItem()
     }
 
     @objc private func togglePassthrough(_ sender: NSMenuItem) {
