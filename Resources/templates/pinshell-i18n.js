@@ -159,14 +159,20 @@
   var defaultParts = parts(defaultLanguage);
   var isDefault = !!(chosenParts && defaultParts && compatible(chosenParts, defaultParts));
 
+  // JSON block entries keep copy under `ui`; legacy PINSHELL_STRINGS
+  // dictionaries are flat and have no `meta`/`ui` wrapper.
+  function entryDictionary(entry) {
+    if (!entry) { return {}; }
+    if (entry.ui) { return entry.ui; }
+    return data ? {} : entry;
+  }
+
   var dictionary = {};
   if (!isDefault) {
     var fallbackKey = pickFromList([fallbackLanguage], available) || fallbackLanguage;
-    var fallbackEntry = languages[fallbackKey] || {};
-    Object.assign(dictionary, fallbackEntry.ui || {});
+    Object.assign(dictionary, entryDictionary(languages[fallbackKey]));
   }
-  var chosenEntry = languages[chosen] || {};
-  Object.assign(dictionary, chosenEntry.ui || {});
+  Object.assign(dictionary, entryDictionary(languages[chosen]));
 
   function get(key, fallbackValue) {
     var value = dictionary[key];
