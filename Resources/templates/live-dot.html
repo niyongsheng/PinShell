@@ -1,8 +1,33 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-Hans">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script type="application/json" id="pinshell:i18n">
+{
+  "default": "zh-Hans",
+  "fallback": "en",
+  "languages": {
+    "zh-Hans": {
+      "meta": {
+        "name": "LIVE 状态点",
+        "description": "通过 OBS WebSocket 实时监听直播推流状态"
+      }
+    },
+    "en": {
+      "meta": {
+        "name": "LIVE Status Dot",
+        "description": "Live streaming status via OBS WebSocket"
+      },
+      "ui": {
+        "needsPassword": "OBS password",
+        "authFailed": "Auth failed",
+        "offline": "OBS offline"
+      }
+    }
+  }
+}
+</script>
 <title>LIVE 状态点</title>
 <meta name="description" content="通过 OBS WebSocket 实时监听直播推流状态">
 <meta name="pinshell:size" content="120x48">
@@ -57,6 +82,9 @@
   <span class="dot"></span>
   <span class="label" id="label">OBS…</span>
 </div>
+
+<script src="pinshell-i18n.js"></script>
+<script>window.PS = window.PS || { lang: 'zh-Hans', locale: 'zh-Hans', languages: [], get: function (k, f) { return f; }, t: function (k, f) { return f; }, list: function (k, f) { return f || []; }, apply: function () {} };</script>
 <script>
 // ── OBS WebSocket 配置（OBS 28+ 自带 WebSocket 服务）────────────────
 // OBS → 工具 → WebSocket 服务器设置：确认已启用，默认端口 4455。
@@ -121,7 +149,7 @@ async function identify(hello) {
   const auth = hello && hello.authentication;
   if (auth) {
     if (!CONFIG.password) {
-      setState('error', 'OBS 需密码');
+      setState('error', PS.t('needsPassword', 'OBS 需密码'));
       socket.close();
       return;
     }
@@ -129,7 +157,7 @@ async function identify(hello) {
       const secret = await sha256Base64(CONFIG.password + auth.salt);
       payload.authentication = await sha256Base64(secret + auth.challenge);
     } catch (error) {
-      setState('error', 'OBS 认证失败');
+      setState('error', PS.t('authFailed', 'OBS 认证失败'));
       socket.close();
       return;
     }
@@ -149,7 +177,7 @@ function connect() {
   try {
     socket = new WebSocket(CONFIG.url);
   } catch (error) {
-    setState('error', 'OBS 离线');
+    setState('error', PS.t('offline', 'OBS 离线'));
     scheduleRetry();
     return;
   }
@@ -187,7 +215,7 @@ function connect() {
   };
 
   socket.onerror = function () {
-    setState('error', 'OBS 离线');
+    setState('error', PS.t('offline', 'OBS 离线'));
   };
 
   socket.onclose = function () {
@@ -195,7 +223,7 @@ function connect() {
     clearInterval(pollTimer);
     pollTimer = null;
     socket = null;
-    if (!externalOverride) setState('error', 'OBS 离线');
+    if (!externalOverride) setState('error', PS.t('offline', 'OBS 离线'));
     scheduleRetry();
   };
 }

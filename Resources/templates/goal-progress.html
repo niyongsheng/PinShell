@@ -1,8 +1,31 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-Hans">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script type="application/json" id="pinshell:i18n">
+{
+  "default": "zh-Hans",
+  "fallback": "en",
+  "languages": {
+    "zh-Hans": {
+      "meta": {
+        "name": "B站粉丝目标",
+        "description": "实时读取 B 站粉丝数并显示目标进度"
+      }
+    },
+    "en": {
+      "meta": {
+        "name": "Bilibili Followers",
+        "description": "Live Bilibili follower count with goal progress"
+      },
+      "ui": {
+        "title": "Bilibili followers"
+      }
+    }
+  }
+}
+</script>
 <title>B站粉丝目标</title>
 <meta name="description" content="实时读取 B 站粉丝数并显示目标进度">
 <meta name="pinshell:size" content="280x64">
@@ -100,11 +123,14 @@
 <body>
 <div class="card ps-dim-surface">
   <div class="head">
-    <span class="title"><span class="brand">B</span>B站粉丝<span class="live-dot" id="dot"></span></span>
+    <span class="title"><span class="brand">B</span><span data-i18n="title">B站粉丝</span><span class="live-dot" id="dot"></span></span>
     <span class="nums"><span class="cur" id="cur">--</span><span id="total"> / 100</span></span>
   </div>
   <div class="track"><div class="fill" id="fill"></div></div>
 </div>
+
+<script src="pinshell-i18n.js"></script>
+<script>window.PS = window.PS || { lang: 'zh-Hans', locale: 'zh-Hans', languages: [], get: function (k, f) { return f; }, t: function (k, f) { return f; }, list: function (k, f) { return f || []; }, apply: function () {} };</script>
 <script>
 // ── 配置：把 uid 换成你的 B 站 UID，goal 换成目标粉丝数 ─────────────
 const CONFIG = {
@@ -123,8 +149,9 @@ const dotEl = document.getElementById('dot');
 let current = 52;   // 最近一次已知值；加载后会被实时数据覆盖
 
 function render() {
-  curEl.textContent = current.toLocaleString('zh-CN');
-  totalEl.textContent = ' / ' + CONFIG.goal.toLocaleString('zh-CN');
+  const locale = PS.locale;
+  curEl.textContent = current.toLocaleString(locale);
+  totalEl.textContent = ' / ' + CONFIG.goal.toLocaleString(locale);
   fillEl.style.width = Math.min(100, (current / Math.max(1, CONFIG.goal)) * 100) + '%';
 }
 
