@@ -18,7 +18,8 @@ final class ConsoleDetailViewController: NSViewController {
     private let contentContainer = NSView()
     private let templatePage = NSView()
     private let emptyPage = NSView()
-    private let mcpView = ConsoleMCPView()
+    /// MCP 页在首次打开时才构建，避免打开控制台就创建整套卡片。
+    private var mcpView: ConsoleMCPView?
     private let aboutView = ConsoleAboutView()
 
     private let previewWebView = WKWebView(frame: .zero)
@@ -77,7 +78,7 @@ final class ConsoleDetailViewController: NSViewController {
 
         buildTemplatePage()
         buildEmptyPage()
-        for page in [templatePage, emptyPage, mcpView, aboutView] {
+        for page in [templatePage, emptyPage, aboutView] {
             page.translatesAutoresizingMaskIntoConstraints = false
             contentContainer.addSubview(page)
             NSLayoutConstraint.activate([
@@ -88,7 +89,6 @@ final class ConsoleDetailViewController: NSViewController {
             ])
         }
         emptyPage.isHidden = true
-        mcpView.isHidden = true
         aboutView.isHidden = true
     }
 
@@ -191,7 +191,7 @@ final class ConsoleDetailViewController: NSViewController {
             ]
         )
 
-        let actions = NSStackView(views: [applyButton, NSView(), deleteButton])
+        let actions = NSStackView(views: [applyButton, deleteButton, NSView()])
         actions.orientation = .horizontal
         actions.spacing = 8
         actions.alignment = .centerY
@@ -264,10 +264,26 @@ final class ConsoleDetailViewController: NSViewController {
     }
 
     private func show(_ page: Page) {
+        if page == .mcp { ensureMCPView() }
         templatePage.isHidden = page != .template
         emptyPage.isHidden = page != .empty
-        mcpView.isHidden = page != .mcp
+        mcpView?.isHidden = page != .mcp
         aboutView.isHidden = page != .about
+    }
+
+    private func ensureMCPView() {
+        guard mcpView == nil else { return }
+        let view = ConsoleMCPView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        contentContainer.addSubview(view)
+        NSLayoutConstraint.activate([
+            view.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
+            view.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+            view.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            view.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
+        ])
+        view.isHidden = true
+        mcpView = view
     }
 
     func showTemplate(_ item: TemplateItem) {
@@ -305,7 +321,7 @@ final class ConsoleDetailViewController: NSViewController {
     func showMCP() {
         currentTemplate = nil
         show(.mcp)
-        mcpView.refresh()
+        mcpView?.refresh()
     }
 
     func showAbout() {

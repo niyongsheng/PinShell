@@ -249,6 +249,8 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
             }
 
             guard let self else { return .success(()) }
+            // 已直接刷新侧栏与预览；标记为直接变更，跳过目录轮询触发的重复刷新。
+            self.lastDirectTemplatesChange = Date()
             self.sidebar.reloadTemplates(selecting: item.url)
             if self.windowController.currentURL?.standardizedFileURL == item.url.standardizedFileURL {
                 self.windowController.loadHTML(item.url)
@@ -322,11 +324,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
     }
 
     @objc private func toggleOverlayVisibility() {
-        if windowController.panel.isVisible {
-            windowController.hideWindow()
-        } else {
-            windowController.showWindow()
-        }
+        windowController.toggleVisibility()
         refreshStatus()
     }
 
@@ -366,42 +364,37 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
             return makeTemplatesMenuToolbarItem(itemIdentifier)
         }
 
+        struct Spec {
+            let titleKey: String
+            let symbol: String
+            let action: Selector
+        }
+        let specs: [NSToolbarItem.Identifier: Spec] = [
+            ToolbarID.showHide: Spec(titleKey: "console.toolbar.hide",
+                                     symbol: "eye.slash",
+                                     action: #selector(toggleOverlayVisibility)),
+            ToolbarID.reload: Spec(titleKey: "console.toolbar.reload",
+                                   symbol: "arrow.clockwise",
+                                   action: #selector(reloadCurrent)),
+            ToolbarID.edit: Spec(titleKey: "console.toolbar.edit",
+                                 symbol: "slider.horizontal.3",
+                                 action: #selector(editSelected)),
+            ToolbarID.folder: Spec(titleKey: "console.toolbar.folder",
+                                   symbol: "folder",
+                                   action: #selector(revealSelected)),
+        ]
+        guard let spec = specs[itemIdentifier] else { return nil }
+
         let item = NSToolbarItem(itemIdentifier: itemIdentifier)
         item.isBordered = true
         item.target = self
-
-        switch itemIdentifier {
-        case ToolbarID.showHide:
-            item.label = NSLocalizedString("console.toolbar.hide", comment: "")
-            item.paletteLabel = item.label
-            item.toolTip = item.label
-            item.image = NSImage(systemSymbolName: "eye.slash", accessibilityDescription: nil)
-            item.action = #selector(toggleOverlayVisibility)
+        item.label = NSLocalizedString(spec.titleKey, comment: "")
+        item.paletteLabel = item.label
+        item.toolTip = item.label
+        item.image = NSImage(systemSymbolName: spec.symbol, accessibilityDescription: nil)
+        item.action = spec.action
+        if itemIdentifier == ToolbarID.showHide {
             showHideItem = item
-
-        case ToolbarID.reload:
-            item.label = NSLocalizedString("console.toolbar.reload", comment: "")
-            item.paletteLabel = item.label
-            item.toolTip = item.label
-            item.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: nil)
-            item.action = #selector(reloadCurrent)
-
-        case ToolbarID.edit:
-            item.label = NSLocalizedString("console.toolbar.edit", comment: "")
-            item.paletteLabel = item.label
-            item.toolTip = item.label
-            item.image = NSImage(systemSymbolName: "slider.horizontal.3", accessibilityDescription: nil)
-            item.action = #selector(editSelected)
-
-        case ToolbarID.folder:
-            item.label = NSLocalizedString("console.toolbar.folder", comment: "")
-            item.paletteLabel = item.label
-            item.toolTip = item.label
-            item.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
-            item.action = #selector(revealSelected)
-
-        default:
-            return nil
         }
         return item
     }

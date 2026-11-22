@@ -110,12 +110,6 @@ final class ConsoleMCPView: NSView {
     // MARK: - 客户端自动配置
 
     private func buildClientsCard() -> NSView {
-        let card = GlassCard()
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 10
-
         let refresh = makeSymbolButton(symbol: "arrow.clockwise",
                                        target: self,
                                        action: #selector(refreshClientsTapped))
@@ -123,24 +117,18 @@ final class ConsoleMCPView: NSView {
         refresh.controlSize = .small
         refresh.toolTip = NSLocalizedString("console.mcp.clients.refresh", comment: "")
 
-        let header = NSStackView(views: [
-            makeSectionLabel(NSLocalizedString("console.mcp.clients.title", comment: ""),
-                             symbol: "person.2"),
-            NSView(),
-            refresh,
-        ])
-        header.orientation = .horizontal
-        header.spacing = 8
-        header.alignment = .centerY
+        let card = MCPSectionCard(
+            title: NSLocalizedString("console.mcp.clients.title", comment: ""),
+            symbol: "person.2",
+            accessories: [refresh])
+        let stack = card.content
 
         let subtitle = NSTextField(wrappingLabelWithString:
             NSLocalizedString("console.mcp.clients.subtitle", comment: ""))
         subtitle.font = .systemFont(ofSize: 11.5)
         subtitle.textColor = .secondaryLabelColor
 
-        stack.addArrangedSubview(header)
         stack.addArrangedSubview(subtitle)
-        header.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         subtitle.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
 
         for client in MCPClient.allCases {
@@ -157,7 +145,6 @@ final class ConsoleMCPView: NSView {
         stack.addArrangedSubview(hint)
         hint.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
 
-        pin(stack, in: card.contentView)
         return card
     }
 
@@ -211,47 +198,61 @@ final class ConsoleMCPView: NSView {
                          chip: chip, pathLabel: pathLabel)
     }
 
+    /// 客户端状态需要读取并解析可能很大的配置文件，放到后台计算，回主线程更新。
+    private var clientsRefreshGeneration = 0
+
     private func refreshClients() {
         let context = MCPClientContext.current
         let executable = Self.executableURL
-        let statusKeys = (
-            detected: NSLocalizedString("console.mcp.clients.notDetected", comment: ""),
-            configured: NSLocalizedString("console.mcp.clients.configured", comment: ""),
-            stale: NSLocalizedString("console.mcp.clients.stale", comment: ""),
-            notConfigured: NSLocalizedString("console.mcp.clients.notConfigured", comment: "")
-        )
+        let entries = clientRows.map { ($0, $0.client.configURL(in: context)) }
 
-        for row in clientRows {
-            let url = row.client.configURL(in: context)
+        clientsRefreshGeneration += 1
+        let generation = clientsRefreshGeneration
+        for (row, url) in entries {
             row.pathLabel.stringValue = Self.abbreviate(url.path, home: context.home.path)
             row.pathLabel.toolTip = url.path
+        }
 
-            let status = row.client.status(executable: executable, in: context)
-            row.popup.isEnabled = status.detected
-            row.popup.toolTip = status.detected
-                ? nil
-                : NSLocalizedString("console.mcp.clients.notDetectedHint", comment: "")
-            row.popup.menu?.item(at: 2)?.isEnabled = status.configured
+        DispatchQueue.global(qos: .userInitiated).async {
+            let statuses = entries.map { $0.0.client.status(executable: executable, in: context) }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, generation == self.clientsRefreshGeneration else { return }
+                let statusKeys = (
+                    detected: NSLocalizedString("console.mcp.clients.notDetected", comment: ""),
+                    configured: NSLocalizedString("console.mcp.clients.configured", comment: ""),
+                    stale: NSLocalizedString("console.mcp.clients.stale", comment: ""),
+                    notConfigured: NSLocalizedString("console.mcp.clients.notConfigured", comment: "")
+                )
 
-            if !status.detected {
-                row.chip.update(text: statusKeys.detected, active: false, symbol: "minus.circle")
-                row.chip.toolTip = nil
-            } else if status.needsUpdate {
-                row.chip.update(text: statusKeys.stale, active: true,
-                                activeColor: .systemOrange,
-                                symbol: "exclamationmark.triangle.fill")
-                row.chip.toolTip = String(
-                    format: NSLocalizedString("console.mcp.clients.staleHint", comment: ""),
-                    executable.path)
-            } else if status.configured {
-                row.chip.update(text: statusKeys.configured, active: true,
-                                activeColor: .systemGreen,
-                                symbol: "checkmark.circle.fill")
-                row.chip.toolTip = url.path
-            } else {
-                row.chip.update(text: statusKeys.notConfigured, active: false,
-                                symbol: "slash.circle")
-                row.chip.toolTip = nil
+                for ((row, url), status) in zip(entries, statuses) {
+                    row.popup.isEnabled = status.detected
+                    row.popup.toolTip = status.detected
+                        ? nil
+                        : NSLocalizedString("console.mcp.clients.notDetectedHint", comment: "")
+                    row.popup.menu?.item(at: 2)?.isEnabled = status.configured
+
+                    if !status.detected {
+                        row.chip.update(text: statusKeys.detected, active: false,
+                                        symbol: "minus.circle")
+                        row.chip.toolTip = nil
+                    } else if status.needsUpdate {
+                        row.chip.update(text: statusKeys.stale, active: true,
+                                        activeColor: .systemOrange,
+                                        symbol: "exclamationmark.triangle.fill")
+                        row.chip.toolTip = String(
+                            format: NSLocalizedString("console.mcp.clients.staleHint", comment: ""),
+                            executable.path)
+                    } else if status.configured {
+                        row.chip.update(text: statusKeys.configured, active: true,
+                                        activeColor: .systemGreen,
+                                        symbol: "checkmark.circle.fill")
+                        row.chip.toolTip = url.path
+                    } else {
+                        row.chip.update(text: statusKeys.notConfigured, active: false,
+                                        symbol: "slash.circle")
+                        row.chip.toolTip = nil
+                    }
+                }
             }
         }
     }
@@ -346,22 +347,6 @@ final class ConsoleMCPView: NSView {
     }
 
     private func buildConfigCard() -> NSView {
-        let card = GlassCard()
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 10
-
-        let header = NSStackView(views: [
-            makeSectionLabel(NSLocalizedString("console.mcp.config", comment: ""),
-                             symbol: "chevron.left.forwardslash.chevron.right"),
-            NSView(),
-            copyConfigButton,
-        ])
-        header.orientation = .horizontal
-        header.spacing = 8
-        header.alignment = .centerY
-
         copyConfigButton.bezelStyle = .rounded
         copyConfigButton.controlSize = .small
         copyConfigButton.font = .systemFont(ofSize: 11)
@@ -369,6 +354,12 @@ final class ConsoleMCPView: NSView {
         copyConfigButton.imagePosition = .imageLeading
         copyConfigButton.target = self
         copyConfigButton.action = #selector(copyConfig)
+
+        let card = MCPSectionCard(
+            title: NSLocalizedString("console.mcp.config", comment: ""),
+            symbol: "chevron.left.forwardslash.chevron.right",
+            accessories: [copyConfigButton])
+        let stack = card.content
 
         configLabel.isSelectable = true
         configLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
@@ -389,53 +380,38 @@ final class ConsoleMCPView: NSView {
             configLabel.bottomAnchor.constraint(equalTo: configBox.bottomAnchor, constant: -10),
         ])
 
-        stack.addArrangedSubview(header)
         stack.addArrangedSubview(configBox)
-        header.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         configBox.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
 
-        pin(stack, in: card.contentView)
         return card
     }
 
     private func buildToolsCard() -> NSView {
-        let card = GlassCard()
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 10
-
-        stack.addArrangedSubview(makeSectionLabel(
-            NSLocalizedString("console.mcp.tools", comment: ""), symbol: "wrench.and.screwdriver"))
+        let card = MCPSectionCard(
+            title: NSLocalizedString("console.mcp.tools", comment: ""),
+            symbol: "wrench.and.screwdriver")
 
         for tool in MCPToolSet.all {
-            stack.addArrangedSubview(toolRow(
+            card.content.addArrangedSubview(toolRow(
                 name: tool.name,
                 symbol: Self.toolSymbols[tool.name] ?? "wrench",
                 description: tool.description))
         }
 
-        pin(stack, in: card.contentView)
         return card
     }
 
     private func buildPromptsCard() -> NSView {
-        let card = GlassCard()
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 10
-
-        stack.addArrangedSubview(makeSectionLabel(
-            NSLocalizedString("console.mcp.prompts", comment: ""), symbol: "text.bubble"))
+        let card = MCPSectionCard(
+            title: NSLocalizedString("console.mcp.prompts", comment: ""),
+            symbol: "text.bubble")
 
         for prompt in MCPPromptCatalog.definitions {
-            stack.addArrangedSubview(toolRow(name: prompt.name,
-                                             symbol: "wand.and.stars",
-                                             description: prompt.description))
+            card.content.addArrangedSubview(toolRow(name: prompt.name,
+                                                    symbol: "wand.and.stars",
+                                                    description: prompt.description))
         }
 
-        pin(stack, in: card.contentView)
         return card
     }
 
@@ -471,21 +447,6 @@ final class ConsoleMCPView: NSView {
     }
 
     private func buildChannelCard() -> NSView {
-        let card = GlassCard()
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 10
-
-        let header = NSStackView(views: [
-            makeSectionLabel(NSLocalizedString("console.mcp.channel", comment: ""), symbol: "terminal"),
-            NSView(),
-            copySocketButton,
-        ])
-        header.orientation = .horizontal
-        header.spacing = 8
-        header.alignment = .centerY
-
         copySocketButton.bezelStyle = .rounded
         copySocketButton.controlSize = .small
         copySocketButton.font = .systemFont(ofSize: 11)
@@ -493,6 +454,12 @@ final class ConsoleMCPView: NSView {
         copySocketButton.imagePosition = .imageLeading
         copySocketButton.target = self
         copySocketButton.action = #selector(copySocket)
+
+        let card = MCPSectionCard(
+            title: NSLocalizedString("console.mcp.channel", comment: ""),
+            symbol: "terminal",
+            accessories: [copySocketButton])
+        let stack = card.content
 
         socketLabel.font = .monospacedSystemFont(ofSize: 10.5, weight: .regular)
         socketLabel.textColor = .labelColor
@@ -503,30 +470,17 @@ final class ConsoleMCPView: NSView {
         let examples = NSTextField(wrappingLabelWithString:
             "PinShell show ./panel.html --watch --json\n" +
             "PinShell listen --json\n" +
-            "PinShell eval 'document.querySelector(\"#status\").textContent = \"已收到\"'")
+            "PinShell eval 'document.querySelector(\"#status\").textContent = \"received\"'")
         examples.font = .monospacedSystemFont(ofSize: 10.5, weight: .regular)
         examples.textColor = .secondaryLabelColor
 
-        stack.addArrangedSubview(header)
         stack.addArrangedSubview(socketLabel)
         stack.addArrangedSubview(examples)
-        for view in [header, socketLabel, examples] {
+        for view in [socketLabel, examples] {
             view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
 
-        pin(stack, in: card.contentView)
         return card
-    }
-
-    private func pin(_ stack: NSStackView, in container: NSView) {
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: container.topAnchor),
-            stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-        ])
     }
 
     // MARK: - 刷新
@@ -560,5 +514,98 @@ final class ConsoleMCPView: NSView {
         let work = DispatchWorkItem { button.title = restore }
         copyResetWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
+    }
+}
+
+/// MCP 页的分区卡片：标题行常驻，内容默认折叠，点击左侧箭头展开/收起。
+private final class MCPSectionCard: NSView {
+    private let toggleButton = NSButton()
+    private let body = NSStackView()
+    private var bodyWidthConstraint: NSLayoutConstraint?
+    private var expanded = false
+
+    /// 内容区。调用方把分区内容加到这里，并自行约束宽度。
+    var content: NSStackView { body }
+
+    init(title: String, symbol: String, accessories: [NSView] = []) {
+        super.init(frame: .zero)
+
+        toggleButton.isBordered = false
+        toggleButton.imageScaling = .scaleProportionallyDown
+        toggleButton.contentTintColor = .secondaryLabelColor
+        toggleButton.target = self
+        toggleButton.action = #selector(toggle)
+        toggleButton.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            toggleButton.widthAnchor.constraint(equalToConstant: 14),
+            toggleButton.heightAnchor.constraint(equalToConstant: 14),
+        ])
+
+        let header = NSStackView(views: [
+            toggleButton,
+            makeSectionLabel(title, symbol: symbol),
+            NSView(),
+        ] + accessories)
+        header.orientation = .horizontal
+        header.spacing = 8
+        header.alignment = .centerY
+
+        body.orientation = .vertical
+        body.alignment = .leading
+        body.spacing = 10
+        body.isHidden = true
+
+        let stack = NSStackView(views: [header, body])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 10
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        let card = GlassCard()
+        card.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(card)
+        card.contentView.addSubview(stack)
+        // 初始折叠，展开时再激活宽度约束；隐藏期间部分系统会把视图移出层级。
+        bodyWidthConstraint = body.widthAnchor.constraint(equalTo: stack.widthAnchor)
+        NSLayoutConstraint.activate([
+            card.leadingAnchor.constraint(equalTo: leadingAnchor),
+            card.trailingAnchor.constraint(equalTo: trailingAnchor),
+            card.topAnchor.constraint(equalTo: topAnchor),
+            card.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+            stack.leadingAnchor.constraint(equalTo: card.contentView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: card.contentView.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: card.contentView.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: card.contentView.bottomAnchor),
+
+            header.widthAnchor.constraint(equalTo: stack.widthAnchor),
+        ])
+
+        updateToggle()
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    @objc private func toggle() {
+        expanded.toggle()
+        body.isHidden = !expanded
+        if expanded {
+            // 隐藏的 arranged subview 可能被 stack 摘下，重新展开时确保宽度约束在位。
+            bodyWidthConstraint?.isActive = true
+        }
+        updateToggle()
+    }
+
+    private static let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 10,
+                                                                         weight: .semibold)
+
+    private func updateToggle() {
+        let name = expanded ? "chevron.down" : "chevron.right"
+        toggleButton.image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(Self.symbolConfiguration)
+        let hint = NSLocalizedString(expanded ? "console.mcp.collapse" : "console.mcp.expand",
+                                     comment: "")
+        toggleButton.toolTip = hint
+        toggleButton.setAccessibilityLabel(hint)
     }
 }

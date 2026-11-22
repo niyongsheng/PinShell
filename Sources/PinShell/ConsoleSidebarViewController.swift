@@ -19,6 +19,9 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
     private var contextTemplate: TemplateItem?
     private var suppressSelectionCallback = false
 
+    private static let sectionCellID = NSUserInterfaceItemIdentifier("PinShell.Sidebar.Section")
+    private static let rowCellID = NSUserInterfaceItemIdentifier("PinShell.Sidebar.Row")
+
     private enum Row {
         case section(String)
         case template(TemplateItem)
@@ -100,12 +103,12 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
 
     /// 重建行并恢复选中。reloadData 会临时改动选中行并回调，
     /// 期间必须屏蔽回调，避免把 selectedTemplateURL 改写成第一行。
-    private func reloadRowsAndSelect(target: URL?) {
+    private func reloadRowsAndSelect(target: URL?, notify: Bool = true) {
         let wasSuppressed = suppressSelectionCallback
         suppressSelectionCallback = true
         defer { suppressSelectionCallback = wasSuppressed }
         rebuildRows()
-        selectCurrentRow(target: target)
+        selectCurrentRow(target: target, notify: notify)
     }
 
     /// 目录内容变化后的静默刷新：保持当前选中行，不触发页面切换回调。
@@ -168,8 +171,22 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
         tableView.scrollRowToVisible(index)
         suppressSelectionCallback = wasSuppressed
-        guard notify else { return }
-        switch rows[index] {
+        if case .template(let item) = rows[index] {
+            selectedTemplateURL = item.url
+        }
+        if notify { notifySelection() }
+    }
+
+    private func select(kind: SelectionKind, notify: Bool = true) {
+        guard let index = rowIndex(for: kind) else { return }
+        select(row: index, notify: notify)
+    }
+
+    /// 把当前选中行分发给详情页；搜索过滤未改变选中项时可跳过。
+    private func notifySelection() {
+        let row = tableView.selectedRow
+        guard rows.indices.contains(row) else { return }
+        switch rows[row] {
         case .template(let item):
             selectedTemplateURL = item.url
             onSelectTemplate?(item)
@@ -188,19 +205,11 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
     }
 
     func selectMCP() {
-        guard let index = rows.firstIndex(where: {
-            if case .mcp = $0 { return true }
-            return false
-        }) else { return }
-        select(row: index, notify: true)
+        select(kind: .mcp)
     }
 
     func selectAbout() {
-        guard let index = rows.firstIndex(where: {
-            if case .about = $0 { return true }
-            return false
-        }) else { return }
-        select(row: index, notify: true)
+        select(kind: .about)
     }
 
     var hasTemplates: Bool { !allTemplates.isEmpty }
@@ -229,7 +238,7 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         tableView.reloadData()
     }
 
-    private func selectCurrentRow(target: URL? = nil) {
+    private func selectCurrentRow(target: URL? = nil, notify: Bool = true) {
         let selectedURL = target ?? selectedTemplateURL
         // 先按完整路径匹配；悬浮窗可能加载的是仓库/别处的同名副本，再按文件名兜底
         let exact = rows.firstIndex { row in
@@ -247,7 +256,7 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
             tableView.deselectAll(nil)
             return
         }
-        select(row: targetIndex, notify: true)
+        select(row: targetIndex, notify: notify)
     }
 
     private var selectedTemplate: TemplateItem? {
@@ -312,7 +321,12 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
     }
 
     @objc private func searchChanged() {
-        reloadRowsAndSelect(target: selectedTemplateURL)
+        let previous = selectedTemplateURL
+        reloadRowsAndSelect(target: previous, notify: false)
+        // 当前模板仍在过滤结果中时详情页无需重载；只有被迫改选时才通知。
+        if selectedTemplateURL?.standardizedFileURL != previous?.standardizedFileURL {
+            notifySelection()
+        }
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
@@ -332,20 +346,12 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         switch rows[row] {
         case .section(let title):
-            let cell = NSTableCellView()
-            let label = NSTextField(labelWithString: title)
-            label.font = .systemFont(ofSize: 11, weight: .semibold)
-            label.textColor = .secondaryLabelColor
-            label.translatesAutoresizingMaskIntoConstraints = false
-            cell.addSubview(label)
-            NSLayoutConstraint.activate([
-                label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 10),
-                label.bottomAnchor.constraint(equalTo: cell.bottomAnchor, constant: -4),
-            ])
+            let cell = sectionCell()
+            cell.textField?.stringValue = title
             return cell
 
         case .template(let item):
-            let cell = SidebarCellView()
+            let cell = rowCell()
             cell.configure(symbol: "rectangle.on.rectangle",
                            title: item.name,
                            subtitle: item.description.isEmpty ? item.file : item.description,
@@ -354,7 +360,7 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
             return cell
 
         case .mcp:
-            let cell = SidebarCellView()
+            let cell = rowCell()
             cell.configure(symbol: "terminal",
                            title: NSLocalizedString("console.mcp.navTitle", comment: ""),
                            subtitle: NSLocalizedString("console.mcp.navSubtitle", comment: ""),
@@ -362,7 +368,7 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
             return cell
 
         case .about:
-            let cell = SidebarCellView()
+            let cell = rowCell()
             cell.configure(symbol: "info.circle",
                            title: NSLocalizedString("console.about.title", comment: ""),
                            subtitle: NSLocalizedString("console.about.navSubtitle", comment: ""),
@@ -371,21 +377,39 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         }
     }
 
+    private func sectionCell() -> NSTableCellView {
+        if let cell = tableView.makeView(withIdentifier: Self.sectionCellID,
+                                         owner: self) as? NSTableCellView {
+            return cell
+        }
+        let cell = NSTableCellView()
+        cell.identifier = Self.sectionCellID
+        let label = NSTextField(labelWithString: "")
+        label.font = .systemFont(ofSize: 11, weight: .semibold)
+        label.textColor = .secondaryLabelColor
+        label.translatesAutoresizingMaskIntoConstraints = false
+        cell.addSubview(label)
+        cell.textField = label
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 10),
+            label.bottomAnchor.constraint(equalTo: cell.bottomAnchor, constant: -4),
+        ])
+        return cell
+    }
+
+    private func rowCell() -> SidebarCellView {
+        if let cell = tableView.makeView(withIdentifier: Self.rowCellID,
+                                         owner: self) as? SidebarCellView {
+            return cell
+        }
+        let cell = SidebarCellView()
+        cell.identifier = Self.rowCellID
+        return cell
+    }
+
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard !suppressSelectionCallback else { return }
-        let row = tableView.selectedRow
-        guard rows.indices.contains(row) else { return }
-        switch rows[row] {
-        case .template(let item):
-            selectedTemplateURL = item.url
-            onSelectTemplate?(item)
-        case .mcp:
-            onSelectMCP?()
-        case .about:
-            onSelectAbout?()
-        case .section:
-            break
-        }
+        notifySelection()
     }
 
 }
@@ -454,10 +478,20 @@ private final class SidebarCellView: NSTableCellView {
         ])
     }
 
+    private static let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13,
+                                                                         weight: .regular)
+    private static var symbolCache: [String: NSImage] = [:]
+
+    private static func symbolImage(named name: String) -> NSImage? {
+        if let cached = symbolCache[name] { return cached }
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(symbolConfiguration)
+        symbolCache[name] = image
+        return image
+    }
+
     func configure(symbol: String, title: String, subtitle: String, trailing: String?) {
-        let configuration = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
-        symbolView.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
-            .withSymbolConfiguration(configuration)
+        symbolView.image = Self.symbolImage(named: symbol)
         titleLabel.stringValue = title
         subtitleLabel.stringValue = subtitle
         trailingLabel.stringValue = trailing ?? ""
