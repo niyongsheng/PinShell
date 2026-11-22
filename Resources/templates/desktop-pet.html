@@ -39,11 +39,11 @@
         "send": "Send",
         "chatPlaceholderOnline": "Ask the AI…",
         "chatHintOnline": "AI is online — ask away, or use a shortcut.",
-        "chatHintOffline": "AI may be offline. I'll remember it.",
-        "askPending": "Still waiting on the last question…",
+        "chatHintOffline": "No AI is connected. Your note will stay here.",
+        "chatHintPending": "Noted — the AI will see it when it's back.",
         "askSending": "Let me ask the AI…",
-        "askOffline": "The AI is offline right now — I'll ask when it's back.",
-        "askNoReply": "The AI didn't reply. Try again in a moment.",
+        "askOffline": "No AI is connected — I'll keep your note until one is back.",
+        "askNoReply": "The AI hasn't replied yet — your note is still here.",
         "alertDefault": "Take a look!",
         "greetMorning": "Good morning ☀️",
         "greetLateMorning": "Good morning~",
@@ -72,7 +72,7 @@
 <meta name="description" content="会看眼色、能接 AI 指令的桌面小猫：点击、顺毛、提问，还能同步工作状态">
 <meta name="pinshell:size" content="200x200">
 <meta name="pinshell:radius" content="0">
-<meta name="pinshell:order" content="8">
+<meta name="pinshell:order" content="5">
 <link rel="stylesheet" href="design-tokens.css">
 <!--
   AGENT PROTOCOL · 桌面宠物 v2
@@ -88,6 +88,7 @@
     pet:reply      { requestId, text, mood? }         回复 pet:ask
     pet:reset      {}                                 清空任务/情绪/提问，回到 idle
     agent:message  { text }                           兼容旧协议，等同 pet:say
+    agent:presence { online, count }                  App 派发：当前有 listen 订阅的 agent 会话
 
   Page → agent (pinshell_poll_events):
     pet:ready      { version, mood, muted, affection, moods[], features[] }
@@ -97,10 +98,11 @@
     pet:sleep      { at }
     pet:wake       { at }
 
-  Rules: reply to pet:ask within ~10 s with pet:reply (echo requestId); keep copy
-  under ~40 chars; push at most one update every ~10 s; the pet is fully usable
-  without an agent. window.PinShellPet exposes say/mood/animate/task/celebrate/
-  alert/reset/state for pinshell_eval.
+  Rules: reply to pet:ask with pet:reply (echo requestId); reply within ~10 s for
+  a live answer, later replies are still shown and clear the pending note. Keep
+  copy under ~40 chars; push at most one update every ~10 s; the pet is fully
+  usable without an agent. window.PinShellPet exposes say/mood/animate/task/
+  celebrate/alert/reset/state for pinshell_eval.
 -->
 <style>
   * { box-sizing: border-box; }
@@ -868,7 +870,7 @@
     <button class="chip" type="button" data-text="你在忙什么？" data-i18n="chipBusy" data-i18n-data-text="chipBusyText">在忙什么</button>
     <button class="chip" type="button" data-text="歇一会儿吧" data-i18n="chipRest" data-i18n-data-text="chipRestText">歇一会儿</button>
   </div>
-  <div class="chat-hint" id="chatHint">AI 在线时会直接回答；不在线我先记着。</div>
+  <div class="chat-hint" id="chatHint">AI 在线会直接回答；不在线留言会留着。</div>
   <form class="chat-form" id="chatForm">
     <input class="chat-input" id="chatInput" type="text" maxlength="120"
            autocomplete="off" spellcheck="false" placeholder="留句话给 AI…"
@@ -919,6 +921,7 @@
   const AGENT_ONLINE_MS = 90 * 1000;
   const ASK_TIMEOUT = 12 * 1000;
   const MAX_ASK = 120;
+  const MAX_PENDING_ASKS = 5;
 
   const reduceMotion = window.matchMedia
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -928,9 +931,11 @@
   let muted = loadMuted();
   let affection = loadAffection();
   let agentLastAt = 0;
+  let agentConnected = false;
   let activeTask = null;
   let taskOwnsMood = false;
   let asking = null;
+  let pendingAsks = [];
   let askSeq = 0;
   let chatOpen = false;
   let taps = 0;
@@ -1171,7 +1176,7 @@
 
   // ── 睡眠 / 唤醒 ───────────────────────────────────────────────
   function agentOnline() {
-    return Date.now() - agentLastAt < AGENT_ONLINE_MS;
+    return agentConnected || Date.now() - agentLastAt < AGENT_ONLINE_MS;
   }
 
   function scheduleSleep() {
@@ -1491,10 +1496,12 @@
     aiBadge.classList.add('show');
     updatePresenceUI();
     clearTimeout(badgeTimer);
-    badgeTimer = setTimeout(() => {
-      aiBadge.classList.remove('show');
-      updatePresenceUI();
-    }, AGENT_ONLINE_MS);
+    if (!agentConnected) {
+      badgeTimer = setTimeout(() => {
+        aiBadge.classList.remove('show');
+        updatePresenceUI();
+      }, AGENT_ONLINE_MS);
+    }
     scheduleSleep();
   }
 
@@ -1504,28 +1511,32 @@
     chatInput.placeholder = online
       ? PS.t('chatPlaceholderOnline', '问 AI 点什么…')
       : PS.t('chatPlaceholder', '留句话给 AI…');
-    chatHint.textContent = online
-      ? PS.t('chatHintOnline', 'AI 在线，直接问吧；也可以点下面的快捷话。')
-      : PS.t('chatHintOffline', 'AI 可能不在线，我会先记着，等它回来。');
+    if (pendingAsks.length) {
+      chatHint.textContent = PS.t('chatHintPending', '已留言，AI 回来会看到。');
+    } else {
+      chatHint.textContent = online
+        ? PS.t('chatHintOnline', 'AI 在线，直接问吧；也可以点下面的快捷话。')
+        : PS.t('chatHintOffline', 'AI 没连着，留言会留着，等它回来。');
+    }
   }
 
   // ── 用户提问 → agent ─────────────────────────────────────────
   function sendAsk(text) {
     const value = String(text == null ? '' : text).trim().slice(0, MAX_ASK);
     if (!value) return;
-    if (asking) {
-      say(PS.t('askPending', '上一个还在问呢…'), { duration: 1800 });
-      return;
-    }
 
     closeChat();
     wakeUp(true);
     setMood('thinking');
 
     const requestId = ++askSeq;
-    asking = { id: requestId, text: value, at: Date.now() };
+    const ask = { id: requestId, text: value, at: Date.now() };
+    pendingAsks.push(ask);
+    if (pendingAsks.length > MAX_PENDING_ASKS) pendingAsks.shift();
+    asking = ask;
     say(PS.t('askSending', '我问问 AI…'), { duration: 1600 });
     emit('pet:ask', { requestId, text: value, mood });
+    updatePresenceUI();
 
     clearTimeout(askTimer);
     askTimer = setTimeout(() => {
@@ -1533,13 +1544,13 @@
       asking = null;
       if (!agentOnline()) {
         setMood('worried', 3600);
-        say(PS.t('askOffline', 'AI 现在不在线，等它来了再说～'), { duration: 3400 });
-        sadTone();
+        say(PS.t('askOffline', 'AI 没连着，留言我先留着，等它回来～'), { duration: 3600 });
       } else {
         setMood('idle');
-        say(PS.t('askNoReply', 'AI 好像没回我，等下再问它吧'), { duration: 3200 });
-        sadTone();
+        say(PS.t('askNoReply', 'AI 还没回，留言我留着，等它回来再看'), { duration: 3400 });
       }
+      sadTone();
+      updatePresenceUI();
     }, ASK_TIMEOUT);
   }
 
@@ -1548,9 +1559,12 @@
     const text = String(payload.text || payload.message || '').trim();
     if (!text) return;
 
-    if (payload.requestId != null && asking
-        && Number(payload.requestId) !== asking.id) {
-      return;
+    if (payload.requestId != null) {
+      const id = Number(payload.requestId);
+      const index = pendingAsks.findIndex(item => item.id === id);
+      if (index >= 0) pendingAsks.splice(index, 1);
+    } else {
+      pendingAsks.length = 0;
     }
 
     clearTimeout(askTimer);
@@ -1711,6 +1725,8 @@
       askTimer = null;
       asking = null;
     }
+    pendingAsks.length = 0;
+    updatePresenceUI();
 
     const nextMood = payload.mood || toneToMood(payload.tone);
     if (nextMood) setMood(String(nextMood), Number(payload.holdMs) || 0);
@@ -1754,6 +1770,8 @@
     clearTimeout(askTimer);
     askTimer = null;
     asking = null;
+    pendingAsks.length = 0;
+    updatePresenceUI();
     clearTimeout(thoughtTimer);
     thought.classList.remove('show');
     speech.classList.remove('show');
@@ -1774,15 +1792,34 @@
   listen('pet:alert', petAlert);
   listen('pet:reply', handleReply);
   listen('pet:reset', resetAll);
+  listen('agent:presence', data => {
+    const payload = data && typeof data === 'object' ? data : {};
+    const online = !!payload.online;
+    if (online === agentConnected) {
+      updatePresenceUI();
+      return;
+    }
+    agentConnected = online;
+    if (online) {
+      presence();
+    } else {
+      clearTimeout(badgeTimer);
+      aiBadge.classList.remove('show');
+      updatePresenceUI();
+      scheduleSleep();
+    }
+  });
 
   window.PinShellPet = {
     version: VERSION,
     get state() {
       return {
         mood, sleeping, muted, affection,
+        agentConnected,
         agentOnline: agentOnline(),
         task: activeTask,
         asking: asking ? { id: asking.id, text: asking.text } : null,
+        pendingAsks: pendingAsks.map(item => ({ id: item.id, text: item.text })),
         chatOpen,
       };
     },
@@ -1844,6 +1881,7 @@
   // ── 启动 ─────────────────────────────────────────────────────
   renderSound();
   setMood('idle');
+  updatePresenceUI();
   greet();
   scheduleIdle();
   scheduleSleep();

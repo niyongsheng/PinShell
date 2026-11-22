@@ -7,12 +7,16 @@ import PinShellCore
 final class ControlServer {
     /// 在主线程回调（ControlHost 设置）
     var onRequest: ((ControlRequest, ControlConnection) -> Void)?
+    /// `listen` 订阅数变化（ControlHost 设置）；回调在 ControlServer 队列上执行。
+    var onListenerCountChanged: ((Int) -> Void)?
 
     private let queue = DispatchQueue(label: "PinShell.ControlServer")
     private let socketPath: String
     private var listenFD: Int32 = -1
     private var acceptSource: DispatchSourceRead?
     private var clients: [Int32: ControlConnection] = [:]
+    /// 当前订阅事件的客户端数（MCP 事件流、CLI listen），用于向页面报告 agent 在线状态。
+    private var listenerCount = 0
     /// 所有广播事件先进入事件日志，供 MCP / CLI 断线后按游标重放。
     private let eventLog = EventLog()
 
@@ -101,10 +105,28 @@ final class ControlServer {
         }
     }
 
-    fileprivate func remove(_ connection: ControlConnection) {
+    /// 新建 `listen` 订阅后登记；调用方已保证只订阅一次。
+    fileprivate func addListener(_ connection: ControlConnection) {
         queue.async { [weak self] in
-            self?.clients.removeValue(forKey: connection.fd)
+            guard let self else { return }
+            self.listenerCount += 1
+            self.onListenerCountChanged?(self.listenerCount)
         }
+    }
+
+    fileprivate func remove(_ connection: ControlConnection, wasListening: Bool) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.clients.removeValue(forKey: connection.fd)
+            guard wasListening else { return }
+            self.listenerCount = max(0, self.listenerCount - 1)
+            self.onListenerCountChanged?(self.listenerCount)
+        }
+    }
+
+    /// 当前订阅者数量。不要在 ControlServer 队列内调用（内部会 queue.sync）。
+    func listenerSnapshot() -> Int {
+        queue.sync { listenerCount }
     }
 
     private func acceptClients() {
@@ -158,7 +180,11 @@ final class ControlConnection {
     }
 
     func subscribe() {
-        queue.async { [weak self] in self?.isSubscribed = true }
+        queue.async { [weak self] in
+            guard let self, !self.isClosed, !self.isSubscribed else { return }
+            self.isSubscribed = true
+            self.server?.addListener(self)
+        }
     }
 
     func send(_ response: ControlResponse) {
@@ -256,6 +282,6 @@ final class ControlConnection {
         }
         pending.removeAll()
         pendingBytes = 0
-        server?.remove(self)
+        server?.remove(self, wasListening: isSubscribed)
     }
 }

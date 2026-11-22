@@ -20,6 +20,9 @@ final class ControlHost {
     private let fileQueue = DispatchQueue(label: "PinShell.ControlHost.Files",
                                           qos: .utility)
 
+    /// 当前 `listen` 订阅数；页面据此显示「AI 在线」。
+    private var listenerCount = 0
+
     init(windowController: OverlayWindowController, server: ControlServer) {
         self.windowController = windowController
         self.server = server
@@ -27,11 +30,21 @@ final class ControlHost {
         server.onRequest = { [weak self] request, connection in
             self?.handle(request, from: connection)
         }
+        // 先挂回调再取快照：避免在两步之间漏掉新订阅。
+        server.onListenerCountChanged = { [weak self] count in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.listenerCount = count
+                self.pushAgentPresence()
+            }
+        }
+        listenerCount = server.listenerSnapshot()
         windowController.onControlEvent = { [weak server] event in
             server?.broadcast(event)
         }
         windowController.onPageLoaded = { [weak self] in
             self?.finishPendingShow()
+            self?.pushAgentPresence()
         }
         windowController.onPageLoadFailed = { [weak self] error in
             self?.finishPendingShow(code: "load_failed", message: error.localizedDescription)
@@ -321,6 +334,14 @@ final class ControlHost {
 
         windowController?.dispatchEvent(name: name, data: data)
         connection.send(.success(id: request.id, result: .object(["emitted": .bool(true)])))
+    }
+
+    /// 把 agent 订阅状态推给页面（宠物等模板用 agent:presence 显示在线状态）。
+    private func pushAgentPresence() {
+        windowController?.dispatchEvent(name: "agent:presence", data: .object([
+            "online": .bool(listenerCount > 0),
+            "count": .number(Double(listenerCount))
+        ]))
     }
 
     // MARK: - 结果构造
