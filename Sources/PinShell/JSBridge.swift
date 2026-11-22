@@ -13,21 +13,62 @@ final class JSBridge: NSObject, WKScriptMessageHandler {
 
     static func injectionScript(appLanguage: String,
                                 languages: [String],
-                                templateLanguage: String?) -> String {
+                                templateLanguage: String?,
+                                session: String,
+                                initialState: JSONValue) -> String {
         let escapedLanguage = JSLiteral.string(appLanguage)
         let languagesJSON = JSLiteral.strings(languages)
         let templateLanguageJSON = templateLanguage.map(JSLiteral.string) ?? "null"
+        let sessionJSON = JSLiteral.string(session)
+        let initialStateJSON = ControlWire.jsonText(initialState)
         return #"""
     (function () {
       if (window.pinshell) { return; }
       function post(payload) {
         try { window.webkit.messageHandlers.pinshell.postMessage(payload); } catch (e) {}
       }
+      function clone(value) {
+        try { return JSON.parse(JSON.stringify(value)); } catch (e) { return value; }
+      }
+      function mergePatch(target, patch) {
+        if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) {
+          return patch;
+        }
+        var base = (target && typeof target === 'object' && !Array.isArray(target))
+          ? target : {};
+        for (var key in patch) {
+          if (!Object.prototype.hasOwnProperty.call(patch, key)) { continue; }
+          if (patch[key] === null) { delete base[key]; }
+          else { base[key] = mergePatch(base[key], patch[key]); }
+        }
+        return base;
+      }
+      var session = \#(sessionJSON);
+      var state = \#(initialStateJSON);
       var pinshell = {
-        version: '1',
+        version: '2',
+        session: session,
         language: \#(escapedLanguage),
         languages: \#(languagesJSON),
         templateLanguage: \#(templateLanguageJSON),
+        getState: function () {
+          return clone(state);
+        },
+        setState: function (next) {
+          state = clone((next && typeof next === 'object') ? next : {});
+          post({ action: 'setState', state: state });
+          return clone(state);
+        },
+        patchState: function (patch) {
+          state = mergePatch(state, patch);
+          post({ action: 'patchState', patch: patch });
+          return clone(state);
+        },
+        ready: function (data) { pinshell.emit('ui:ready', data); },
+        input: function (data) { pinshell.emit('ui:input', data); },
+        submit: function (data) { pinshell.emit('ui:submit', data); },
+        cancel: function (data) { pinshell.emit('ui:cancel', data); },
+        message: function (data) { pinshell.emit('ui:message', data); },
         setSize: function (width, height) {
           post({ action: 'setSize', width: Number(width), height: Number(height) });
         },
@@ -136,6 +177,12 @@ final class JSBridge: NSObject, WKScriptMessageHandler {
             guard let name = payload["name"]?.stringValue, !name.isEmpty else { return }
             controller?.broadcast(.emit(name: String(name.prefix(256)),
                                         data: payload["data"] ?? .null))
+
+        case "setState":
+            controller?.setPanelState(payload["state"] ?? .object([:]))
+
+        case "patchState":
+            controller?.patchPanelState(payload["patch"] ?? .null)
 
         case "log":
             let text = payload["message"]?.stringValue ?? ""

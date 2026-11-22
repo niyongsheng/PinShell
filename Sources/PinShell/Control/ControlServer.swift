@@ -13,6 +13,8 @@ final class ControlServer {
     private var listenFD: Int32 = -1
     private var acceptSource: DispatchSourceRead?
     private var clients: [Int32: ControlConnection] = [:]
+    /// 所有广播事件先进入事件日志，供 MCP / CLI 断线后按游标重放。
+    private let eventLog = EventLog()
 
     init(socketURL: URL = ControlEndpoint.socketURL()) {
         self.socketPath = socketURL.path
@@ -66,11 +68,30 @@ final class ControlServer {
 
     func broadcast(_ event: ControlEvent) {
         queue.async { [weak self] in
-            guard let self, !self.clients.isEmpty,
-                  let data = try? ControlWire.encodeLine(event) else { return }
+            guard let self else { return }
+            let stamped = self.eventLog.append(event)
+            guard !self.clients.isEmpty,
+                  let data = try? ControlWire.encodeLine(stamped) else { return }
             for connection in self.clients.values {
                 connection.send(eventData: data)
             }
+        }
+    }
+
+    /// 按游标重放事件（MCP 事件流重连、CLI 调试共用）。
+    func replayEvents(since: Int,
+                      epoch: String?,
+                      types: Set<String>?,
+                      names: Set<String>?,
+                      limit: Int,
+                      completion: @escaping (EventLogBatch) -> Void) {
+        queue.async {
+            let batch = self.eventLog.query(since: since,
+                                            epoch: epoch,
+                                            types: types,
+                                            names: names,
+                                            limit: limit)
+            completion(batch)
         }
     }
 

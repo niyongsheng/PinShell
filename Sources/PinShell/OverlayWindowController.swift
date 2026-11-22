@@ -14,6 +14,11 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
     private let fetchSession: URLSession
     private let grip = ResizeGripView(frame: NSRect(x: 0, y: 0, width: 16, height: 16))
     private(set) var currentURL: URL?
+    /// 一次面板展示的生命周期标识；所有事件都带上它，重载保持、新 show 更换。
+    private(set) var sessionID = UUID().uuidString
+    /// 页面通过 pinshell.setState / patchState 维护的共享状态（原生侧权威副本）。
+    private(set) var panelState: JSONValue = .object([:])
+    private(set) var stateRevision = 0
 
     /// 控制通道事件出口（ControlHost 订阅后广播给 listen 客户端）
     var onControlEvent: ((ControlEvent) -> Void)?
@@ -144,6 +149,7 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         guard resolved.isRegularFile else { return }
         currentURL = resolved
         sessionSpecOverrides = specOverride
+        beginSession()
         resetTransientWindowStyle()
         let metadata = applyDeclaredSpec(for: resolved)
         installBridgeScript(templateLanguage: metadata.resolvedLanguage)
@@ -152,6 +158,14 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         showWindow()
         updateFileWatcher()
         notifyStatusChanged()
+    }
+
+    private func beginSession() {
+        let previous = sessionID
+        sessionID = UUID().uuidString
+        panelState = .object([:])
+        stateRevision = 0
+        broadcast(.sessionStarted(previous: previous))
     }
 
     /// 重新应用声明值并重载当前文件；不清除 session overrides / watch 状态。
@@ -165,8 +179,11 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
 
     /// 卸载当前页面并清空当前文件（当前模板被删除时使用）。
     func clearHTML() {
+        broadcast(.sessionEnded())
         currentURL = nil
         sessionSpecOverrides = nil
+        panelState = .object([:])
+        stateRevision = 0
         resetTransientWindowStyle()
         webView.stopLoading()
         webView.loadHTMLString("", baseURL: nil)
@@ -193,7 +210,9 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
             source: JSBridge.injectionScript(
                 appLanguage: LanguageTag.appLanguage,
                 languages: LanguageTag.templatePreferredLanguages,
-                templateLanguage: templateLanguage
+                templateLanguage: templateLanguage,
+                session: sessionID,
+                initialState: panelState
             ),
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
@@ -296,7 +315,33 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
     // MARK: - 页面 → 原生事件
 
     func broadcast(_ event: ControlEvent) {
+        var event = event
+        if event.session == nil {
+            event.session = sessionID
+        }
         onControlEvent?(event)
+    }
+
+    // MARK: - 共享状态
+
+    /// 页面 pinshell.setState：整体替换快照。
+    func setPanelState(_ state: JSONValue) {
+        panelState = state
+        stateRevision += 1
+        broadcast(.stateSnapshot(state))
+        notifyStatusChanged()
+    }
+
+    /// 页面 pinshell.patchState：按 RFC 7386 合并补丁。
+    func patchPanelState(_ patch: JSONValue) {
+        panelState = panelState.applyingMergePatch(patch)
+        stateRevision += 1
+        broadcast(.stateDelta(patch))
+        notifyStatusChanged()
+    }
+
+    func stateSnapshot() -> JSONValue {
+        panelState
     }
 
     func handlePageDidLoad() {
@@ -472,11 +517,13 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         let frame = panel.frame
         return .object([
             "file": currentURL.map { .string($0.path) } ?? .null,
+            "session": .string(sessionID),
+            "stateRevision": .number(Double(stateRevision)),
             "visible": .bool(panel.isVisible),
             "watching": .bool(watchEnabled && fileWatcher != nil),
             "passthrough": .bool(AppState.passthroughEnabled),
             "opacity": .number(Double(panel.alphaValue)),
-            "radius": .number(currentRadius),
+            "radius": .number(Double(currentRadius)),
             "frame": .object([
                 "x": .number(Double(frame.origin.x)),
                 "y": .number(Double(frame.origin.y)),

@@ -50,6 +50,10 @@ final class ControlHost {
         case "listen":
             connection.subscribe()
             connection.send(.success(id: request.id, result: .object(["subscribed": .bool(true)])))
+        case "events":
+            handleEvents(request, connection: connection)
+        case "state":
+            connection.send(.success(id: request.id, result: stateResult()))
         case "status":
             connection.send(.success(id: request.id, result: statusResult()))
         case "templates":
@@ -270,6 +274,33 @@ final class ControlHost {
         }
     }
 
+    // MARK: - 事件重放 / 共享状态
+
+    private func handleEvents(_ request: ControlRequest, connection: ControlConnection) {
+        guard let server else {
+            connection.send(.failure(id: request.id, code: "app_unavailable",
+                                     message: "control server unavailable"))
+            return
+        }
+        let since = max(int(request, "since") ?? 0, 0)
+        let limit = min(max(int(request, "limit") ?? 200, 1), 1000)
+        let epoch = string(request, "epoch")
+        let types = stringSet(request, "types")
+        let names = stringSet(request, "names")
+        server.replayEvents(since: since, epoch: epoch, types: types, names: names,
+                            limit: limit) { batch in
+            connection.send(.success(id: request.id, result: batch.jsonValue))
+        }
+    }
+
+    private func stateResult() -> JSONValue {
+        .object([
+            "session": .string(windowController?.sessionID ?? ""),
+            "state": windowController?.stateSnapshot() ?? .object([:]),
+            "revision": .number(Double(windowController?.stateRevision ?? 0))
+        ])
+    }
+
     private func handleEmit(_ request: ControlRequest, connection: ControlConnection) {
         guard let name = string(request, "name"), !name.isEmpty else {
             connection.send(.failure(id: request.id, code: "invalid_args",
@@ -391,5 +422,15 @@ final class ControlHost {
 
     private func bool(_ request: ControlRequest, _ key: String) -> Bool? {
         request.args[key]?.boolValue
+    }
+
+    private func int(_ request: ControlRequest, _ key: String) -> Int? {
+        request.args[key]?.intValue
+    }
+
+    private func stringSet(_ request: ControlRequest, _ key: String) -> Set<String>? {
+        guard let values = request.args[key]?.arrayValue else { return nil }
+        let strings = values.compactMap(\.stringValue).filter { !$0.isEmpty }
+        return strings.isEmpty ? nil : Set(strings)
     }
 }

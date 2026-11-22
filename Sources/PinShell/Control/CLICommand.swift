@@ -338,7 +338,7 @@ enum CLICommand {
     private static func runListen(json: Bool) -> Int32 {
         do {
             let (fd, _) = try ControlClient.openListenStream()
-            defer { Darwin.close(fd) }
+            defer { ControlClient.closeConnection(fd) }
             while let line = try ControlClient.readLine(fd: fd, timeout: nil) {
                 if json {
                     print(String(decoding: line, as: UTF8.self))
@@ -438,6 +438,12 @@ enum CLICommand {
             print("[error] \(event.message ?? "")")
         case "log":
             print("[log] \(event.message ?? "")")
+        case "state":
+            let name = event.name ?? "state"
+            let data = event.data.map { ControlWire.jsonText($0) } ?? "null"
+            print("[\(name)] \(data)")
+        case "session":
+            print("[\(event.name ?? "session")] \(event.session ?? "")")
         default:
             print("[\(event.event)] \(event.message ?? "")")
         }

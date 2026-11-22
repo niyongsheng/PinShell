@@ -139,11 +139,24 @@ final class MCPPromptTests: XCTestCase {
             "task": "Pick a deployment window"
         ])
 
-        XCTAssertTrue(rendered.text.contains("'ready'"))
-        XCTAssertTrue(rendered.text.contains("'decision'"))
-        XCTAssertTrue(rendered.text.contains("'cancelled'"))
+        XCTAssertTrue(rendered.text.contains("ui:ready"))
+        XCTAssertTrue(rendered.text.contains("ui:submit"))
+        XCTAssertTrue(rendered.text.contains("ui:cancel"))
+        XCTAssertTrue(rendered.text.contains("pinshell_await_event"))
+        XCTAssertTrue(rendered.text.contains("pinshell_state"))
         XCTAssertTrue(rendered.text.contains("agent:message"))
         XCTAssertTrue(rendered.text.contains("pinshell_close"))
+    }
+
+    func testAuthoringGuideDocumentsEventEnvelopeAndState() throws {
+        let rendered = try MCPPromptCatalog.render(name: "authoring-guide", arguments: [:])
+
+        XCTAssertTrue(rendered.text.contains("setState(state)"))
+        XCTAssertTrue(rendered.text.contains("patchState"))
+        XCTAssertTrue(rendered.text.contains("state:delta"))
+        XCTAssertTrue(rendered.text.contains("pinshell_await_event"))
+        XCTAssertTrue(rendered.text.contains("seq"))
+        XCTAssertTrue(rendered.text.contains("type"))
     }
 
     func testLiveMonitorReferencesLiveTemplatesAndFetchLimits() throws {

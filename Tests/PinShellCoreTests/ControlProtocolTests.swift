@@ -68,4 +68,144 @@ final class ControlProtocolTests: XCTestCase {
             XCTAssertEqual(error as? LineFramerError, .oversizedLine(maxBytes: 8))
         }
     }
+
+    // MARK: - 事件 envelope / 事件日志
+
+    func testEventTypeFollowsNamePrefix() {
+        XCTAssertEqual(ControlEvent.emit(name: "submit", data: .null).type, "ui")
+        XCTAssertEqual(ControlEvent.emit(name: "ui:submit", data: .null).type, "ui")
+        XCTAssertEqual(ControlEvent.emit(name: "pet:tap", data: .null).type, "pet")
+        XCTAssertEqual(ControlEvent.emit(name: "system:stats", data: .null).type, "system")
+        XCTAssertEqual(ControlEvent.stateSnapshot(.object([:])).type, "state")
+        XCTAssertEqual(ControlEvent.loaded(file: "/tmp/a.html", url: "file:///tmp/a.html").type,
+                       "lifecycle")
+    }
+
+    func testEventLogStampsSequenceAndSupportsCursor() {
+        let log = EventLog(epoch: "epoch-1", capacity: 10)
+        let first = log.append(.emit(name: "ui:ready", data: .object([:])))
+        let second = log.append(.emit(name: "ui:submit", data: .object(["ok": .bool(true)])))
+
+        XCTAssertEqual(first.seq, 1)
+        XCTAssertEqual(second.seq, 2)
+        XCTAssertEqual(first.epoch, "epoch-1")
+        XCTAssertNotNil(first.ts)
+
+        let page = log.query(since: 0, epoch: "epoch-1", limit: 1)
+        XCTAssertEqual(page.events.map(\.seq), [1])
+        XCTAssertEqual(page.next, 1)
+        XCTAssertTrue(page.more)
+        XCTAssertEqual(page.dropped, 0)
+
+        let rest = log.query(since: page.next, epoch: "epoch-1", limit: 10)
+        XCTAssertEqual(rest.events.map(\.seq), [2])
+        XCTAssertEqual(rest.next, 2)
+        XCTAssertFalse(rest.more)
+    }
+
+    func testEventLogFiltersByTypeAndName() {
+        let log = EventLog(epoch: "e", capacity: 10)
+        log.append(.emit(name: "ui:ready", data: .null))
+        log.append(.emit(name: "pet:tap", data: .null))
+        log.append(.stateSnapshot(.object(["phase": .string("ready")])))
+
+        let ui = log.query(since: 0, epoch: "e", types: ["ui"], limit: 10)
+        XCTAssertEqual(ui.events.map(\.name), ["ui:ready"])
+
+        let pet = log.query(since: 0, epoch: "e", names: ["pet:tap"], limit: 10)
+        XCTAssertEqual(pet.events.map(\.name), ["pet:tap"])
+
+        let state = log.query(since: 0, epoch: "e", types: ["state"], limit: 10)
+        XCTAssertEqual(state.events.map(\.name), ["state:snapshot"])
+    }
+
+    func testEventLogEpochMismatchResetsCursor() {
+        let log = EventLog(epoch: "new-epoch", capacity: 10)
+        log.append(.emit(name: "ui:ready", data: .null))
+        log.append(.emit(name: "ui:submit", data: .null))
+
+        let batch = log.query(since: 99, epoch: "old-epoch", limit: 10)
+        XCTAssertTrue(batch.reset)
+        XCTAssertEqual(batch.epoch, "new-epoch")
+        XCTAssertEqual(batch.events.map(\.seq), [1, 2])
+        XCTAssertEqual(batch.next, 2)
+    }
+
+    func testEventLogReportsDroppedEvents() {
+        let log = EventLog(epoch: "e", capacity: 2)
+        log.append(.emit(name: "ui:one", data: .null))
+        log.append(.emit(name: "ui:two", data: .null))
+        log.append(.emit(name: "ui:three", data: .null))
+
+        let batch = log.query(since: 0, epoch: "e", limit: 10)
+        XCTAssertEqual(batch.events.map(\.seq), [2, 3])
+        XCTAssertEqual(batch.dropped, 1)
+    }
+
+    func testEventLogTracksLatestSessionAndClearsItOnClose() {
+        let log = EventLog(epoch: "e", capacity: 10)
+
+        var started = ControlEvent.sessionStarted(previous: nil)
+        started.session = "s1"
+        log.append(started)
+
+        var ready = ControlEvent.emit(name: "ui:ready", data: .null)
+        ready.session = "s1"
+        log.append(ready)
+
+        let open = log.query(since: 0, epoch: "e", limit: 10)
+        XCTAssertEqual(open.latestSession, "s1")
+        XCTAssertEqual(open.latestSeq, 2)
+
+        var ended = ControlEvent.sessionEnded()
+        ended.session = "s1"
+        log.append(ended)
+
+        let closed = log.query(since: 0, epoch: "e", limit: 10)
+        XCTAssertNil(closed.latestSession)
+        XCTAssertEqual(closed.latestSeq, 3)
+    }
+
+    func testStateDeltaCarriesOnlyPatch() {
+        let event = ControlEvent.stateDelta(.object(["phase": .string("submitted")]))
+        XCTAssertEqual(event.name, "state:delta")
+        XCTAssertEqual(event.type, "state")
+        XCTAssertEqual(event.data?["patch"]?["phase"]?.stringValue, "submitted")
+        XCTAssertNil(event.data?["state"])
+    }
+
+    func testStampedEventEncodesCursorFields() throws {
+        let log = EventLog(epoch: "e", capacity: 10)
+        let event = log.append(.emit(name: "ui:submit", data: .object([:])))
+        let data = try ControlWire.encoder.encode(event)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(object["seq"] as? Int, 1)
+        XCTAssertEqual(object["epoch"] as? String, "e")
+        XCTAssertEqual(object["type"] as? String, "ui")
+        XCTAssertEqual(object["name"] as? String, "ui:submit")
+        XCTAssertNotNil(object["ts"] as? Double)
+    }
+
+    // MARK: - Merge patch
+
+    func testMergePatchFollowsRFC7386() {
+        let base: JSONValue = .object([
+            "a": .number(1),
+            "b": .object(["c": .number(2), "d": .number(3)])
+        ])
+        let patch: JSONValue = .object([
+            "b": .object(["c": .null, "e": .number(4)]),
+            "f": .number(5)
+        ])
+
+        XCTAssertEqual(base.applyingMergePatch(patch), .object([
+            "a": .number(1),
+            "b": .object(["d": .number(3), "e": .number(4)]),
+            "f": .number(5)
+        ]))
+        XCTAssertEqual(JSONValue.object(["a": .number(1)])
+            .applyingMergePatch(.array([.number(2)])), .array([.number(2)]))
+        XCTAssertEqual(JSONValue.object(["a": .number(1)]).applyingMergePatch(.null), .null)
+    }
 }

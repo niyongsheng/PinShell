@@ -31,9 +31,10 @@ enum ControlClient {
     // MARK: - 请求
 
     static func request(_ request: ControlRequest,
-                        timeout: TimeInterval = 10) throws -> ControlResponse {
-        let fd = try openConnectionLaunchingIfNeeded()
-        defer { close(fd) }
+                        timeout: TimeInterval = 10,
+                        launchIfNeeded: Bool = true) throws -> ControlResponse {
+        let fd = try openConnection(launchIfNeeded: launchIfNeeded)
+        defer { closeConnection(fd) }
 
         try writeAll(fd: fd, data: ControlWire.encodeLine(request))
         guard let line = try readLine(fd: fd, timeout: timeout) else {
@@ -47,8 +48,8 @@ enum ControlClient {
     }
 
     /// listen：返回保持打开的 fd 与订阅响应。
-    static func openListenStream() throws -> (fd: Int32, response: ControlResponse) {
-        let fd = try openConnectionLaunchingIfNeeded()
+    static func openListenStream(launchIfNeeded: Bool = true) throws -> (fd: Int32, response: ControlResponse) {
+        let fd = try openConnection(launchIfNeeded: launchIfNeeded)
         do {
             let request = ControlRequest(cmd: "listen")
             try writeAll(fd: fd, data: ControlWire.encodeLine(request))
@@ -61,17 +62,29 @@ enum ControlClient {
             }
             return (fd, response)
         } catch {
-            close(fd)
+            closeConnection(fd)
             throw error
         }
     }
 
+    /// 关闭连接并丢弃该 fd 的残留读缓冲。fd 会被系统复用，必须成对清理。
+    static func closeConnection(_ fd: Int32) {
+        readBufferLock.lock()
+        readBuffers.removeValue(forKey: fd)
+        readBufferLock.unlock()
+        Darwin.close(fd)
+    }
+
     // MARK: - 连接与启动
 
-    /// 优先连接现有 App；未运行则拉起并等待 socket，直接返回可用连接。
-    private static func openConnectionLaunchingIfNeeded() throws -> Int32 {
+    /// 优先连接现有 App；未运行则（可选）拉起并等待 socket，直接返回可用连接。
+    private static func openConnection(launchIfNeeded: Bool) throws -> Int32 {
         if let fd = UnixSocket.connect(path: ControlEndpoint.socketPath()) {
             return fd
+        }
+
+        guard launchIfNeeded else {
+            throw ControlClientError.appUnavailable("PinShell is not running")
         }
 
         launchApp()
@@ -94,17 +107,14 @@ enum ControlClient {
 
     private static func launchApp() {
         if let appURL = registeredAppURL() {
-            let configuration = NSWorkspace.OpenConfiguration()
-            configuration.activates = false
-            var finished = false
-            NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { _, _ in
-                finished = true
-            }
-            // CLI 没有主 run loop；短暂泵一下，让 LaunchServices 完成请求
-            let deadline = Date().addingTimeInterval(2)
-            while !finished && Date() < deadline {
-                RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
-            }
+            // 用 /usr/bin/open 而不是 NSWorkspace：MCP 工具现在跑在后台队列上，
+            // 这里不能依赖调用线程的 run loop。 -g 保持不抢焦点。
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            process.arguments = ["-g", appURL.path]
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            try? process.run()
             return
         }
 
@@ -146,16 +156,25 @@ enum ControlClient {
         }
     }
 
+    // 每个 fd 的增量读缓冲：一次 read 可能包含多行，不能只返回第一行就丢弃剩余字节。
+    private static let readBufferLock = NSLock()
+    private static var readBuffers: [Int32: Data] = [:]
+
     /// 读取一行（不含换行）；timeout == nil 时无限等待。
     /// 返回 nil 表示对端关闭。
     static func readLine(fd: Int32, timeout: TimeInterval?) throws -> Data? {
-        var buffer = Data()
         let deadline = timeout.map { Date().addingTimeInterval($0) }
 
         while true {
-            if let newline = buffer.firstIndex(of: 0x0A) {
-                return Data(buffer[buffer.startIndex..<newline])
+            readBufferLock.lock()
+            if var buffer = readBuffers[fd], let newline = buffer.firstIndex(of: 0x0A) {
+                let line = Data(buffer[buffer.startIndex..<newline])
+                buffer.removeSubrange(buffer.startIndex...newline)
+                readBuffers[fd] = buffer
+                readBufferLock.unlock()
+                return line
             }
+            readBufferLock.unlock()
 
             let pollMillis: Int32
             if let deadline {
@@ -181,10 +200,16 @@ enum ControlClient {
                 if errno == EINTR { continue }
                 throw ControlClientError.transport(String(cString: strerror(errno)))
             }
+
+            readBufferLock.lock()
+            var buffer = readBuffers[fd] ?? Data()
             buffer.append(contentsOf: chunk[0..<count])
             if buffer.count > ControlProtocolConstants.maxLineBytes {
+                readBufferLock.unlock()
                 throw ControlClientError.transport("response exceeds size limit")
             }
+            readBuffers[fd] = buffer
+            readBufferLock.unlock()
         }
     }
 }

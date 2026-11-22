@@ -144,23 +144,33 @@ public enum MCPPromptCatalog {
     In templates, link design-tokens.css and reuse its --ps-* tokens instead of copying colors or radii.
 
     JS bridge (window.pinshell):
-      version                     bridge version
+      version                     bridge version (2)
+      session                     current panel session id
       language                    current app language (BCP-47)
       languages                   ordered template language preferences
       templateLanguage            language selected for this template, or null
       setSize(w, h) / setPosition('bottom-right' | x, y) / setPassthrough(bool) / setOpacity(0..1) / setRadius(px)
-      emit(name, data)            page -> agent, read with pinshell_poll_events
+      getState() / setState(state) / patchState(patch)
+                                  shared panel state; setState emits state:snapshot,
+                                  patchState applies RFC 7386 and emits state:delta
+      ready/input/submit/cancel(data)
+                                  shorthand for ui:ready / ui:input / ui:submit / ui:cancel
+      emit(name, data)            page -> agent; prefer namespaced names (ui:*)
       on(name, callback)          agent -> page, sent with pinshell_emit; callback receives data
       log(...)                    forwarded to the agent as a log event
       await fetch(url, {headers}) https-only GET, 15 s timeout, 2 MB cap, up to 20 headers
     Limits: bridge messages ≤ 64 KB; emitted names are truncated to 256 chars; log text to 4096 chars.
+    Events carry { seq, ts, session, type, name, data }. type is the name prefix
+    (ui, state, lifecycle, log, or a template namespace such as pet/system/todo).
 
     Delivery rules:
     - Call pinshell_templates first and reuse a bundled template when it fits;
       pinshell_template_show accepts a file name or title and applies the template's metadata.
     - pinshell_html writes a complete document, shows it, and waits for load by default.
     - pinshell_eval updates the live DOM and returns the JSON result; prefer it over reloading.
-    - pinshell_emit dispatches events into the page; pinshell_poll_events long-polls up to 10 s.
+    - pinshell_emit dispatches events into the page. Use pinshell_await_event to wait for a
+      matching event (up to 30 s) and pinshell_poll_events to drain by cursor with filters.
+    - pinshell_state returns the panel's shared state; prefer it over scraping the DOM.
     - Close the panel with pinshell_close when the task is done and the user no longer needs it.
     - Keep the panel compact and readable at its declared size, avoid layout shift, and respect
       prefers-reduced-motion.
@@ -189,17 +199,19 @@ public enum MCPPromptCatalog {
         PinShell is an always-on-top HTML overlay on macOS. \
         Be proactive: when a visual, interactive, or live response is clearer than chat — \
         progress, status, comparisons, choices, confirmations, alerts — show a compact panel \
-        without asking first; prefer buttons + pinshell_poll_events over typed questions. \
+        without asking first; prefer buttons + pinshell_await_event over typed questions. \
         Keep panels small, close them when done, and never repeat what chat already says. \
         Call pinshell_templates first and reuse a bundled template when it fits; read its \
         protocol comment before pushing events. pinshell_html renders HTML in an isolated \
         agent folder (inline its assets); pinshell_eval updates the live DOM; pinshell_emit and \
-        pinshell_poll_events exchange events. \
+        pinshell_await_event / pinshell_poll_events exchange events (cursor + type/name filters); \
+        pinshell_state reads the panel's shared state. \
         Window hints: <meta name="pinshell:size|position|passthrough|opacity|radius|order">. \
         Templates support pinshell:title/subtitle lang variants and pinshell-i18n.js; \
         window.pinshell.language is the app language. \
         window.pinshell: setSize, setPosition, setPassthrough, setOpacity, setRadius, \
-        emit, on, log, and an https-only fetch. \
+        getState, setState, patchState, ready/input/submit/cancel, emit, on, log, and an \
+        https-only fetch. \
         The bundled desktop pet can be driven with pet:* events; use the pet-companion \
         prompt to connect it to your work. \
         Reply in \(userLanguageName) (the OS language) and write on-screen copy in the app \
@@ -333,8 +345,9 @@ public enum MCPPromptCatalog {
         2. Call pinshell_html with html and wait: true; pass size/position only when they should
            override the hints above.
         3. Reply with one line describing what is on screen. If the panel expects a response,
-           call pinshell_poll_events with timeout_ms 10000 and handle the returned events.
-           Close it with pinshell_close when the user is done.
+           call pinshell_await_event with types ["ui"] and names ["ui:submit", "ui:cancel"]
+           (wait_ms 30000) and handle the returned event. Use pinshell_poll_events to drain
+           other events by cursor. Close it with pinshell_close when the user is done.
         """
     }
 
@@ -353,12 +366,13 @@ public enum MCPPromptCatalog {
 
         Interaction rules:
         - Render real buttons or clickable cards; make them keyboard-accessible and show a visible focus state. Prefer choices over typing; trim and cap free-text input.
-        - After load, call window.pinshell.emit('ready', { at: Date.now(), choices: [...] }) so the agent knows the UI is live.
-        - On activation, call window.pinshell.emit('decision', { id, label, value }) exactly once, then switch to a submitted state and disable further submission.
-        - Provide a cancel path: call window.pinshell.emit('cancelled', { at: Date.now() }) and leave the panel visible until the agent closes it.
+        - After load, call window.pinshell.ready({ at: Date.now(), choices: [...] }) so the agent knows the UI is live.
+        - On activation, call window.pinshell.submit({ id, label, value }) exactly once, then switch to a submitted state and disable further submission.
+        - Provide a cancel path: call window.pinshell.cancel({ at: Date.now() }) and leave the panel visible until the agent closes it.
+        - Record UI progress with window.pinshell.setState({ phase, choice, ... }) or patchState({ ... }); the agent reads it with pinshell_state. Do not store the answer only in the DOM.
         - Listen with window.pinshell.on('agent:message', ...) for acknowledgements. Acknowledge from the agent side with pinshell_emit('agent:message', {...}) or update the DOM with pinshell_eval; do not reload the page for small changes.
 
-        Workflow: call pinshell_html with the complete document and wait: true, then call pinshell_poll_events with timeout_ms 10000 and keep polling while waiting for ready, decision, or cancelled. Act on the event, reply to the user, update the panel with pinshell_eval or pinshell_emit('agent:message', {...}), and close it with pinshell_close once the decision is handled and the user no longer needs it.
+        Workflow: call pinshell_html with the complete document and wait: true, then call pinshell_await_event with types ["ui"] and names ["ui:submit", "ui:cancel"] (wait_ms 30000). If it times out, read pinshell_state and await again while the user is still deciding. Act on the event, reply to the user, update the panel with pinshell_eval or pinshell_emit('agent:message', {...}), and close it with pinshell_close once the decision is handled and the user no longer needs it.
         """
     }
 
@@ -426,21 +440,22 @@ public enum MCPPromptCatalog {
         - agent:message { text } — legacy alias for pet:say.
         - window.PinShellPet exposes say/mood/animate/task/celebrate/alert/reset/state for pinshell_eval.
 
-        Page → agent (pinshell_poll_events):
+        Page → agent (pinshell_await_event / pinshell_poll_events):
         - pet:ready { version, mood, muted, affection, moods[], features[] } — the pet is live.
         - pet:tap { area, count, mood, affection }, pet:pet { affection, mood }, pet:ask { requestId, text, mood }, pet:sleep { at }, pet:wake { at }.
 
         Etiquette:
         - Keep it ambient: at most one update every ~10 seconds, and never repeat what chat already says.
         - Use the pet for mood and status; use a normal panel for anything longer than one line.
-        - While the pet is visible and the user is waiting on you, call pinshell_poll_events with timeout_ms 10000 between steps. Answer pet:ask in the same turn, echoing requestId within ~10 seconds.
+        - While the pet is visible and the user is waiting on you, call pinshell_await_event with types ["pet"] and names ["pet:ask", "pet:tap"] (wait_ms 30000) between steps. Answer pet:ask in the same turn, echoing requestId within ~10 seconds.
         - The pet works without an agent. Never make the task's success depend on it, and never block on a reply.
 
         Workflow:
         1. Show the pet and emit pet:hello; wait for pet:ready when you need its features or state.
         2. Before long work, emit pet:mood "thinking"; for multi-step jobs, emit pet:task with progress updates.
         3. On success, pet:celebrate with a short line; on failure, pet:alert and keep the detail in chat.
-        4. While waiting for the user, poll for pet:ask and pet:tap and react briefly.
+        4. While waiting for the user, call pinshell_await_event with types ["pet"] and names
+           ["pet:ask", "pet:tap"] (wait_ms 30000) and react briefly.
         5. When done, emit pet:mood "happy" plus pet:say, or pet:reset if the pet should rest.
         """
     }
@@ -489,8 +504,9 @@ public enum MCPPromptCatalog {
 
         Workflow: check pinshell_templates first; show a document with pinshell_html (or a
         template with pinshell_template_show), update it with pinshell_eval, send events into it
-        with pinshell_emit, and receive page events with pinshell_poll_events. Save reusable
-        panels with pinshell_template_write, and close panels with pinshell_close when done.
+        with pinshell_emit, and receive page events with pinshell_await_event /
+        pinshell_poll_events. Read shared state with pinshell_state. Save reusable panels with
+        pinshell_template_write, and close panels with pinshell_close when done.
         """
     }
 

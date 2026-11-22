@@ -9,8 +9,14 @@ import PinShellCore
 final class MCPServer {
     private let eventStream = MCPEventStream()
     private let toolSet = MCPToolSet()
+    /// 工具调用放到并发队列：长轮询不再阻塞 stdio 读循环（ping/cancel/其他请求）。
+    private let toolQueue = DispatchQueue(label: "PinShell.MCP.Tools",
+                                          qos: .userInitiated,
+                                          attributes: .concurrent)
+    private let writeLock = NSLock()
 
     func run() -> Int32 {
+        eventStream.start()
         while let line = readLine(strippingNewline: true) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             guard !trimmed.isEmpty else { continue }
@@ -47,7 +53,15 @@ final class MCPServer {
             return
         }
 
-        // notifications（initialized / cancelled 等）无需响应
+        // notifications（initialized / cancelled 等）无需响应。
+        // cancelled 用于唤醒正在等待的 poll/await，避免宿主放弃请求后继续占用等待。
+        if method.hasPrefix("notifications/") {
+            if method == "notifications/cancelled" {
+                eventStream.cancelWaiters()
+            }
+            return
+        }
+
         guard let id = request["id"], !(id is NSNull) else { return }
 
         switch method {
@@ -95,18 +109,21 @@ final class MCPServer {
             return
         }
         let arguments = params?["arguments"] as? [String: Any] ?? [:]
-        do {
-            let text = try toolSet.execute(name: name, arguments: arguments,
-                                           eventStream: eventStream)
-            sendResult(id: id, [
-                "content": [["type": "text", "text": text]],
-                "isError": false
-            ])
-        } catch {
-            sendResult(id: id, [
-                "content": [["type": "text", "text": error.localizedDescription]],
-                "isError": true
-            ])
+        toolQueue.async { [weak self] in
+            guard let self else { return }
+            do {
+                let text = try self.toolSet.execute(name: name, arguments: arguments,
+                                                    eventStream: self.eventStream)
+                self.sendResult(id: id, [
+                    "content": [["type": "text", "text": text]],
+                    "isError": false
+                ])
+            } catch {
+                self.sendResult(id: id, [
+                    "content": [["type": "text", "text": error.localizedDescription]],
+                    "isError": true
+                ])
+            }
         }
     }
 
@@ -176,6 +193,8 @@ final class MCPServer {
 
     private func write(_ object: [String: Any]) {
         let json = ControlWire.jsonText(JSONValue(any: object))
+        writeLock.lock()
+        defer { writeLock.unlock() }
         FileHandle.standardOutput.write(Data((json + "\n").utf8))
     }
 }
@@ -297,11 +316,46 @@ struct MCPToolSet {
         ),
         MCPTool(
             name: "pinshell_poll_events",
-            description: "Return user interaction events emitted by the page (pinshell.emit) since the last poll. Optionally wait for an event.",
+            description: "Return page events since a cursor. Long-polls up to 30 s. Returns {epoch, events, next, more, dropped, connected, cancelled, skipped, reset}; pass next and epoch back as since/epoch. Events carry seq, ts, session, type and name.",
             properties: [
-                "timeout_ms": ["type": "integer", "minimum": 0, "maximum": 10000,
-                               "description": "Maximum time to wait for an event."]
+                "since": ["type": "integer", "minimum": 0,
+                          "description": "Cursor returned as next by a previous poll. Omit to continue after the last delivered event."],
+                "epoch": ["type": "string",
+                          "description": "Epoch returned by a previous poll. If it differs, the cursor resets and reset is true."],
+                "wait_ms": ["type": "integer", "minimum": 0, "maximum": 30000,
+                            "description": "Maximum time to wait for an event (default 0)."],
+                "timeout_ms": ["type": "integer", "minimum": 0, "maximum": 30000,
+                               "description": "Deprecated alias for wait_ms."],
+                "types": ["type": "array", "items": ["type": "string"],
+                          "description": "Only return these event namespaces, e.g. [\"ui\"], [\"state\"], [\"pet\"]."],
+                "names": ["type": "array", "items": ["type": "string"],
+                          "description": "Only return these exact event names, e.g. [\"ui:submit\"]."],
+                "limit": ["type": "integer", "minimum": 1, "maximum": 500,
+                          "description": "Maximum events to return (default 100)."]
             ],
+            required: []
+        ),
+        MCPTool(
+            name: "pinshell_await_event",
+            description: "Wait until one event matches types/names (up to 30 s), then return {event, events, next, timed_out, ...}. Advances the cursor past non-matching events up to the match. Prefer this over polling loops for decisions and confirmations.",
+            properties: [
+                "types": ["type": "array", "items": ["type": "string"],
+                          "description": "Event namespaces to wait for, e.g. [\"ui\"]."],
+                "names": ["type": "array", "items": ["type": "string"],
+                          "description": "Exact event names to wait for, e.g. [\"ui:submit\", \"ui:cancel\"]."],
+                "wait_ms": ["type": "integer", "minimum": 0, "maximum": 30000,
+                            "description": "Maximum time to wait (default 30000)."],
+                "since": ["type": "integer", "minimum": 0,
+                          "description": "Optional cursor; omit to continue after the last delivered event."],
+                "epoch": ["type": "string",
+                          "description": "Optional epoch from a previous poll; a mismatch resets the cursor."]
+            ],
+            required: []
+        ),
+        MCPTool(
+            name: "pinshell_state",
+            description: "Return the panel's shared state set by window.pinshell.setState / patchState, plus its session and revision.",
+            properties: [:],
             required: []
         ),
         MCPTool(
@@ -438,9 +492,35 @@ struct MCPToolSet {
             return ControlWire.jsonText(.object(object))
 
         case "pinshell_poll_events":
-            let timeoutMS = min(max(intValue(arguments["timeout_ms"]) ?? 0, 0), 10_000)
-            let events = eventStream.poll(timeout: Double(timeoutMS) / 1000)
-            return ControlWire.jsonText(events)
+            let waitMS = min(max(intValue(arguments["wait_ms"])
+                                 ?? intValue(arguments["timeout_ms"]) ?? 0, 0), 30_000)
+            let batch = eventStream.poll(
+                since: intValue(arguments["since"]),
+                epoch: stringValue(arguments["epoch"]),
+                wait: Double(waitMS) / 1000,
+                types: stringSet(arguments["types"]),
+                names: stringSet(arguments["names"]),
+                limit: min(max(intValue(arguments["limit"]) ?? 100, 1), 500)
+            )
+            return ControlWire.jsonText(batch.jsonValue)
+
+        case "pinshell_await_event":
+            let waitMS = min(max(intValue(arguments["wait_ms"]) ?? 30_000, 0), 30_000)
+            let batch = eventStream.poll(
+                since: intValue(arguments["since"]),
+                epoch: stringValue(arguments["epoch"]),
+                wait: Double(waitMS) / 1000,
+                types: stringSet(arguments["types"]),
+                names: stringSet(arguments["names"]),
+                limit: 1
+            )
+            var object = batch.jsonValue.objectValue ?? [:]
+            object["event"] = batch.events.first?.jsonValue ?? .null
+            object["timed_out"] = .bool(batch.events.isEmpty && !batch.cancelled)
+            return ControlWire.jsonText(.object(object))
+
+        case "pinshell_state":
+            return ControlWire.jsonText(try control("state"))
 
         case "pinshell_close":
             _ = try control("close")
@@ -493,6 +573,18 @@ struct MCPToolSet {
     private func intValue(_ value: Any?) -> Int? {
         guard let value else { return nil }
         return JSONValue(any: value).intValue
+    }
+
+    private func stringValue(_ value: Any?) -> String? {
+        guard let value else { return nil }
+        return JSONValue(any: value).stringValue
+    }
+
+    private func stringSet(_ value: Any?) -> Set<String>? {
+        guard let value,
+              let values = JSONValue(any: value).arrayValue else { return nil }
+        let strings = values.compactMap(\.stringValue).filter { !$0.isEmpty }
+        return strings.isEmpty ? nil : Set(strings)
     }
 
     // MARK: - 控制通道
@@ -585,68 +677,4 @@ private struct MCPToolError: Error, LocalizedError {
     let message: String
     init(_ message: String) { self.message = message }
     var errorDescription: String? { message }
-}
-
-// MARK: - 事件流
-
-/// 后台订阅 `listen`，把页面事件排队供 `pinshell_poll_events` 取走。
-final class MCPEventStream {
-    private let condition = NSCondition()
-    private var events: [ControlEvent] = []
-    private var started = false
-    private let maxEvents = 500
-
-    func poll(timeout: TimeInterval) -> [ControlEvent] {
-        startIfNeeded()
-        let deadline = Date().addingTimeInterval(timeout)
-
-        condition.lock()
-        defer { condition.unlock() }
-        while events.isEmpty && timeout > 0 {
-            let remaining = deadline.timeIntervalSinceNow
-            if remaining <= 0 { break }
-            condition.wait(until: min(deadline, Date().addingTimeInterval(remaining)))
-        }
-        let result = events
-        events.removeAll()
-        return result
-    }
-
-    private func startIfNeeded() {
-        condition.lock()
-        if started {
-            condition.unlock()
-            return
-        }
-        started = true
-        condition.unlock()
-
-        let thread = Thread { [weak self] in self?.run() }
-        thread.name = "PinShell.MCP.Events"
-        thread.start()
-    }
-
-    private func run() {
-        while true {
-            do {
-                let (fd, _) = try ControlClient.openListenStream()
-                defer { close(fd) }
-                while let line = try ControlClient.readLine(fd: fd, timeout: nil) {
-                    guard let event = try? ControlWire.decodeLine(line, as: ControlEvent.self) else {
-                        continue
-                    }
-                    condition.lock()
-                    events.append(event)
-                    if events.count > maxEvents {
-                        events.removeFirst(events.count - maxEvents)
-                    }
-                    condition.broadcast()
-                    condition.unlock()
-                }
-            } catch {
-                // App 未运行/退出：稍后重试
-            }
-            Thread.sleep(forTimeInterval: 1)
-        }
-    }
 }

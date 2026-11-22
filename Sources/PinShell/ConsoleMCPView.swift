@@ -35,6 +35,8 @@ final class ConsoleMCPView: NSView {
         "pinshell_template_delete": "trash",
         "pinshell_template_show": "play.rectangle",
         "pinshell_poll_events": "tray.and.arrow.down",
+        "pinshell_await_event": "hourglass",
+        "pinshell_state": "curlybraces",
         "pinshell_close": "xmark.circle",
     ]
 

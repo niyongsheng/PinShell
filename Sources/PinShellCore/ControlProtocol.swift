@@ -127,6 +127,27 @@ public enum JSONValue: Codable, Equatable, Sendable {
         case .object(let value): return value.mapValues(\.anyValue)
         }
     }
+
+    /// RFC 7386 JSON Merge Patch：对象递归合并，null 删除键，其余类型整体替换。
+    /// 面板共享状态和 `state:delta` 事件共用这套语义（JS 侧实现必须保持一致）。
+    public func applyingMergePatch(_ patch: JSONValue) -> JSONValue {
+        guard case .object(let patchObject) = patch else { return patch }
+        var base: [String: JSONValue]
+        if case .object(let current) = self {
+            base = current
+        } else {
+            base = [:]
+        }
+        for (key, value) in patchObject {
+            if case .null = value {
+                base.removeValue(forKey: key)
+            } else {
+                let current = base[key] ?? .null
+                base[key] = current.applyingMergePatch(value)
+            }
+        }
+        return .object(base)
+    }
 }
 
 // MARK: - Messages
@@ -178,6 +199,11 @@ public struct ControlResponse: Codable, Equatable, Sendable {
 }
 
 /// 应用主动推送的事件（listen 订阅）。
+///
+/// 事件在经过 `EventLog` 时补上 `seq` / `epoch` / `ts`，`session` 由窗口控制器补上。
+/// `type` 是事件的命名空间（`ui`、`state`、`lifecycle`、`log`，或页面自定义的
+/// `pet`、`system`、`todo` 等），供 `pinshell_poll_events` / `pinshell_await_event`
+/// 做过滤。`event` 保留来源类型（`emit`、`loaded`、`error`、`log`、`state`、`session`）。
 public struct ControlEvent: Codable, Equatable, Sendable {
     public var event: String
     public var name: String?
@@ -185,35 +211,90 @@ public struct ControlEvent: Codable, Equatable, Sendable {
     public var message: String?
     public var file: String?
     public var url: String?
+    public var seq: Int?
+    public var epoch: String?
+    public var session: String?
+    public var type: String?
+    public var ts: Double?
 
     public init(event: String,
                 name: String? = nil,
                 data: JSONValue? = nil,
                 message: String? = nil,
                 file: String? = nil,
-                url: String? = nil) {
+                url: String? = nil,
+                seq: Int? = nil,
+                epoch: String? = nil,
+                session: String? = nil,
+                type: String? = nil,
+                ts: Double? = nil) {
         self.event = event
         self.name = name
         self.data = data
         self.message = message
         self.file = file
         self.url = url
+        self.seq = seq
+        self.epoch = epoch
+        self.session = session
+        self.type = type
+        self.ts = ts
     }
 
+    /// 页面 emit 的事件。没有命名空间（`name:event`）的名称归类为 `ui`。
     public static func emit(name: String, data: JSONValue) -> ControlEvent {
-        ControlEvent(event: "emit", name: name, data: data)
+        ControlEvent(event: "emit", name: name, data: data, type: category(for: name))
     }
 
     public static func loaded(file: String, url: String) -> ControlEvent {
-        ControlEvent(event: "loaded", file: file, url: url)
+        ControlEvent(event: "loaded", name: "lifecycle:loaded", file: file, url: url,
+                     type: "lifecycle")
     }
 
     public static func error(_ message: String) -> ControlEvent {
-        ControlEvent(event: "error", message: message)
+        ControlEvent(event: "error", name: "lifecycle:error", message: message,
+                     type: "lifecycle")
     }
 
     public static func log(_ message: String) -> ControlEvent {
-        ControlEvent(event: "log", message: message)
+        ControlEvent(event: "log", name: "log", message: message, type: "log")
+    }
+
+    public static func stateSnapshot(_ state: JSONValue) -> ControlEvent {
+        ControlEvent(event: "state", name: "state:snapshot",
+                     data: .object(["state": state]), type: "state")
+    }
+
+    /// 只带补丁，不带完整 state：避免重复数据和事件行过大；快照用 pinshell_state 读。
+    public static func stateDelta(_ patch: JSONValue) -> ControlEvent {
+        ControlEvent(event: "state", name: "state:delta",
+                     data: .object(["patch": patch]), type: "state")
+    }
+
+    public static func sessionStarted(previous: String?) -> ControlEvent {
+        ControlEvent(event: "session", name: "session:started",
+                     data: .object(["previous": previous.map(JSONValue.string) ?? .null]),
+                     type: "lifecycle")
+    }
+
+    public static func sessionEnded() -> ControlEvent {
+        ControlEvent(event: "session", name: "session:ended", type: "lifecycle")
+    }
+
+    /// `todo:changed` → `todo`，`submit` → `ui`。
+    public static func category(for name: String) -> String {
+        guard let colon = name.firstIndex(of: ":") else { return "ui" }
+        let prefix = String(name[..<colon])
+        return prefix.isEmpty ? "ui" : prefix
+    }
+
+    public var jsonValue: JSONValue {
+        guard let data = try? ControlWire.encoder.encode(self),
+              let object = try? JSONSerialization.jsonObject(with: data,
+                                                             options: [.fragmentsAllowed]) else {
+            return .null
+        }
+        return JSONValue(any: object)
     }
 }
 
@@ -292,7 +373,14 @@ public enum ControlWire {
 
 public enum ControlEndpoint {
     /// ~/Library/Application Support/PinShell
+    ///
+    /// `PINSHELL_HOME` 可覆盖整个数据目录，用于测试或多实例隔离。
     public static func applicationDirectory() -> URL {
+        if let override = ProcessInfo.processInfo.environment["PINSHELL_HOME"],
+           !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return URL(fileURLWithPath: (override as NSString).expandingTildeInPath,
+                       isDirectory: true)
+        }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent("Library/Application Support")
