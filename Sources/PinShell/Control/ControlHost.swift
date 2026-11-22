@@ -31,10 +31,10 @@ final class ControlHost {
             server?.broadcast(event)
         }
         windowController.onPageLoaded = { [weak self] in
-            self?.completePendingShow()
+            self?.finishPendingShow()
         }
         windowController.onPageLoadFailed = { [weak self] error in
-            self?.failPendingShow(message: error.localizedDescription)
+            self?.finishPendingShow(code: "load_failed", message: error.localizedDescription)
         }
     }
 
@@ -98,7 +98,8 @@ final class ControlHost {
             return
         }
 
-        cancelPendingShow(code: "superseded", message: "superseded by a newer show command")
+        finishPendingShow(code: "superseded",
+                          message: "superseded by a newer show command")
 
         let watch = bool(request, "watch") ?? false
         let wait = bool(request, "wait") ?? false
@@ -107,7 +108,8 @@ final class ControlHost {
 
         if wait {
             let timeout = DispatchWorkItem { [weak self] in
-                self?.failPendingShow(message: "HTML did not finish loading in time")
+                self?.finishPendingShow(code: "load_failed",
+                                        message: "HTML did not finish loading in time")
             }
             pendingShow = PendingShow(connection: connection, requestID: request.id, timeout: timeout)
             DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: timeout)
@@ -308,6 +310,7 @@ final class ControlHost {
                 "file": .string(item.file),
                 "name": .string(item.name),
                 "description": .string(item.description),
+                "language": item.language.map { .string($0) } ?? .null,
                 "path": .string(item.url.path),
                 "size": .object([
                     "width": .number(item.size.width),
@@ -321,26 +324,16 @@ final class ControlHost {
 
     // MARK: - show --wait
 
-    private func completePendingShow() {
+    /// 结束等待中的 show：code 为 nil 表示成功，否则返回失败。
+    private func finishPendingShow(code: String? = nil, message: String = "") {
         guard let pending = pendingShow else { return }
         pendingShow = nil
         pending.timeout.cancel()
-        pending.connection.send(.success(id: pending.requestID, result: statusResult()))
-    }
-
-    private func failPendingShow(message: String) {
-        guard let pending = pendingShow else { return }
-        pendingShow = nil
-        pending.timeout.cancel()
-        pending.connection.send(.failure(id: pending.requestID, code: "load_failed",
-                                         message: message))
-    }
-
-    private func cancelPendingShow(code: String, message: String) {
-        guard let pending = pendingShow else { return }
-        pendingShow = nil
-        pending.timeout.cancel()
-        pending.connection.send(.failure(id: pending.requestID, code: code, message: message))
+        if let code {
+            pending.connection.send(.failure(id: pending.requestID, code: code, message: message))
+        } else {
+            pending.connection.send(.success(id: pending.requestID, result: statusResult()))
+        }
     }
 
     // MARK: - 参数

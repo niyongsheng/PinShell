@@ -33,6 +33,9 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
     private var hasChanges = false
     private var isPopulating = false
 
+    /// 当前展示的模板语言；编辑器写回这个语言的 meta。
+    private var editLanguage: String { item.language ?? LanguageTag.appLanguage }
+
     private static let anchors: [WindowAnchor] = WindowAnchor.allCases
     private static let sizePresets: [WindowSize] = [
         WindowSize(width: 200, height: 56),
@@ -304,10 +307,15 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
 
         let titleRow = formRow(NSLocalizedString("console.editor.name", comment: ""), titleField)
         let subtitleRow = formRow(NSLocalizedString("console.editor.description", comment: ""), subtitleField)
+        let languageHint = secondaryLabel(String(
+            format: NSLocalizedString("console.editor.languageHint", comment: ""),
+            LanguageTag.displayName(for: editLanguage)
+        ))
         let rows: [NSView] = [
             infoHeader,
             titleRow,
             subtitleRow,
+            languageHint,
             separator,
             windowHeader,
             formRow(NSLocalizedString("console.editor.size", comment: ""), sizeRow, stretch: false),
@@ -323,7 +331,7 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
         form.orientation = .vertical
         form.alignment = .width
         form.spacing = 8
-        form.setCustomSpacing(12, after: subtitleRow)
+        form.setCustomSpacing(12, after: languageHint)
         form.setCustomSpacing(12, after: separator)
         return form
     }
@@ -530,16 +538,20 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
             showError(NSLocalizedString("console.editor.invalidTitle", comment: ""))
             return
         }
+        let subtitle = subtitleField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        // 只写回用户实际改动的字段：避免只改尺寸时把当前语言的标题/简介
+        // 当成翻译写入另一个语言变体。
         let edit = HTMLTemplateEdit(
-            title: title,
-            subtitle: subtitleField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines),
+            title: title == item.name ? nil : title,
+            subtitle: subtitle == item.description ? nil : subtitle,
             size: WindowSize(width: width, height: height),
             position: position,
             passthrough: passthroughSwitch.state == .on,
             opacity: opacitySlider.doubleValue,
             radius: radiusSlider.doubleValue,
-            order: order
+            order: order,
+            language: editLanguage
         )
 
         guard let onSave else { return }

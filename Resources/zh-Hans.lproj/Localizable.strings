@@ -1,5 +1,6 @@
 /* 菜单 */
 "menu.console" = "控制台";
+"menu.showWindow" = "显示窗口";
 "menu.windowState.interactive" = "窗口状态：交互";
 "menu.windowState.passthrough" = "窗口状态：穿透";
 "menu.position" = "窗口位置";
@@ -93,6 +94,8 @@
 "console.mcp.tools" = "可用工具";
 "console.mcp.prompts" = "可用提示词";
 "console.mcp.copyConfig" = "复制配置";
+"console.mcp.expand" = "展开";
+"console.mcp.collapse" = "收起";
 "console.mcp.clients.title" = "客户端自动配置";
 "console.mcp.clients.subtitle" = "检测本机已安装的 MCP 客户端，一键写入 PinShell 服务配置。";
 "console.mcp.clients.auto" = "自动配置";
@@ -127,6 +130,7 @@
 "console.editor.section.window" = "窗口外观";
 "console.editor.name" = "标题";
 "console.editor.description" = "副标题";
+"console.editor.languageHint" = "标题和副标题按%@编辑。";
 "console.editor.size" = "尺寸";
 "console.editor.customSize" = "自定义";
 "console.editor.position" = "位置";

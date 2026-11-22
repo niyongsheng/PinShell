@@ -1,5 +1,6 @@
 /* 菜单 */
 "menu.console" = "Console";
+"menu.showWindow" = "Show Window";
 "menu.windowState.interactive" = "Window State: Interactive";
 "menu.windowState.passthrough" = "Window State: Passthrough";
 "menu.position" = "Window Position";
@@ -93,6 +94,8 @@
 "console.mcp.tools" = "Available Tools";
 "console.mcp.prompts" = "Available Prompts";
 "console.mcp.copyConfig" = "Copy Config";
+"console.mcp.expand" = "Expand";
+"console.mcp.collapse" = "Collapse";
 "console.mcp.clients.title" = "Client Auto-Configuration";
 "console.mcp.clients.subtitle" = "Detects installed MCP clients and writes the PinShell server configuration for you.";
 "console.mcp.clients.auto" = "Auto-configure";
@@ -127,6 +130,7 @@
 "console.editor.section.window" = "Window Appearance";
 "console.editor.name" = "Title";
 "console.editor.description" = "Subtitle";
+"console.editor.languageHint" = "Title and subtitle are edited in %@.";
 "console.editor.size" = "Size";
 "console.editor.customSize" = "Custom";
 "console.editor.position" = "Position";

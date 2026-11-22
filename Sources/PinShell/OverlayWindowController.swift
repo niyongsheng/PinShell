@@ -37,9 +37,6 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         let controller = WKUserContentController()
         let bridge = JSBridge()
         controller.add(bridge, name: "pinshell")
-        controller.addUserScript(WKUserScript(source: JSBridge.injectionScript,
-                                              injectionTime: .atDocumentStart,
-                                              forMainFrameOnly: true))
         config.userContentController = controller
 
         let sessionConfiguration = URLSessionConfiguration.ephemeral
@@ -115,6 +112,8 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
 
     // MARK: - 对外接口
 
+    var isWindowVisible: Bool { panel.isVisible }
+
     func showWindow() {
         panel.orderFront(nil)   // 不用 orderFrontRegardless：会破坏 nonactivating 语义、抢焦点
         notifyStatusChanged()
@@ -123,6 +122,17 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
     func hideWindow() {
         panel.orderOut(nil)
         notifyStatusChanged()
+    }
+
+    /// 显示/隐藏悬浮层；返回切换后的可见状态。
+    @discardableResult
+    func toggleVisibility() -> Bool {
+        if panel.isVisible {
+            hideWindow()
+        } else {
+            showWindow()
+        }
+        return panel.isVisible
     }
 
     /// 加载 HTML：
@@ -135,7 +145,8 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         currentURL = resolved
         sessionSpecOverrides = specOverride
         resetTransientWindowStyle()
-        applyDeclaredSpec(for: resolved)
+        let metadata = applyDeclaredSpec(for: resolved)
+        installBridgeScript(templateLanguage: metadata.resolvedLanguage)
         webView.loadLocalHTMLFile(resolved)
         AppState.lastHTMLURL = resolved
         showWindow()
@@ -147,7 +158,8 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
     func reloadHTML() {
         guard let url = currentURL else { return }
         resetTransientWindowStyle()
-        applyDeclaredSpec(for: url)
+        let metadata = applyDeclaredSpec(for: url)
+        installBridgeScript(templateLanguage: metadata.resolvedLanguage)
         webView.loadLocalHTMLFile(url)
     }
 
@@ -166,10 +178,26 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
     // MARK: - 声明式窗口属性
 
     /// HTML meta 的窗口属性（不含 CLI override）。
-    private func applyDeclaredSpec(for url: URL) {
+    @discardableResult
+    private func applyDeclaredSpec(for url: URL) -> HTMLTemplateMetadata {
         // 与模板库同一套有效元数据：HTML meta > 同名内置模板 > 默认尺寸
         let metadata = TemplateStore.effectiveMetadata(for: url)
         applyWindowSpec(metadata.windowSpec.merging(overrides: sessionSpecOverrides))
+        return metadata
+    }
+
+    /// 每次导航前重装 documentStart 脚本；模板语言随文件变化。
+    private func installBridgeScript(templateLanguage: String?) {
+        userContentController.removeAllUserScripts()
+        userContentController.addUserScript(WKUserScript(
+            source: JSBridge.injectionScript(
+                appLanguage: LanguageTag.appLanguage,
+                languages: LanguageTag.templatePreferredLanguages,
+                templateLanguage: templateLanguage
+            ),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        ))
     }
 
     /// 统一入口：size/position/passthrough/opacity/radius。
@@ -340,15 +368,10 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
     }
 
     func resolveFetch(id: String, ok: Bool, body: String, error: String) {
-        let script = "window.__pinshellFetchResult(\(jsString(id)), \(ok ? "true" : "false"), "
-            + "\(jsString(body)), \(jsString(error)));"
+        let script = "window.__pinshellFetchResult(\(JSLiteral.string(id)), "
+            + "\(ok ? "true" : "false"), "
+            + "\(JSLiteral.string(body)), \(JSLiteral.string(error)));"
         webView.evaluateJavaScript(script, completionHandler: nil)
-    }
-
-    private func jsString(_ value: String) -> String {
-        guard let data = try? JSONEncoder().encode(value),
-              let string = String(data: data, encoding: .utf8) else { return "\"\"" }
-        return string
     }
 
     /// CLI `eval`：返回可 JSON 化的 JS 结果。
@@ -419,16 +442,23 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
     /// 预设四角：保持当前尺寸，贴到所在屏幕可见区域角落（默认 24pt 边距）
     func moveToCorner(_ corner: WindowAnchor) {
         guard let visible = (panel.screen ?? NSScreen.main)?.visibleFrame else { return }
-        let size = panel.frame.size
-        let inset = CGFloat(WindowGeometry.defaultInset)
-        let x = corner.isLeft
-            ? visible.minX + inset
-            : max(visible.minX + inset, visible.maxX - size.width - inset)
-        let y = corner.isTop
-            ? max(visible.minY + inset, visible.maxY - size.height - inset)
-            : visible.minY + inset
-        panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
+        let frame = WindowGeometry.resolve(
+            size: nil,
+            position: .anchor(corner),
+            current: Self.windowFrame(panel.frame),
+            screen: Self.windowFrame(visible)
+        )
+        panel.setFrame(Self.nsRect(frame), display: true)
         notifyStatusChanged()
+    }
+
+    private static func windowFrame(_ rect: NSRect) -> WindowFrame {
+        WindowFrame(x: Double(rect.origin.x), y: Double(rect.origin.y),
+                    width: Double(rect.width), height: Double(rect.height))
+    }
+
+    private static func nsRect(_ frame: WindowFrame) -> NSRect {
+        NSRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
     }
 
     // MARK: - 状态
@@ -489,11 +519,13 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
                           size: NSSize(width: CGFloat(size.width),
                                        height: CGFloat(size.height)))
         }
-        let inset = CGFloat(WindowGeometry.defaultInset)
-        return NSRect(x: vf.maxX - CGFloat(size.width) - inset,
-                      y: vf.minY + inset,
-                      width: CGFloat(size.width),
-                      height: CGFloat(size.height))
+        let frame = WindowGeometry.resolve(
+            size: size,
+            position: .anchor(.bottomRight),
+            current: WindowFrame(x: 0, y: 0, width: size.width, height: size.height),
+            screen: windowFrame(vf)
+        )
+        return nsRect(frame)
     }
 }
 

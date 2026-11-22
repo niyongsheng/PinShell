@@ -11,7 +11,13 @@ final class JSBridge: NSObject, WKScriptMessageHandler {
 
     private static let maxMessageBytes = 64 * 1024
 
-    static let injectionScript = #"""
+    static func injectionScript(appLanguage: String,
+                                languages: [String],
+                                templateLanguage: String?) -> String {
+        let escapedLanguage = JSLiteral.string(appLanguage)
+        let languagesJSON = JSLiteral.strings(languages)
+        let templateLanguageJSON = templateLanguage.map(JSLiteral.string) ?? "null"
+        return #"""
     (function () {
       if (window.pinshell) { return; }
       function post(payload) {
@@ -19,6 +25,9 @@ final class JSBridge: NSObject, WKScriptMessageHandler {
       }
       var pinshell = {
         version: '1',
+        language: \#(escapedLanguage),
+        languages: \#(languagesJSON),
+        templateLanguage: \#(templateLanguageJSON),
         setSize: function (width, height) {
           post({ action: 'setSize', width: Number(width), height: Number(height) });
         },
@@ -77,6 +86,7 @@ final class JSBridge: NSObject, WKScriptMessageHandler {
       window.pinshell = pinshell;
     })();
     """#
+    }
 
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
@@ -157,5 +167,16 @@ final class JSBridge: NSObject, WKScriptMessageHandler {
         default:
             NSLog("PinShell JS: unknown bridge action %@", action)
         }
+    }
+}
+
+/// 把 Swift 值编码成可安全嵌入 JavaScript 的 JSON 字面量。
+enum JSLiteral {
+    static func string(_ value: String) -> String {
+        ControlWire.jsonText(.string(value))
+    }
+
+    static func strings(_ values: [String]) -> String {
+        ControlWire.jsonText(.array(values.map { .string($0) }))
     }
 }

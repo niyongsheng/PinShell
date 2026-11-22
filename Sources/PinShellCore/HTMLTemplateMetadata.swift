@@ -4,6 +4,8 @@ import Foundation
 /// 约定：
 ///   <title>…</title>                         → 模板库标题
 ///   <meta name="description" content="…">    → 模板库副标题
+///   <meta name="pinshell:title" lang="en" content="…">    → 英文标题
+///   <meta name="pinshell:subtitle" lang="en" content="…"> → 英文副标题
 ///   <meta name="pinshell:size" content="280x64">
 ///   <meta name="pinshell:position" content="bottom-right">  或 "120,240"
 ///   <meta name="pinshell:passthrough" content="true">
@@ -19,6 +21,12 @@ public struct HTMLTemplateMetadata: Equatable, Sendable {
     public var opacity: Double?
     public var radius: Double?
     public var order: Int?
+    /// 模板自身的默认语言（来自 i18n block 的 `default` 或 `<html lang>`）。
+    public var documentLanguage: String?
+    /// i18n block 声明的全部语言；为空表示没有 block（旧模板）。
+    public var availableLanguages: [String]
+    /// 按当前偏好实际选中的语言（i18n block 存在时）。
+    public var resolvedLanguage: String?
 
     public init(title: String? = nil,
                 subtitle: String? = nil,
@@ -27,7 +35,10 @@ public struct HTMLTemplateMetadata: Equatable, Sendable {
                 passthrough: Bool? = nil,
                 opacity: Double? = nil,
                 radius: Double? = nil,
-                order: Int? = nil) {
+                order: Int? = nil,
+                documentLanguage: String? = nil,
+                availableLanguages: [String] = [],
+                resolvedLanguage: String? = nil) {
         self.title = title
         self.subtitle = subtitle
         self.size = size
@@ -36,6 +47,9 @@ public struct HTMLTemplateMetadata: Equatable, Sendable {
         self.opacity = opacity
         self.radius = radius
         self.order = order
+        self.documentLanguage = documentLanguage
+        self.availableLanguages = availableLanguages
+        self.resolvedLanguage = resolvedLanguage
     }
 
     public var windowSpec: WindowSpec {
@@ -53,48 +67,64 @@ public struct HTMLTemplateMetadata: Equatable, Sendable {
             passthrough: passthrough ?? fallback.passthrough,
             opacity: opacity ?? fallback.opacity,
             radius: radius ?? fallback.radius,
-            order: order ?? fallback.order
+            order: order ?? fallback.order,
+            documentLanguage: documentLanguage ?? fallback.documentLanguage,
+            // 语言能力属于文件自身，不从内置模板兜底继承；
+            // 旧副本没有 block 时让页面 helper 自己按偏好选择。
+            availableLanguages: availableLanguages,
+            resolvedLanguage: resolvedLanguage
         )
     }
 
     // MARK: - 解析
 
-    /// 最多读取 64KB，足以覆盖所有模板的 <head>。
-    public static func parse(fileURL: URL) -> HTMLTemplateMetadata {
+    /// 读取上限与模板文件上限一致（512KB）；i18n block 可能较大。
+    /// `preferredLanguages` 为空时保持旧行为（只读取默认标题/副标题）。
+    public static func parse(fileURL: URL,
+                             preferredLanguages: [String] = []) -> HTMLTemplateMetadata {
         guard let handle = try? FileHandle(forReadingFrom: fileURL) else {
             return HTMLTemplateMetadata()
         }
         defer { try? handle.close() }
-        let data = (try? handle.read(upToCount: 64 * 1024)) ?? Data()
+        let data = (try? handle.read(upToCount: TemplateStorage.maxBytes)) ?? Data()
         let html = String(data: data, encoding: .utf8)
             ?? String(data: data, encoding: .isoLatin1)
             ?? ""
-        return parse(html: html)
+        return parse(html: html, preferredLanguages: preferredLanguages)
     }
 
-    public static func parse(html: String) -> HTMLTemplateMetadata {
+    public static func parse(html: String,
+                             preferredLanguages: [String] = []) -> HTMLTemplateMetadata {
         var result = HTMLTemplateMetadata()
-        var text = String(html.prefix(64 * 1024))
-        text = stripComments(text)
+        let fullText = String(html.prefix(TemplateStorage.maxBytes))
+        let text = stripComments(fullText)
 
-        if let rawTitle = firstMatch(titleRegex, in: text, group: 1) {
-            result.title = cleanText(rawTitle)
+        result.documentLanguage = documentLanguage(in: text)
+
+        // (language, rank, value)。同一语言下 rank 大的覆盖 rank 小的；
+        // 语言匹配优先于未标语言的默认值。
+        var titles: [(language: String?, rank: Int, value: String)] = []
+        var subtitles: [(language: String?, rank: Int, value: String)] = []
+
+        if let rawTitle = firstMatch(titleRegex, in: text, group: 1),
+           let title = cleanText(rawTitle) {
+            titles.append((nil, 0, title))
         }
-
-        // 标准 description 与 pinshell 专用覆盖分开收集，保证覆盖与文档顺序无关
-        var descriptionValue: String?
-        var subtitleOverride: String?
 
         for tag in matches(metaTagRegex, in: text) {
             guard let name = attribute("name", in: tag)?.lowercased(),
-                  let content = attribute("content", in: tag) else { continue }
+                  let content = attribute("content", in: tag),
+                  let value = cleanText(content) else { continue }
+            let language = languageAttribute(in: tag)
             switch name {
             case "description":
-                descriptionValue = cleanText(content)
+                subtitles.append((language, 0, value))
             case "pinshell:title":
-                result.title = cleanText(content)
-            case "pinshell:subtitle", "pinshell:description":
-                subtitleOverride = cleanText(content)
+                titles.append((language, 1, value))
+            case "pinshell:description":
+                subtitles.append((language, 1, value))
+            case "pinshell:subtitle":
+                subtitles.append((language, 2, value))
             case "pinshell:size":
                 result.size = WindowSize.parse(content)
             case "pinshell:position":
@@ -119,8 +149,70 @@ public struct HTMLTemplateMetadata: Equatable, Sendable {
                 break
             }
         }
-        result.subtitle = subtitleOverride ?? descriptionValue
+
+        result.title = resolve(titles,
+                               preferredLanguages: preferredLanguages,
+                               documentLanguage: result.documentLanguage)
+        result.subtitle = resolve(subtitles,
+                                  preferredLanguages: preferredLanguages,
+                                  documentLanguage: result.documentLanguage)
+
+        // i18n block 是新的单一数据源；存在时优先于旧的 lang meta。
+        if let i18n = TemplateI18n.parse(html: fullText) {
+            let available = i18n.availableLanguages.sorted()
+            result.availableLanguages = available
+            if let defaultLanguage = i18n.defaultLanguage {
+                result.documentLanguage = defaultLanguage
+            }
+            let preferred = preferredLanguages.isEmpty
+                ? [i18n.defaultLanguage].compactMap { $0 }
+                : preferredLanguages
+            let resolved = chooseLanguage(available: available,
+                                          preferred: preferred,
+                                          fallback: i18n.fallbackLanguage,
+                                          defaultLanguage: i18n.defaultLanguage)
+            result.resolvedLanguage = resolved
+
+            let fallbackLanguage = i18n.fallbackLanguage
+                ?? (i18n.availableLanguages.contains(where: { LanguageTag.matches($0, "en") })
+                    ? "en" : i18n.defaultLanguage)
+            let chosen = localizationEntry(i18n, for: resolved)
+            let fallback = localizationEntry(i18n, for: fallbackLanguage)
+            let base = localizationEntry(i18n, for: i18n.defaultLanguage)
+
+            result.title = chosen?.name ?? fallback?.name ?? base?.name ?? result.title
+            result.subtitle = chosen?.description ?? fallback?.description
+                ?? base?.description ?? result.subtitle
+        }
         return result
+    }
+
+    private static func chooseLanguage(available: [String],
+                                       preferred: [String],
+                                       fallback: String?,
+                                       defaultLanguage: String?) -> String? {
+        guard !available.isEmpty else { return nil }
+        if !preferred.isEmpty,
+           let match = LanguageTag.bestMatch(available: available, preferred: preferred) {
+            return match
+        }
+        if let fallback,
+           let match = LanguageTag.bestMatch(available: available, preferred: [fallback]) {
+            return match
+        }
+        if let defaultLanguage,
+           let match = LanguageTag.bestMatch(available: available, preferred: [defaultLanguage]) {
+            return match
+        }
+        return available.first
+    }
+
+    private static func localizationEntry(_ i18n: TemplateI18n,
+                                          for tag: String?) -> TemplateI18n.Language? {
+        guard let tag,
+              let key = LanguageTag.bestMatch(available: i18n.availableLanguages,
+                                              preferred: [tag]) else { return nil }
+        return i18n.languages[key]
     }
 
     // MARK: - 私有工具
@@ -132,6 +224,60 @@ public struct HTMLTemplateMetadata: Equatable, Sendable {
         pattern: #"<title\b[^>]*>([\s\S]*?)</title>"#, options: [.caseInsensitive])
     private static let metaTagRegex = try? NSRegularExpression(
         pattern: #"<meta\b[^>]*>"#, options: [.caseInsensitive])
+    private static let htmlTagRegex = try? NSRegularExpression(
+        pattern: #"<html\b[^>]*>"#, options: [.caseInsensitive])
+
+    private static func documentLanguage(in html: String) -> String? {
+        guard let tag = firstMatch(htmlTagRegex, in: html, group: 0) else { return nil }
+        return languageAttribute(in: tag)
+    }
+
+    /// 轻量读取 `<html lang>`（不解析标题/meta/i18n），编辑器写回时使用。
+    static func documentLanguage(inHTML html: String) -> String? {
+        documentLanguage(in: stripComments(html))
+    }
+
+    /// 从标签中读取 `lang` / `xml:lang`；读取与写回共用同一规则。
+    static func languageAttribute(in tag: String) -> String? {
+        guard let raw = attribute("lang", in: tag) ?? attribute("xml:lang", in: tag) else {
+            return nil
+        }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// 按 preferredLanguages 顺序找第一个匹配的语言变体；
+    /// 同一语言有多个候选时取 rank 最大的。
+    /// 未标语言的内容属于模板默认语言（`<html lang>`）：
+    /// 用户首选默认语言时直接用它，避免退到后面的英文变体。
+    private static func resolve(
+        _ entries: [(language: String?, rank: Int, value: String)],
+        preferredLanguages: [String],
+        documentLanguage: String?
+    ) -> String? {
+        guard !entries.isEmpty else { return nil }
+
+        let untagged = entries
+            .filter { $0.language == nil }
+            .max(by: { $0.rank < $1.rank })
+
+        for preferred in preferredLanguages {
+            let candidates = entries.filter { entry in
+                guard let language = entry.language else { return false }
+                return LanguageTag.matches(language, preferred)
+            }
+            if let best = candidates.max(by: { $0.rank < $1.rank }) {
+                return best.value
+            }
+            if let documentLanguage,
+               LanguageTag.matches(documentLanguage, preferred),
+               let untagged {
+                return untagged.value
+            }
+        }
+
+        return untagged?.value
+    }
     private static let whitespaceRegex = try? NSRegularExpression(
         pattern: "\\s+", options: [.caseInsensitive])
     private static let attributeRegex = try? NSRegularExpression(

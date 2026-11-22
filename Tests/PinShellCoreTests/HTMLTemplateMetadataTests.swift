@@ -46,8 +46,60 @@ final class HTMLTemplateMetadataTests: XCTestCase {
         XCTAssertEqual(metadata.subtitle, "Interactive")
     }
 
-    func testMissingMetadataIsEmpty() {
-        let metadata = HTMLTemplateMetadata.parse(html: "<html><body>hello</body></html>")
+    func testResolvesLanguageVariants() {
+        let html = """
+        <html lang="zh-Hans"><head>
+        <title>待办事项</title>
+        <meta name="description" content="中文简介">
+        <meta name="pinshell:title" lang="en" content="Todo List">
+        <meta name="pinshell:subtitle" lang="en" content="English summary">
+        </head></html>
+        """
+
+        let en = HTMLTemplateMetadata.parse(html: html, preferredLanguages: ["en-US", "zh-Hans"])
+        XCTAssertEqual(en.title, "Todo List")
+        XCTAssertEqual(en.subtitle, "English summary")
+        XCTAssertEqual(en.documentLanguage, "zh-Hans")
+
+        let zh = HTMLTemplateMetadata.parse(html: html, preferredLanguages: ["zh-Hans", "en"])
+        XCTAssertEqual(zh.title, "待办事项")
+        XCTAssertEqual(zh.subtitle, "中文简介")
+
+        let fallback = HTMLTemplateMetadata.parse(html: html, preferredLanguages: ["fr"])
+        XCTAssertEqual(fallback.title, "待办事项")
+        XCTAssertEqual(fallback.subtitle, "中文简介")
+    }
+
+    func testLanguageVariantBeatsDefaultOverride() {
+        let html = """
+        <html><head>
+        <title>Base</title>
+        <meta name="pinshell:title" content="Override">
+        <meta name="pinshell:title" lang="en" content="English">
+        <meta name="description" content="Base description">
+        <meta name="pinshell:subtitle" lang="en" content="English description">
+        </head></html>
+        """
+
+        let metadata = HTMLTemplateMetadata.parse(html: html, preferredLanguages: ["en"])
+        XCTAssertEqual(metadata.title, "English")
+        XCTAssertEqual(metadata.subtitle, "English description")
+        XCTAssertNil(metadata.documentLanguage)
+    }
+
+    func testZhCNPreferredMatchesZhHansVariant() {
+        let html = """
+        <html><head>
+        <title>Default</title>
+        <meta name="pinshell:title" lang="zh-Hans" content="简体标题">
+        </head></html>
+        """
+
+        let metadata = HTMLTemplateMetadata.parse(html: html, preferredLanguages: ["zh-CN"])
+        XCTAssertEqual(metadata.title, "简体标题")
+    }
+
+    func testMissingMetadataIsEmpty() {        let metadata = HTMLTemplateMetadata.parse(html: "<html><body>hello</body></html>")
         XCTAssertNil(metadata.title)
         XCTAssertNil(metadata.subtitle)
         XCTAssertNil(metadata.size)
