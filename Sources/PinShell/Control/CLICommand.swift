@@ -78,7 +78,7 @@ enum CLICommand {
             // 兼容旧用法：PinShell ./file.html
             if !command.hasPrefix("-"),
                FileManager.default.fileExists(atPath: command)
-                || ["html", "htm"].contains((command as NSString).pathExtension.lowercased()) {
+                || TemplateFilePolicy.isTemplateFile(named: command) {
                 return parseShow(args)
             }
             return .invalid("unknown command: \(command)")
@@ -513,8 +513,8 @@ enum CLICommand {
         Agent example:
           PinShell show ./panel.html --watch --json
           PinShell listen --json
-          PinShell eval 'document.querySelector("#status").textContent = "已收到"'
-          PinShell emit agent:message '{"text":"下一步"}'
+          PinShell eval 'document.querySelector("#status").textContent = "received"'
+          PinShell emit agent:message '{"text":"next step"}'
 
         Exit codes: 0 ok, 1 usage, 2 app unavailable, 3 command failed
         """)

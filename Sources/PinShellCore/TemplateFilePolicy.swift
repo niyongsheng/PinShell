@@ -23,6 +23,12 @@ public enum TemplateFilePolicy {
         }
     }
 
+    /// 模板扩展名白名单：目录扫描、目录监视与 MCP/CLI 校验共用同一规则。
+    public static func isTemplateFile(named name: String) -> Bool {
+        let ext = (name as NSString).pathExtension.lowercased()
+        return ext == "html" || ext == "htm"
+    }
+
     /// 解析模板文件名到目录内的 URL。只接受平铺文件名，不接受绝对路径或子目录。
     public static func resolve(name raw: String, in directory: URL) throws -> URL {
         let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -32,8 +38,7 @@ public enum TemplateFilePolicy {
               !name.contains("/"), !name.contains("\\") else {
             throw Error.invalidName
         }
-        let ext = (name as NSString).pathExtension.lowercased()
-        guard ext == "html" || ext == "htm" else { throw Error.unsupportedExtension }
+        guard isTemplateFile(named: name) else { throw Error.unsupportedExtension }
 
         let base = directory.standardizedFileURL
         let file = base.appendingPathComponent(name)

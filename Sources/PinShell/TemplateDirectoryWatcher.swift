@@ -1,4 +1,5 @@
 import Foundation
+import PinShellCore
 
 /// 监视模板目录：轮询文件名 + 大小 + 修改时间签名。
 /// agent 通过 MCP、编辑器或文件工具改动模板时都能检测到；
@@ -29,7 +30,7 @@ final class TemplateDirectoryWatcher {
             return ""
         }
         return entries
-            .filter { ["html", "htm"].contains($0.pathExtension.lowercased()) }
+            .filter { TemplateFilePolicy.isTemplateFile(named: $0.lastPathComponent) }
             .map { url -> String in
                 let values = try? url.resourceValues(forKeys: Set(keys))
                 let size = values?.fileSize ?? 0
