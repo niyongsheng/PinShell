@@ -206,9 +206,10 @@ public enum MCPClient: String, CaseIterable, Sendable {
                                        fileManager: FileManager) throws -> [String: Any]? {
         guard fileManager.fileExists(atPath: url.path) else { return nil }
         let data = try Data(contentsOf: url)
-        let trimmed = String(decoding: data, as: UTF8.self)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return [:] }
+        let isBlank = data.allSatisfy { byte in
+            byte == 0x20 || byte == 0x09 || byte == 0x0A || byte == 0x0D
+        }
+        guard !isBlank else { return [:] }
         guard let object = try? JSONSerialization.jsonObject(with: data) else {
             throw MCPClientConfigError.invalidJSON(url)
         }
@@ -220,17 +221,9 @@ public enum MCPClient: String, CaseIterable, Sendable {
 
     private static func writeJSONObject(_ object: [String: Any], to url: URL,
                                         context: MCPClientContext) throws {
-        try context.createConfigDirectory(for: url)
-        let previousPermissions = (try? context.fileManager
-            .attributesOfItem(atPath: url.path))?[.posixPermissions]
-
         let options: JSONSerialization.WritingOptions = [.prettyPrinted, .sortedKeys]
         let data = try JSONSerialization.data(withJSONObject: object, options: options)
-        try data.write(to: url, options: .atomic)
-
-        let permissions = previousPermissions ?? 0o600
-        try? context.fileManager.setAttributes([.posixPermissions: permissions],
-                                               ofItemAtPath: url.path)
+        try writeAtomically(data, to: url, context: context)
     }
 
     private static func jsonCommand(at url: URL, fileManager: FileManager) -> String? {
@@ -278,10 +271,16 @@ public enum MCPClient: String, CaseIterable, Sendable {
 
     private static func writeText(_ text: String, to url: URL,
                                   context: MCPClientContext) throws {
+        try writeAtomically(Data(text.utf8), to: url, context: context)
+    }
+
+    /// 原子写入配置文件：建目录、保留已有权限（新文件 0600）。
+    private static func writeAtomically(_ data: Data, to url: URL,
+                                        context: MCPClientContext) throws {
         try context.createConfigDirectory(for: url)
         let previousPermissions = (try? context.fileManager
             .attributesOfItem(atPath: url.path))?[.posixPermissions]
-        try Data(text.utf8).write(to: url, options: .atomic)
+        try data.write(to: url, options: .atomic)
         try? context.fileManager.setAttributes(
             [.posixPermissions: previousPermissions ?? 0o600],
             ofItemAtPath: url.path)
@@ -338,10 +337,7 @@ public enum MCPClient: String, CaseIterable, Sendable {
     }
 
     static func upsertTable(named name: String, body: [String], in text: String) -> String {
-        var lines = removeTableLines(named: name, from: text)
-        while let last = lines.last, last.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            lines.removeLast()
-        }
+        var lines = trimmingTrailingBlankLines(removeTableLines(named: name, from: text))
         if !lines.isEmpty { lines.append("") }
         lines.append("[\(name)]")
         lines.append(contentsOf: body)
@@ -350,12 +346,19 @@ public enum MCPClient: String, CaseIterable, Sendable {
     }
 
     static func removeTable(named name: String, from text: String) -> String {
-        var lines = removeTableLines(named: name, from: text)
-        while let last = lines.last, last.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            lines.removeLast()
-        }
+        let lines = trimmingTrailingBlankLines(removeTableLines(named: name, from: text))
         return lines.isEmpty ? "" : lines.joined(separator: "\n") + "\n"
     }
+
+    private static func trimmingTrailingBlankLines(_ lines: [String]) -> [String] {
+        var result = lines
+        while let last = result.last,
+              last.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            result.removeLast()
+        }
+        return result
+    }
+
 
     /// 删除目标表及其子表（如 `[mcp_servers.pinshell.env]`）。
     private static func removeTableLines(named name: String, from text: String) -> [String] {
