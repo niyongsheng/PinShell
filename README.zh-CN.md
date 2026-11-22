@@ -9,7 +9,7 @@
 
 **为 AI 打造的实时桌面窗口。** PinShell 在用户屏幕上为 Agent（智能体）提供一个始终置顶的 HTML 界面，用于实时沟通、展示、提问和响应。界面由 HTML/CSS/JS 构建，PinShell 本身只是一层轻量的原生外壳（NSPanel + WKWebView）。
 
-![PinShell 界面预览](https://github.com/user-attachments/assets/61bfb0b1-b815-4895-a0f8-fcaf64ad3d0c)
+https://github.com/user-attachments/assets/61bfb0b1-b815-4895-a0f8-fcaf64ad3d0c
 
 ## 功能
 
@@ -56,44 +56,6 @@ make universal  # 构建 arm64 + x86_64 通用版本
 
 你可以直接在悬浮层内点击和输入；按住 **⌘** 拖动可移动窗口，拖动右下角手柄可调整大小（最小 80×40）。开启鼠标穿透后，鼠标事件会发送给下方的应用。
 
-### 控制台
-
-按 ⌘K 打开控制台，采用原生侧边栏 + 详情页布局，在 macOS 26+ 上呈现 Liquid Glass 效果。
-
-- **模板**（⌘1）：搜索、预览并应用模板。模板文件位于 `~/Library/Application Support/PinShell/templates/`；编辑后侧边栏会自动刷新。
-- **MCP**（⌘2）/ **关于**（⌘3）：stdio 配置、可用工具、控制通道路径、版本信息和相关链接。
-- **模板编辑器**（⌘E）：编辑标题、副标题、尺寸、位置、鼠标穿透、透明度、圆角和排序；修改会写回模板的 i18n block（旧模板仍写回 `<meta>` 标签）。标题和副标题按模板当前语言编辑，其他翻译会保留。
-- **工具栏**：显示/隐藏悬浮层、重新加载、编辑、在 Finder 中显示，以及恢复已删除的内置模板。
-
-窗口元数据来自 HTML：`<title>`、`<meta name="description">`、`<meta name="pinshell:*">`，以及可选的 JSON i18n block。首次启动时会生成十套内置模板，但不会覆盖已有副本；模板可以删除，删除的内置模板可从工具栏恢复。要获取更新后的内置模板，删除对应文件并重新启动，应用会从 bundle 重新释放该模板。
-
-### 模板多语言
-
-内置模板在 `<head>` 里声明一个 JSON block：
-
-```html
-<script type="application/json" id="pinshell:i18n">
-{
-  "default": "zh-Hans",
-  "fallback": "en",
-  "languages": {
-    "zh-Hans": { "meta": { "name": "待办事项", "description": "…" } },
-    "en": {
-      "meta": { "name": "Todo List", "description": "…" },
-      "ui": { "title": "Todo List", "clearDone": "Clear completed" }
-    }
-  }
-}
-</script>
-```
-
-- `meta` 用于控制台模板库；`ui` 由 `pinshell-i18n.js` 渲染到页面。
-- 默认语言的正文仍以内联文案为准；非默认语言的 `ui` 会叠加在 `fallback`（英文）之上，缺 key 时先回落英文，再回落行内默认值。
-- 语言顺序：应用选中的模板语言 → 系统语言偏好 → fallback。应用会注入 `window.pinshell.languages` / `templateLanguage`；浏览器里给文件 URL 加 `?lang=en` 可预览。
-- 静态文案：`data-i18n="key"`，属性用 `data-i18n-placeholder|title|aria-label|data-text`。动态文案：`PS.t('key', '默认值', { name: value })`；数组：`PS.list('key', [ … ])`；原始数据：`PS.get('key', fallback)`。
-- 日期/数字格式统一使用 `PS.locale`，不要写死 `en-US` / `zh-CN`。
-- 旧的 `window.PINSHELL_STRINGS` 和 `<meta name="pinshell:title" lang="en">` 写法仍然兼容，但新模板建议使用 JSON block。
-
 ## MCP
 
 打开 **控制台 → MCP** 复制配置，或手动添加：
@@ -109,11 +71,7 @@ make universal  # 构建 arm64 + x86_64 通用版本
 }
 ```
 
-工具覆盖窗口与内容（`pinshell_html`、`pinshell_show`、`pinshell_set`、`pinshell_status`、`pinshell_close`）、页面交互（`pinshell_eval`、`pinshell_emit`、`pinshell_poll_events`）以及模板（`pinshell_templates`、`pinshell_template_read`、`pinshell_template_write`、`pinshell_template_delete`、`pinshell_template_show`）。模板写入仅限模板文件夹内的 `.html`/`.htm` 文件（不含子目录），大小上限为 512 KB；写入后控制台会刷新，正在展示的模板会原位重新加载。
-
-MCP prompts（`create-panel`、`interactive-panel`、`live-monitor`、`pet-companion`、`edit-template`、`authoring-guide`）将常见工作流封装为一步操作；在 Claude Code 中会以 `/pinshell:create-panel` 等命令的形式提供。服务端与 CLI 共用 `~/Library/Application Support/PinShell/control.sock`。
-
-典型工作流：`pinshell_html` → `pinshell_poll_events` → `pinshell_eval` / `pinshell_emit` / `pinshell_template_write`。
+工具覆盖窗口与内容（`pinshell_html`、`pinshell_show`）、页面交互（`pinshell_eval`、`pinshell_emit`、`pinshell_poll_events`、`pinshell_await_event`、`pinshell_state`）以及模板。MCP prompts 封装常见工作流；服务端与 CLI 共用 `~/Library/Application Support/PinShell/control.sock`。
 
 ### 桌面宠物
 
@@ -134,16 +92,14 @@ agent → 页面：`pet:hello`、`pet:say`、`pet:mood`、`pet:task`、`pet:anim
 如果应用尚未运行，命令会自动启动它并等待控制 socket 就绪。
 
 ```bash
-PinShell show ./panel.html --watch --json
-PinShell set --size 240x80 --position bottom-right
+PinShell show ./panel.html --watch
 PinShell eval 'document.querySelector("#status").textContent = "done"'
 PinShell emit agent:message '{"text":"next step"}'
 PinShell listen --json
 PinShell mcp
-PinShell close | quit
 ```
 
-选项：`--size WxH`、`--position <anchor|x,y>`、`--passthrough on|off`、`--opacity 0..1`、`--radius px`、`--watch`、`--wait`、`--json`。退出码：`0` 成功，`1` 用法错误，`2` 应用不可用，`3` 命令执行失败。
+运行 `PinShell --help` 查看命令、选项和退出码。
 
 ## HTML 编写
 
@@ -154,7 +110,6 @@ PinShell close | quit
 ```html
 <title>订阅进度</title>
 <meta name="description" content="显示订阅目标与当前进度">
-<!-- 需要多语言时，在这里加入 <script id="pinshell:i18n"> block，见“模板多语言” -->
 <meta name="pinshell:size" content="280x64">
 <meta name="pinshell:position" content="bottom-right">
 <meta name="pinshell:passthrough" content="false">
@@ -164,24 +119,6 @@ PinShell close | quit
 ```
 
 `position` 支持 `top-left`、`top`、`top-right`、`left`、`center`、`right`、`bottom-left`、`bottom`、`bottom-right`，或 `x,y`。CLI 参数会在当前会话中覆盖元数据。
-
-JavaScript 桥接 API：
-
-```js
-pinshell.setSize(320, 120)
-pinshell.setPosition('bottom-right')     // 或 setPosition(x, y)
-pinshell.setPassthrough(true)
-pinshell.setOpacity(0.8)
-pinshell.setRadius(18)
-pinshell.emit('submit', { value: 1 })    // → CLI `listen` / MCP 事件
-pinshell.on('agent:message', fn)         // ← CLI `emit` / MCP `pinshell_emit`
-pinshell.log('debug message')
-
-// 原生 fetch 代理：仅支持 https，15 秒超时，最大 2 MB，允许自定义请求头
-const data = await pinshell.fetch('https://api.example.com/stats', {
-  headers: { Referer: 'https://example.com/' }
-})
-```
 
 可复用 `Resources/templates/design-tokens.css` 中的共享设计系统。
 
