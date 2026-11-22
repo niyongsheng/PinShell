@@ -1,187 +1,779 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-Hans">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script type="application/json" id="pinshell:i18n">
+{
+  "default": "zh-Hans",
+  "fallback": "en",
+  "languages": {
+    "zh-Hans": {
+      "meta": {
+        "name": "系统状态",
+        "description": "CPU / 内存 / 磁盘 / 网络监控，圆环与进度条视图可切换，可由 agent 推送实时数据"
+      }
+    },
+    "en": {
+      "meta": {
+        "name": "System Status",
+        "description": "CPU / memory / disk / network monitor with ring and bar views; agent-pushable live data"
+      },
+      "ui": {
+        "title": "System Status",
+        "viewGroup": "Display mode",
+        "ringMode": "Ring mode",
+        "barMode": "Bar mode",
+        "memory": "Memory",
+        "disk": "Disk",
+        "healthOk": "Smooth",
+        "healthBusy": "Busy",
+        "healthHigh": "High",
+        "sourceLive": "Live",
+        "sourceSimulated": "Simulated",
+        "ageJustNow": "Just now",
+        "ageSeconds": "{seconds}s ago",
+        "refreshEvery": "Every 2 s",
+        "cpuDetail": "{cores} cores · load {load}"
+      }
+    }
+  }
+}
+</script>
 <title>系统状态</title>
-<meta name="description" content="CPU / 内存 / 磁盘监控，可由 agent 推送实时数据">
-<meta name="pinshell:size" content="320x200">
+<meta name="description" content="CPU / 内存 / 磁盘 / 网络监控，圆环与进度条视图可切换，可由 agent 推送实时数据">
+<meta name="pinshell:size" content="340x216">
 <meta name="pinshell:radius" content="18">
 <meta name="pinshell:order" content="7">
 <link rel="stylesheet" href="design-tokens.css">
+<!--
+  数据协议 —— agent / CLI 可通过窗口桥推送（全部字段可选，缺省时保留模拟值）：
+    emit('system:stats', {
+      cpu: 32, memory: 58, disk: 42,        // 百分比 0–100
+      cores: 10, load: 2.4,                 // CPU 详情：核心数、负载
+      memUsed: 9.3, memTotal: 16,           // GB
+      diskUsed: 196, diskTotal: 460,        // GB
+      netDown: 1.2, netUp: 0.3,             // MB/s
+      network: { down: 1.2, up: 0.3 }       // 网络也可写成对象
+    })
+  超过 10 秒没有新数据，自动回落到模拟演示数据。
+-->
 <style>
-  @property --value {
-    syntax: '<number>';
-    initial-value: 0;
-    inherits: false;
-  }
   * { box-sizing: border-box; }
-  /* 画布 reset 由 design-tokens.css 提供，这里只补充模板特有项 */
+
   body {
     color: #f5f5f7;
     user-select: none;
+    -webkit-user-select: none;
   }
+
   .panel {
     position: absolute; inset: 0;
-    display: flex; flex-direction: column; gap: 10px;
-    padding: 14px 16px 12px;
-    background: rgba(28, 28, 30, 0.86);
+    display: flex; flex-direction: column;
+    padding: 13px 15px 11px;
+    color: #f5f5f7;
+    background:
+      radial-gradient(120% 90% at 0% 0%, rgba(41, 151, 255, 0.11), transparent 55%),
+      radial-gradient(90% 70% at 100% 105%, rgba(48, 209, 88, 0.055), transparent 60%),
+      linear-gradient(180deg, rgba(36, 36, 39, 0.93), rgba(22, 22, 24, 0.95));
     border: 1px solid rgba(255, 255, 255, 0.09);
     border-radius: 18px;
-    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    -webkit-backdrop-filter: blur(26px) saturate(1.5);
+    backdrop-filter: blur(26px) saturate(1.5);
+    overflow: hidden;
   }
-  header { display: flex; align-items: center; justify-content: space-between; }
-  .title { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 650; letter-spacing: -0.1px; }
+
+  /* 整体健康度色调：脉冲点、状态胶囊共用 */
+  .panel[data-health="ok"]   { --tone: #30d158; --tone-soft: rgba(48, 209, 88, 0.12); --tone-line: rgba(48, 209, 88, 0.26); }
+  .panel[data-health="busy"] { --tone: #ff9f0a; --tone-soft: rgba(255, 159, 10, 0.13); --tone-line: rgba(255, 159, 10, 0.28); }
+  .panel[data-health="high"] { --tone: #ff453a; --tone-soft: rgba(255, 69, 58, 0.14);  --tone-line: rgba(255, 69, 58, 0.30); }
+
+  header {
+    flex: none;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 21px;
+    padding-bottom: 9px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .title { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .title-text { font-size: 13px; font-weight: 650; letter-spacing: -0.1px; white-space: nowrap; }
+
   .pulse {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: #30d158;
-    box-shadow: 0 0 0 0 rgba(48, 209, 88, 0.6);
-    animation: pulse 2.4s ease-out infinite;
+    position: relative; flex: none;
+    width: 6px; height: 6px; border-radius: 50%;
+    color: var(--tone);
+    background: currentColor;
   }
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(48, 209, 88, 0.55); }
-    70% { box-shadow: 0 0 0 7px rgba(48, 209, 88, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(48, 209, 88, 0); }
-  }
-  .clock { font-size: 10.5px; font-variant-numeric: tabular-nums; color: rgba(255, 255, 255, 0.42); }
-  .gauges { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 4px 0; }
-  .metric { display: flex; flex-direction: column; align-items: center; gap: 7px; flex: 1; }
-  .gauge {
-    --value: 0;
-    --color: #2997ff;
-    position: relative;
-    width: 66px; height: 66px; border-radius: 50%;
-    background: conic-gradient(var(--color) calc(var(--value) * 1%), rgba(255, 255, 255, 0.08) 0);
-    transition: --value 0.6s cubic-bezier(.2,.8,.2,1);
-  }
-  .gauge::before {
+  .pulse::after {
     content: '';
-    position: absolute; inset: 6px; border-radius: 50%;
-    background: #1c1c1e;
+    position: absolute; inset: -2px;
+    border-radius: inherit;
+    border: 1px solid currentColor;
+    opacity: 0;
+    animation: ping 2.4s cubic-bezier(0.2, 0.7, 0.4, 1) infinite;
+  }
+  @keyframes ping {
+    0% { transform: scale(0.6); opacity: 0.55; }
+    70%, 100% { transform: scale(2.2); opacity: 0; }
+  }
+
+  .chip {
+    flex: none;
+    height: 16px; padding: 0 7px;
+    display: inline-flex; align-items: center;
+    border-radius: 999px;
+    font-size: 9.5px; font-weight: 600; letter-spacing: 0.2px;
+    color: var(--tone);
+    background: var(--tone-soft);
+    border: 1px solid var(--tone-line);
+    transition: color 0.3s ease, background 0.3s ease, border-color 0.3s ease;
+  }
+
+  .tools { display: flex; align-items: center; gap: 8px; flex: none; }
+
+  /* 视图切换：圆环 / 进度条 */
+  .view-toggle {
+    display: flex; align-items: center; gap: 1px;
+    height: 20px; padding: 1px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.055);
     border: 1px solid rgba(255, 255, 255, 0.05);
   }
+  .view-btn {
+    width: 21px; height: 16px;
+    display: grid; place-items: center;
+    padding: 0; border: 0; border-radius: 999px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.34);
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .view-btn:hover { color: rgba(255, 255, 255, 0.72); }
+  .view-btn.active {
+    background: rgba(255, 255, 255, 0.14);
+    color: #f5f5f7;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  .view-btn:focus-visible { outline: 2px solid #2997ff; outline-offset: 1px; }
+  .view-btn svg { display: block; width: 11px; height: 11px; }
+
+  .clock {
+    flex: none;
+    font-size: 10.5px; font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.2px;
+    color: rgba(255, 255, 255, 0.40);
+  }
+
+  .metrics {
+    flex: 1; min-height: 0;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 10px 0 9px;
+  }
+  .metric { min-width: 0; }
+  .bars-view { display: flex; flex-direction: column; gap: 7px; }
+
+  .top { display: flex; align-items: center; gap: 7px; height: 20px; }
+  .ico {
+    flex: none;
+    width: 19px; height: 19px;
+    display: grid; place-items: center;
+    border-radius: 6px;
+    color: var(--c);
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.045);
+    transition: color 0.3s ease;
+  }
+  .ico svg { display: block; width: 13px; height: 13px; }
+  .name {
+    flex: none; width: 48px;
+    font-size: 11.5px; font-weight: 600;
+    letter-spacing: 0.1px;
+    color: rgba(255, 255, 255, 0.92);
+  }
+  .detail {
+    flex: 1; min-width: 0;
+    font-size: 9.5px; font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.1px;
+    color: rgba(255, 255, 255, 0.37);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .value {
+    flex: none;
+    display: flex; align-items: baseline; gap: 1px;
+    font-variant-numeric: tabular-nums;
+  }
+  .value b {
+    min-width: 28px;
+    font-size: 16px; font-weight: 700;
+    letter-spacing: -0.45px;
+    text-align: right;
+    color: #f5f5f7;
+    transition: color 0.3s ease;
+  }
+  .value i {
+    font-style: normal;
+    font-size: 9px; font-weight: 600;
+    color: rgba(255, 255, 255, 0.36);
+  }
+
+  /* 每个指标的基础色，超阈值时由 .hot 覆盖为警示红 */
+  .m-cpu  { --c: #2997ff; --c2: #7cc4ff; --glow: rgba(41, 151, 255, 0.50); }
+  .m-mem  { --c: #30d158; --c2: #7ee787; --glow: rgba(48, 209, 88, 0.45); }
+  .m-disk { --c: #ff9f0a; --c2: #ffc15c; --glow: rgba(255, 159, 10, 0.45); }
+  .metric.hot { --c: #ff453a; --c2: #ff8a80; --glow: rgba(255, 69, 58, 0.55); }
+  .metric.hot .value b { color: #ff6961; }
+
+  .bar {
+    position: relative;
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.075);
+  }
+  .fill {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--c), var(--c2));
+    box-shadow: 0 0 10px var(--glow);
+    transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s ease;
+  }
+  .fill::after {
+    content: '';
+    position: absolute; right: 0; top: 50%;
+    width: 6px; height: 6px; margin-top: -3px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 7px var(--glow);
+    opacity: 0.92;
+    transition: opacity 0.3s ease;
+  }
+  .fill.zero::after { opacity: 0; }
+
+  /* 圆环视图 */
+  .rings-view { display: none; }
+  .panel[data-view="rings"] .bars-view { display: none; }
+  .panel[data-view="rings"] .rings-view {
+    display: flex; flex-direction: column; align-items: center; gap: 7px;
+  }
+  .panel[data-view="rings"] .metrics {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    gap: 6px;
+    padding: 6px 0 4px;
+  }
+  .panel[data-view="rings"] .metric {
+    flex: 1; min-width: 0;
+    display: flex; justify-content: center;
+  }
+
+  .ring {
+    position: relative; flex: none;
+    width: 68px; height: 68px;
+    display: grid; place-items: center;
+  }
+  .ring::before {
+    content: '';
+    position: absolute; inset: 6px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.015));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  .ring svg {
     position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums;
-    letter-spacing: -0.3px; z-index: 1;
+    width: 100%; height: 100%;
+    transform: rotate(-90deg);
+    overflow: visible;
   }
-  .label {
-    font-size: 10.5px; font-weight: 500; letter-spacing: 0.2px;
-    color: rgba(255, 255, 255, 0.48);
+  .ring-track { fill: none; stroke: rgba(255, 255, 255, 0.075); stroke-width: 5.5; }
+  .ring-fill {
+    fill: none;
+    stroke: var(--c);
+    stroke-width: 5.5;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.7s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.3s ease;
+    filter: drop-shadow(0 0 3px var(--glow));
   }
+  .ring .value { position: relative; z-index: 1; }
+  .ring .value b { min-width: 0; }
+  .ring-caption {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    width: 100%;
+  }
+  .ring-name {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600;
+    color: rgba(255, 255, 255, 0.88);
+  }
+  .ring-caption .detail {
+    flex: none; width: 100%;
+    text-align: center;
+  }
+  .ico-sm {
+    width: 15px; height: 15px;
+    background: transparent; border: 0;
+  }
+  .ico-sm svg { width: 11px; height: 11px; }
+
   footer {
-    display: flex; align-items: center; justify-content: space-between;
-    font-size: 9.5px; color: rgba(255, 255, 255, 0.30);
+    flex: none;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    height: 13px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 9.5px; font-weight: 500;
+    color: rgba(255, 255, 255, 0.32);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.1px;
   }
-  .hint {
-    font-family: "SF Mono", ui-monospace, monospace;
-    color: rgba(255, 255, 255, 0.25);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    max-width: 58%;
+  .source { display: flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; }
+  .source .dot {
+    flex: none;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: #6e6e73;
+    transition: background 0.3s ease, box-shadow 0.3s ease;
   }
-  .source.live { color: #30d158; }
+  .source.live .dot {
+    background: #30d158;
+    box-shadow: 0 0 0 2px rgba(48, 209, 88, 0.13);
+  }
+  .source.live .label { color: rgba(255, 255, 255, 0.52); }
+  .source .sep, .source .age { color: rgba(255, 255, 255, 0.25); }
+
+  .net { display: flex; align-items: center; gap: 9px; white-space: nowrap; }
+  .net .arrow { font-size: 10px; font-weight: 700; }
+  .net .down .arrow { color: #2997ff; }
+  .net .up .arrow { color: #30d158; }
+  .net b { font-weight: 600; color: rgba(255, 255, 255, 0.52); }
+  .net .unit { color: rgba(255, 255, 255, 0.28); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pulse::after { animation: none; }
+    .fill, .chip, .ico, .value b { transition: none; }
+  }
 </style>
 </head>
 <body>
-<div class="panel">
+<div class="panel ps-dim-surface" id="panel" data-health="ok">
   <header>
-    <div class="title"><span class="pulse"></span>系统状态</div>
-    <div class="clock" id="clock">--:--</div>
+    <div class="title">
+      <span class="pulse"></span>
+      <span class="title-text" data-i18n="title">系统状态</span>
+      <span class="chip" id="chip">流畅</span>
+    </div>
+    <div class="tools">
+      <div class="view-toggle" role="group" aria-label="显示模式" data-i18n-aria-label="viewGroup">
+        <button type="button" class="view-btn" data-view="rings" title="圆环模式" aria-label="圆环模式" aria-pressed="false" data-i18n-title="ringMode" data-i18n-aria-label="ringMode">
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+            <circle cx="6" cy="6" r="4.1" opacity=".45"/>
+            <path d="M6 1.9a4.1 4.1 0 0 1 3.55 6.15"/>
+          </svg>
+        </button>
+        <button type="button" class="view-btn active" data-view="bars" title="进度条模式" aria-label="进度条模式" aria-pressed="true" data-i18n-title="barMode" data-i18n-aria-label="barMode">
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M2 3h8M2 6h5.5M2 9h7"/>
+          </svg>
+        </button>
+      </div>
+      <div class="clock" id="clock">--:--</div>
+    </div>
   </header>
 
-  <div class="gauges">
-    <div class="metric">
-      <div class="gauge" id="cpuGauge" style="--color:#2997ff"><span class="value" id="cpuValue">0%</span></div>
-      <div class="label">CPU</div>
-    </div>
-    <div class="metric">
-      <div class="gauge" id="memoryGauge" style="--color:#30d158"><span class="value" id="memoryValue">0%</span></div>
-      <div class="label">内存</div>
-    </div>
-    <div class="metric">
-      <div class="gauge" id="diskGauge" style="--color:#ff9f0a"><span class="value" id="diskValue">0%</span></div>
-      <div class="label">磁盘</div>
-    </div>
-  </div>
+  <main class="metrics">
+    <section class="metric m-cpu" id="metric-cpu">
+      <div class="bars-view">
+        <div class="top">
+          <span class="ico">
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+              <rect x="3.2" y="3.2" width="7.6" height="7.6" rx="1.6"/>
+              <path d="M5.4 1v1.4M8.6 1v1.4M5.4 11.6V13M8.6 11.6V13M1 5.4h1.4M1 8.6h1.4M11.6 5.4H13M11.6 8.6H13"/>
+            </svg>
+          </span>
+          <span class="name">CPU</span>
+          <span class="detail" data-detail>8 核 · 负载 0.00</span>
+          <span class="value"><b data-value>0</b><i>%</i></span>
+        </div>
+        <div class="bar"><div class="fill zero" data-fill></div></div>
+      </div>
+      <div class="rings-view">
+        <div class="ring">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <circle class="ring-track" cx="32" cy="32" r="27"/>
+            <circle class="ring-fill" data-ring pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" cx="32" cy="32" r="27"/>
+          </svg>
+          <span class="value"><b data-value>0</b><i>%</i></span>
+        </div>
+        <div class="ring-caption">
+          <span class="ring-name">
+            <span class="ico ico-sm">
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+                <rect x="3.2" y="3.2" width="7.6" height="7.6" rx="1.6"/>
+                <path d="M5.4 1v1.4M8.6 1v1.4M5.4 11.6V13M8.6 11.6V13M1 5.4h1.4M1 8.6h1.4M11.6 5.4H13M11.6 8.6H13"/>
+              </svg>
+            </span>CPU
+          </span>
+          <span class="detail" data-detail>8 核 · 负载 0.00</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="metric m-mem" id="metric-mem">
+      <div class="bars-view">
+        <div class="top">
+          <span class="ico">
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+              <rect x="1.6" y="3.6" width="10.8" height="6.8" rx="1.4"/>
+              <path d="M4 10.4v1.9M7 10.4v1.9M10 10.4v1.9"/>
+              <path d="M4.2 6v2M7 6v2M9.8 6v2" opacity=".55"/>
+            </svg>
+          </span>
+          <span class="name" data-i18n="memory">内存</span>
+          <span class="detail" data-detail>0 / 16 GB</span>
+          <span class="value"><b data-value>0</b><i>%</i></span>
+        </div>
+        <div class="bar"><div class="fill zero" data-fill></div></div>
+      </div>
+      <div class="rings-view">
+        <div class="ring">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <circle class="ring-track" cx="32" cy="32" r="27"/>
+            <circle class="ring-fill" data-ring pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" cx="32" cy="32" r="27"/>
+          </svg>
+          <span class="value"><b data-value>0</b><i>%</i></span>
+        </div>
+        <div class="ring-caption">
+          <span class="ring-name">
+            <span class="ico ico-sm">
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+                <rect x="1.6" y="3.6" width="10.8" height="6.8" rx="1.4"/>
+                <path d="M4 10.4v1.9M7 10.4v1.9M10 10.4v1.9"/>
+                <path d="M4.2 6v2M7 6v2M9.8 6v2" opacity=".55"/>
+              </svg>
+            </span><span data-i18n="memory">内存</span>
+          </span>
+          <span class="detail" data-detail>0 / 16 GB</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="metric m-disk" id="metric-disk">
+      <div class="bars-view">
+        <div class="top">
+          <span class="ico">
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+              <rect x="1.8" y="2.4" width="10.4" height="9.2" rx="2.2"/>
+              <circle cx="7" cy="6.2" r="1.05"/>
+              <path d="M4.4 10.3h5.2" opacity=".55"/>
+            </svg>
+          </span>
+          <span class="name" data-i18n="disk">磁盘</span>
+          <span class="detail" data-detail>0 / 460 GB</span>
+          <span class="value"><b data-value>0</b><i>%</i></span>
+        </div>
+        <div class="bar"><div class="fill zero" data-fill></div></div>
+      </div>
+      <div class="rings-view">
+        <div class="ring">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <circle class="ring-track" cx="32" cy="32" r="27"/>
+            <circle class="ring-fill" data-ring pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" cx="32" cy="32" r="27"/>
+          </svg>
+          <span class="value"><b data-value>0</b><i>%</i></span>
+        </div>
+        <div class="ring-caption">
+          <span class="ring-name">
+            <span class="ico ico-sm">
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+                <rect x="1.8" y="2.4" width="10.4" height="9.2" rx="2.2"/>
+                <circle cx="7" cy="6.2" r="1.05"/>
+                <path d="M4.4 10.3h5.2" opacity=".55"/>
+              </svg>
+            </span><span data-i18n="disk">磁盘</span>
+          </span>
+          <span class="detail" data-detail>0 / 460 GB</span>
+        </div>
+      </div>
+    </section>
+  </main>
 
   <footer>
-    <span class="source" id="source">模拟数据</span>
-    <span class="hint">PinShell emit system:stats</span>
+    <span class="source" id="source">
+      <span class="dot"></span>
+      <span class="label" id="sourceLabel">模拟数据</span>
+      <span class="sep">·</span>
+      <span class="age" id="sourceAge">每 2 秒刷新</span>
+    </span>
+    <span class="net">
+      <span class="down"><span class="arrow">↓</span> <b id="netDown">0</b> <span class="unit" id="netDownUnit">KB/s</span></span>
+      <span class="up"><span class="arrow">↑</span> <b id="netUp">0</b> <span class="unit" id="netUpUnit">KB/s</span></span>
+    </span>
   </footer>
 </div>
 
-<script>
-  const bridge = window.pinshell || { emit() {}, on() {}, log() {} };
-  const metrics = { cpu: 26, memory: 58, disk: 42 };
-  let realData = false;
-  let lastRealAt = 0;
 
-  const els = {
-    cpu: { gauge: document.getElementById('cpuGauge'), value: document.getElementById('cpuValue') },
-    memory: { gauge: document.getElementById('memoryGauge'), value: document.getElementById('memoryValue') },
-    disk: { gauge: document.getElementById('diskGauge'), value: document.getElementById('diskValue') },
+<script src="pinshell-i18n.js"></script>
+<script>window.PS = window.PS || { lang: 'zh-Hans', locale: 'zh-Hans', languages: [], get: function (k, f) { return f; }, t: function (k, f) { return f; }, list: function (k, f) { return f || []; }, apply: function () {} };</script>
+<script>
+(() => {
+  const bridge = window.pinshell || { emit() {}, on() {} };
+  const STALE_MS = 10000;
+
+  const state = {
+    cpu: 26,
+    mem: 58,
+    disk: 42,
+    cores: navigator.hardwareConcurrency || 8,
+    load: 2.1,
+    memUsed: null,
+    memTotal: 16,
+    diskUsed: null,
+    diskTotal: 460,
+    netDown: 1.2,
+    netUp: 0.2,
+    real: false,
+    lastRealAt: 0,
+    cpuTarget: 28,
   };
-  const sourceEl = document.getElementById('source');
-  const clockEl = document.getElementById('clock');
+
+  const $ = id => document.getElementById(id);
+  const panel = $('panel');
+  const chip = $('chip');
+  const clock = $('clock');
+  const source = $('source');
+  const sourceLabel = $('sourceLabel');
+  const sourceAge = $('sourceAge');
+  const netDownEl = $('netDown');
+  const netDownUnit = $('netDownUnit');
+  const netUpEl = $('netUp');
+  const netUpUnit = $('netUpUnit');
+
+  const els = {};
+  for (const key of ['cpu', 'mem', 'disk']) {
+    const metric = $('metric-' + key);
+    els[key] = {
+      metric,
+      fill: metric.querySelector('[data-fill]'),
+      ring: metric.querySelector('[data-ring]'),
+      values: metric.querySelectorAll('[data-value]'),
+      details: metric.querySelectorAll('[data-detail]'),
+    };
+  }
+
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const toNumber = value => {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  };
+  const pick = (data, keys) => {
+    for (const key of keys) {
+      const value = toNumber(data[key]);
+      if (value !== null) return value;
+    }
+    return null;
+  };
+  const fmtSize = value => value >= 100 ? String(Math.round(value)) : value.toFixed(1).replace(/\.0$/, '');
+  const fmtRate = mbps => {
+    if (mbps >= 1) {
+      const digits = mbps >= 10 ? 0 : 1;
+      return { value: mbps.toFixed(digits).replace(/\.0$/, ''), unit: 'MB/s' };
+    }
+    return { value: String(Math.max(0, Math.round(mbps * 1024))), unit: 'KB/s' };
+  };
 
   function renderMetric(key) {
-    const value = Math.max(0, Math.min(100, Math.round(metrics[key])));
-    els[key].gauge.style.setProperty('--value', String(value));
-    els[key].value.textContent = value + '%';
+    const percent = clamp(state[key], 0, 100);
+    const rounded = Math.round(percent);
+    const el = els[key];
+    el.fill.style.width = percent + '%';
+    el.fill.classList.toggle('zero', rounded <= 0);
+    el.ring.style.strokeDashoffset = String(100 - percent);
+    el.values.forEach(node => { node.textContent = String(rounded); });
+    el.metric.classList.toggle('hot', rounded >= 85);
+  }
 
-    const color = value >= 85 ? '#ff453a'
-      : key === 'cpu' ? '#2997ff'
-      : key === 'memory' ? '#30d158'
-      : '#ff9f0a';
-    els[key].gauge.style.setProperty('--color', color);
+  function renderDetails() {
+    const setDetail = (key, text) => {
+      els[key].details.forEach(node => { node.textContent = text; });
+    };
+
+    setDetail('cpu', PS.t('cpuDetail', '{cores} 核 · 负载 {load}', {
+      cores: state.cores,
+      load: state.load.toFixed(2)
+    }));
+
+    const memUsed = state.memUsed ?? state.mem * state.memTotal / 100;
+    setDetail('mem', `${fmtSize(memUsed)} / ${fmtSize(state.memTotal)} GB`);
+
+    const diskUsed = state.diskUsed ?? state.disk * state.diskTotal / 100;
+    setDetail('disk', `${fmtSize(diskUsed)} / ${fmtSize(state.diskTotal)} GB`);
+
+    const down = fmtRate(state.netDown);
+    const up = fmtRate(state.netUp);
+    netDownEl.textContent = down.value;
+    netDownUnit.textContent = down.unit;
+    netUpEl.textContent = up.value;
+    netUpUnit.textContent = up.unit;
+  }
+
+  function renderHealth() {
+    const peak = Math.max(state.cpu, state.mem, state.disk);
+    const health = peak >= 85 ? 'high' : peak >= 70 ? 'busy' : 'ok';
+    if (panel.dataset.health !== health) panel.dataset.health = health;
+    chip.textContent = health === 'high'
+      ? PS.t('healthHigh', '紧张')
+      : health === 'busy' ? PS.t('healthBusy', '繁忙') : PS.t('healthOk', '流畅');
+  }
+
+  function renderSource() {
+    const live = state.real;
+    source.classList.toggle('live', live);
+    sourceLabel.textContent = live
+      ? PS.t('sourceLive', '实时数据')
+      : PS.t('sourceSimulated', '模拟数据');
+    if (live) {
+      const seconds = Math.max(0, Math.round((Date.now() - state.lastRealAt) / 1000));
+      sourceAge.textContent = seconds <= 0
+        ? PS.t('ageJustNow', '刚刚')
+        : PS.t('ageSeconds', '{seconds} 秒前', { seconds });
+    } else {
+      sourceAge.textContent = PS.t('refreshEvery', '每 2 秒刷新');
+    }
   }
 
   function renderAll() {
     renderMetric('cpu');
-    renderMetric('memory');
+    renderMetric('mem');
     renderMetric('disk');
+    renderDetails();
+    renderHealth();
+    renderSource();
   }
+
+  const VIEW_KEY = 'pinshell.system-monitor.view';
+  const viewButtons = Array.from(document.querySelectorAll('.view-btn'));
+
+  function setView(view, persist) {
+    const next = view === 'rings' ? 'rings' : 'bars';
+    panel.dataset.view = next;
+    viewButtons.forEach(button => {
+      const active = button.dataset.view === next;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+    if (persist) {
+      try { localStorage.setItem(VIEW_KEY, next); } catch {}
+    }
+  }
+
+  viewButtons.forEach(button => {
+    button.addEventListener('click', () => setView(button.dataset.view, true));
+  });
+
+  let savedView = 'bars';
+  try { savedView = localStorage.getItem(VIEW_KEY) || 'bars'; } catch {}
+  setView(savedView, false);
 
   function tickClock() {
     const now = new Date();
-    clockEl.textContent = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    clock.textContent = now.toLocaleTimeString(PS.locale, {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    if (state.real && Date.now() - state.lastRealAt > STALE_MS) {
+      state.real = false;
+      state.memUsed = null;
+      state.diskUsed = null;
+      renderAll();
+    } else {
+      renderSource();
+    }
   }
 
   function simulate() {
-    if (realData && Date.now() - lastRealAt < 8000) return;
-    if (realData && Date.now() - lastRealAt >= 8000) {
-      realData = false;
-      sourceEl.textContent = '模拟数据';
-      sourceEl.classList.remove('live');
+    if (state.real) return;
+
+    if (Math.random() < 0.15) {
+      state.cpuTarget = 66 + Math.random() * 28;
+    } else {
+      state.cpuTarget = 14 + Math.random() * 34;
     }
-    const drift = (key, range) => {
-      metrics[key] = Math.max(4, Math.min(96, metrics[key] + (Math.random() - 0.5) * range));
-    };
-    drift('cpu', 14);
-    drift('memory', 5);
-    drift('disk', 1.5);
+    state.cpu = clamp(state.cpu + (state.cpuTarget - state.cpu) * 0.55 + (Math.random() - 0.5) * 8, 3, 97);
+    state.mem = clamp(state.mem + (Math.random() - 0.5) * 3.2, 38, 86);
+    state.disk = clamp(state.disk + (Math.random() - 0.45) * 0.06, 41.6, 43.2);
+    state.load = Math.max(0.2, state.cpu / 100 * state.cores * (0.75 + Math.random() * 0.5));
+    state.netDown = Math.random() < 0.2 ? 2.5 + Math.random() * 6 : 0.15 + Math.random() * 1.8;
+    state.netUp = 0.04 + Math.random() * (state.netDown < 1 ? 0.2 : 0.65);
+    state.memUsed = null;
+    state.diskUsed = null;
+
     renderAll();
   }
 
   bridge.on('system:stats', data => {
     if (!data || typeof data !== 'object') return;
-    for (const key of ['cpu', 'memory', 'disk']) {
-      const value = Number(data[key]);
-      if (Number.isFinite(value)) metrics[key] = Math.max(0, Math.min(100, value));
-    }
-    realData = true;
-    lastRealAt = Date.now();
-    sourceEl.textContent = '实时数据';
-    sourceEl.classList.add('live');
+
+    let touched = false;
+    const cpu = pick(data, ['cpu']);
+    if (cpu !== null) { state.cpu = clamp(cpu, 0, 100); touched = true; }
+
+    const mem = pick(data, ['memory', 'mem']);
+    if (mem !== null) { state.mem = clamp(mem, 0, 100); touched = true; }
+
+    const disk = pick(data, ['disk']);
+    if (disk !== null) { state.disk = clamp(disk, 0, 100); touched = true; }
+
+    const cores = pick(data, ['cores', 'cpuCores']);
+    if (cores !== null && cores > 0) { state.cores = Math.round(cores); touched = true; }
+
+    const load = pick(data, ['load', 'load1', 'loadAverage']);
+    if (load !== null) { state.load = Math.max(0, load); touched = true; }
+
+    const memTotal = pick(data, ['memTotal', 'memoryTotal']);
+    if (memTotal !== null && memTotal > 0) { state.memTotal = memTotal; touched = true; }
+
+    const memUsed = pick(data, ['memUsed', 'memoryUsed']);
+    state.memUsed = memUsed !== null && memUsed >= 0 ? memUsed : null;
+
+    const diskTotal = pick(data, ['diskTotal']);
+    if (diskTotal !== null && diskTotal > 0) { state.diskTotal = diskTotal; touched = true; }
+
+    const diskUsed = pick(data, ['diskUsed']);
+    state.diskUsed = diskUsed !== null && diskUsed >= 0 ? diskUsed : null;
+
+    const network = data.network && typeof data.network === 'object' ? data.network : {};
+    const netDown = pick(network, ['down', 'netDown']) ?? pick(data, ['netDown', 'download']);
+    if (netDown !== null) { state.netDown = Math.max(0, netDown); touched = true; }
+
+    const netUp = pick(network, ['up', 'netUp']) ?? pick(data, ['netUp', 'upload']);
+    if (netUp !== null) { state.netUp = Math.max(0, netUp); touched = true; }
+
+    if (!touched) return;
+    state.real = true;
+    state.lastRealAt = Date.now();
     renderAll();
   });
 
   tickClock();
   renderAll();
+  bridge.emit('system:ready', {
+    cpu: Math.round(state.cpu),
+    memory: Math.round(state.mem),
+    disk: Math.round(state.disk),
+    cores: state.cores,
+    load: Number(state.load.toFixed(2)),
+    memTotal: state.memTotal,
+    diskTotal: state.diskTotal,
+    netDown: Number(state.netDown.toFixed(2)),
+    netUp: Number(state.netUp.toFixed(2)),
+  });
+
   setInterval(tickClock, 1000);
-  setInterval(simulate, 2200);
-  bridge.emit('system:ready', { metrics: { ...metrics } });
+  setInterval(simulate, 2000);
+})();
 </script>
 </body>
 </html>
