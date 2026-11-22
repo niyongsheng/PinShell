@@ -46,6 +46,8 @@ final class GlassCard: NSView {
 
         let backing: NSView
         let glassOwnsContent: Bool
+        // NSGlassEffectView 来自 macOS 26 SDK（Swift 6.2）；旧 Xcode/CI runner 走视觉特效回退
+        #if compiler(>=6.2)
         if #available(macOS 26.0, *) {
             let glass = NSGlassEffectView()
             glass.style = .regular
@@ -55,17 +57,13 @@ final class GlassCard: NSView {
             glassOwnsContent = true
             glass.contentView = contentView
         } else {
-            let effect = NSVisualEffectView()
-            effect.material = .popover
-            effect.blendingMode = .withinWindow
-            effect.state = .active
-            effect.wantsLayer = true
-            effect.layer?.cornerRadius = cornerRadius
-            effect.layer?.cornerCurve = .continuous
-            effect.layer?.masksToBounds = true
-            backing = effect
+            backing = Self.makeVisualEffect(cornerRadius: cornerRadius)
             glassOwnsContent = false
         }
+        #else
+        backing = Self.makeVisualEffect(cornerRadius: cornerRadius)
+        glassOwnsContent = false
+        #endif
 
         addSubview(backing)
         backing.translatesAutoresizingMaskIntoConstraints = false
@@ -89,6 +87,18 @@ final class GlassCard: NSView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    private static func makeVisualEffect(cornerRadius: CGFloat) -> NSVisualEffectView {
+        let effect = NSVisualEffectView()
+        effect.material = .popover
+        effect.blendingMode = .withinWindow
+        effect.state = .active
+        effect.wantsLayer = true
+        effect.layer?.cornerRadius = cornerRadius
+        effect.layer?.cornerCurve = .continuous
+        effect.layer?.masksToBounds = true
+        return effect
+    }
 }
 
 /// 状态胶囊：SF Symbol 图标 + 文案，用颜色表达开/关。
