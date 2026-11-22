@@ -16,7 +16,7 @@ https://github.com/user-attachments/assets/61bfb0b1-b815-4895-a0f8-fcaf64ad3d0c
 - Always-on-top HTML overlay across Spaces, with click-through, opacity, radius, and hot reload.
 - MCP server and CLI share one control socket; pages can push events back to the agent.
 - Control console (⌘K): templates, live preview, template editor, MCP info, About.
-- Ten starter templates: badges, goals, LIVE dot, todo, system monitor, desktop pet, pomodoro, watermark, social rail, decision maker.
+- Ten starter templates: badges, goals, todo, system monitor, desktop pet, pomodoro, decision maker, vinyl radio, gomoku, stock board.
 - Menu-bar only, no Dock icon; update check against GitHub Releases, with in-app installer download (SHA-256 verified) handed off to the system Installer.
 
 ## Install

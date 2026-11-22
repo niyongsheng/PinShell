@@ -183,10 +183,11 @@ public enum MCPPromptCatalog {
     public static var templateLibraryGuide: String {
     """
     Bundled templates (list with pinshell_templates; prefer reusing one over new HTML):
-      badge-carousel, goal-progress (in: bilibili:stats), live-dot (obs:status),
-      social-rail, watermark, decision-maker, todo (out: todo:changed),
-      system-monitor (in: system:stats), desktop-pet (pet:* both ways),
-      pomodoro (in: pomodoro:command; out: pomodoro:changed/complete/skip).
+      badge-carousel, goal-progress (in: bilibili:stats), decision-maker,
+      todo (out: todo:changed), system-monitor (in: system:stats),
+      desktop-pet (pet:* both ways),
+      pomodoro (in: pomodoro:command; out: pomodoro:changed/complete/skip),
+      ai-radio, gomoku, stock-board.
       pinshell_template_show accepts a file name or title and applies the template's metadata.
       pinshell_template_read returns the HTML, including any AGENT PROTOCOL or data-protocol
       comment — read it before pushing events.
@@ -395,8 +396,8 @@ public enum MCPPromptCatalog {
 
         Implementation rules:
         - Reuse a live template when it fits instead of building from scratch:
-          system-monitor.html (system:stats), live-dot.html (obs:status), or
-          goal-progress.html (bilibili:stats). Show it with pinshell_template_show and push
+          system-monitor.html (system:stats) or goal-progress.html (bilibili:stats).
+          Show it with pinshell_template_show and push
           updates with pinshell_emit; read its data-protocol comment first with pinshell_template_read.
         - For an https endpoint, refresh inside the page with setInterval(refresh, \(milliseconds)).
           Call await pinshell.fetch(url, {headers}) and parse the response. It supports GET only,

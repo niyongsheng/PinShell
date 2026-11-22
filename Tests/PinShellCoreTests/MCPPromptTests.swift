@@ -167,7 +167,7 @@ final class MCPPromptTests: XCTestCase {
 
         XCTAssertTrue(rendered.text.contains("system-monitor.html"))
         XCTAssertTrue(rendered.text.contains("system:stats"))
-        XCTAssertTrue(rendered.text.contains("live-dot.html"))
+        XCTAssertTrue(rendered.text.contains("goal-progress.html"))
         XCTAssertTrue(rendered.text.contains("pinshell.fetch"))
         XCTAssertTrue(rendered.text.contains("2 MB"))
         XCTAssertTrue(rendered.text.contains("document.hidden"))
