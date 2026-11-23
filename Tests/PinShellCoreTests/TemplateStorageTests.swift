@@ -25,6 +25,21 @@ final class TemplateStorageTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
     }
 
+    func testWriteDataPreservesExactBytes() throws {
+        let data = Data([0x3C, 0x68, 0x74, 0x6D, 0x6C, 0x3E, 0x0A, 0x0D, 0x00, 0xFF])
+        let url = try TemplateStorage.write(name: "raw.html", data: data, in: directory)
+        XCTAssertEqual(try Data(contentsOf: url), data)
+    }
+
+    func testWriteDataRejectsOversizedPayload() {
+        let data = Data(repeating: 0x61, count: TemplateStorage.maxBytes + 1)
+        XCTAssertThrowsError(try TemplateStorage.write(name: "big.html", data: data,
+                                                       in: directory)) {
+            XCTAssertEqual($0 as? TemplateStorage.Error,
+                           .tooLarge(TemplateStorage.maxBytes + 1))
+        }
+    }
+
     func testWritePreservesExistingPermissions() throws {
         let url = directory.appendingPathComponent("panel.html")
         try "old".write(to: url, atomically: true, encoding: .utf8)

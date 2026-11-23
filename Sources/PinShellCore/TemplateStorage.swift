@@ -46,18 +46,28 @@ public enum TemplateStorage {
 
     @discardableResult
     public static func write(name: String, html: String, in directory: URL) throws -> URL {
+        try write(name: name, data: Data(html.utf8), in: directory)
+    }
+
+    /// 原字节写入：下载安装模板时使用，保证 sha256 与远端 payload 一致。
+    @discardableResult
+    public static func write(name: String, data: Data, in directory: URL) throws -> URL {
         let url = try resolve(name: name, in: directory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try write(html, to: url)
+        try write(data, to: url)
         return url
     }
 
     /// 原子写入；保留已有文件权限，新文件默认 0600。
     public static func write(_ html: String, to url: URL) throws {
-        let bytes = html.utf8.count
-        guard bytes <= maxBytes else { throw Error.tooLarge(bytes) }
+        try write(Data(html.utf8), to: url)
+    }
+
+    /// 原子写入原始字节；保留已有文件权限，新文件默认 0600。
+    public static func write(_ data: Data, to url: URL) throws {
+        guard data.count <= maxBytes else { throw Error.tooLarge(data.count) }
         let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
-        try Data(html.utf8).write(to: url, options: .atomic)
+        try data.write(to: url, options: .atomic)
         let permissions = attributes?[.posixPermissions] ?? 0o600
         try? FileManager.default.setAttributes([.posixPermissions: permissions],
                                                ofItemAtPath: url.path)

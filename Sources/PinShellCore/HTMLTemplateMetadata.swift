@@ -69,7 +69,7 @@ public struct HTMLTemplateMetadata: Equatable, Sendable {
             radius: radius ?? fallback.radius,
             order: order ?? fallback.order,
             documentLanguage: documentLanguage ?? fallback.documentLanguage,
-            // 语言能力属于文件自身，不从内置模板兜底继承；
+            // 语言能力属于文件自身，不从其他模板兜底继承；
             // 旧副本没有 block 时让页面 helper 自己按偏好选择。
             availableLanguages: availableLanguages,
             resolvedLanguage: resolvedLanguage

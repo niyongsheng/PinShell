@@ -1,5 +1,4 @@
 import AppKit
-import CryptoKit
 import PinShellCore
 
 /// 半自动更新：下载 Release 中的 pkg → 可选 SHA-256 校验 → 交给系统 Installer。
@@ -73,21 +72,5 @@ final class UpdateInstaller {
     /// 取消进行中的下载（主线程）。
     func cancel() {
         downloader?.cancel()
-    }
-}
-
-/// 流式 SHA-256，避免把整个安装包读进内存。
-enum FileDigest {
-    static func sha256(of url: URL) throws -> String {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
-
-        var hasher = SHA256()
-        while true {
-            let data = try handle.read(upToCount: 1 << 20) ?? Data()
-            if data.isEmpty { break }
-            hasher.update(data: data)
-        }
-        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 }
