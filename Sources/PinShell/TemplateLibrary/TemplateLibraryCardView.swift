@@ -8,7 +8,6 @@ final class TemplateLibraryCardView: NSView {
 
     var onOpenInstalled: (() -> Void)?
 
-    private let preview = LibraryPreviewView()
     private let statusChip = StatusChip()
     private let primaryButton = NSButton(title: "", target: nil, action: nil)
     private let menuButton = NSButton(title: "", target: nil, action: nil)
@@ -33,12 +32,6 @@ final class TemplateLibraryCardView: NSView {
         layer?.borderWidth = 0.5
         layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.3).cgColor
         layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.38).cgColor
-
-        preview.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            preview.widthAnchor.constraint(equalToConstant: 92),
-            preview.heightAnchor.constraint(equalToConstant: 68),
-        ])
 
         let titleLabel = NSTextField(labelWithString: row.localizedName)
         titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
@@ -88,7 +81,12 @@ final class TemplateLibraryCardView: NSView {
         rightStack.spacing = 8
         rightStack.setContentHuggingPriority(.required, for: .horizontal)
 
-        let stack = NSStackView(views: [preview, textStack, rightStack])
+        // 弹性占位把右侧状态/操作推到卡片右缘
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        spacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        let stack = NSStackView(views: [textStack, spacer, rightStack])
         stack.orientation = .horizontal
         stack.spacing = 14
         stack.alignment = .centerY
@@ -105,11 +103,6 @@ final class TemplateLibraryCardView: NSView {
     }
 
     private func configure() {
-        let category = service.categoryName(for: row.entry.category)
-        preview.configure(category: row.entry.category,
-                          name: row.localizedName,
-                          size: row.entry.preview)
-
         let evaluation = row.evaluation
         if evaluation.needsNewerApp {
             statusChip.update(text: NSLocalizedString("library.state.incompatible", comment: ""),
@@ -170,7 +163,7 @@ final class TemplateLibraryCardView: NSView {
             primaryButton.isEnabled = false
         }
 
-        toolTip = "\(row.localizedName) · \(category) · v\(row.entry.version)"
+        toolTip = "\(row.localizedName) · \(service.categoryName(for: row.entry.category)) · v\(row.entry.version)"
     }
 
     private func metaText() -> String {
@@ -355,99 +348,6 @@ final class TemplateLibraryCardView: NSView {
             alert.beginSheetModal(for: window)
         } else {
             alert.runModal()
-        }
-    }
-}
-
-/// 原生绘制的模板海报：窗口轮廓 + 分类符号 + 尺寸，不在安装前执行远端 HTML。
-private final class LibraryPreviewView: NSView {
-    private let bar = NSView()
-    private let symbolView = NSImageView()
-    private let sizeLabel = NSTextField(labelWithString: "")
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        build()
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    private func build() {
-        wantsLayer = true
-        layer?.cornerRadius = 10
-        layer?.cornerCurve = .continuous
-        layer?.borderWidth = 0.5
-        layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.35).cgColor
-        layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.55).cgColor
-
-        bar.wantsLayer = true
-        bar.layer?.backgroundColor = NSColor.quaternaryLabelColor
-            .withAlphaComponent(0.35).cgColor
-        bar.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(bar)
-
-        for index in 0..<3 {
-            let dot = NSView()
-            dot.wantsLayer = true
-            dot.layer?.cornerRadius = 1.5
-            dot.layer?.backgroundColor = NSColor.tertiaryLabelColor
-                .withAlphaComponent(0.6).cgColor
-            dot.translatesAutoresizingMaskIntoConstraints = false
-            bar.addSubview(dot)
-            NSLayoutConstraint.activate([
-                dot.widthAnchor.constraint(equalToConstant: 3),
-                dot.heightAnchor.constraint(equalToConstant: 3),
-                dot.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
-                dot.leadingAnchor.constraint(equalTo: bar.leadingAnchor,
-                                             constant: 6 + CGFloat(index) * 6),
-            ])
-        }
-
-        symbolView.imageScaling = .scaleProportionallyDown
-        symbolView.contentTintColor = .secondaryLabelColor
-        symbolView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(symbolView)
-
-        sizeLabel.font = .monospacedDigitSystemFont(ofSize: 8, weight: .regular)
-        sizeLabel.textColor = .tertiaryLabelColor
-        sizeLabel.alignment = .right
-        sizeLabel.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(sizeLabel)
-
-        NSLayoutConstraint.activate([
-            bar.leadingAnchor.constraint(equalTo: leadingAnchor),
-            bar.trailingAnchor.constraint(equalTo: trailingAnchor),
-            bar.topAnchor.constraint(equalTo: topAnchor),
-            bar.heightAnchor.constraint(equalToConstant: 13),
-
-            symbolView.centerXAnchor.constraint(equalTo: centerXAnchor),
-            symbolView.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 3),
-            symbolView.widthAnchor.constraint(equalToConstant: 26),
-            symbolView.heightAnchor.constraint(equalToConstant: 26),
-
-            sizeLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -5),
-            sizeLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -3),
-        ])
-    }
-
-    func configure(category: String?, name: String,
-                   size: TemplateLibraryPreview?) {
-        let symbol: String
-        switch category {
-        case "productivity": symbol = "checklist"
-        case "focus": symbol = "timer"
-        case "monitoring": symbol = "gauge.with.dots.needle.bottom.50percent"
-        case "companion": symbol = "pawprint.fill"
-        case "media": symbol = "music.note"
-        case "play": symbol = "gamecontroller.fill"
-        case "social": symbol = "person.2.fill"
-        default: symbol = "rectangle.on.rectangle"
-        }
-        symbolView.image = NSImage(systemSymbolName: symbol, accessibilityDescription: name)
-        if let size {
-            sizeLabel.stringValue = "\(size.width ?? 0)×\(size.height ?? 0)"
-        } else {
-            sizeLabel.stringValue = ""
         }
     }
 }

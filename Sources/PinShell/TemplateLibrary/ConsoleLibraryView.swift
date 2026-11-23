@@ -136,7 +136,9 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
 
         rowsStack.orientation = .vertical
-        rowsStack.alignment = .width
+        // 纵向 stack 的 .width 对齐无效（会被忽略，卡片按内容宽度缩着排），
+        // 卡片宽度由 rebuildRowsIfNeeded 里显式约束到列表宽度。
+        rowsStack.alignment = .leading
         rowsStack.spacing = 10
         rowsStack.edgeInsets = NSEdgeInsets(top: 2, left: 0, bottom: 18, right: 0)
         rowsStack.translatesAutoresizingMaskIntoConstraints = false
@@ -372,6 +374,7 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
                 self?.onOpenInstalled?(row.entry.file)
             }
             rowsStack.addArrangedSubview(card)
+            card.widthAnchor.constraint(equalTo: rowsStack.widthAnchor).isActive = true
         }
         scrollView.contentView.scroll(to: origin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
