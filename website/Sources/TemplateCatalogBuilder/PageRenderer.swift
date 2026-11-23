@@ -15,7 +15,6 @@ struct SiteStrings {
     let size: String
     let fileSize: String
     let languages: String
-    let source: String
     let interactiveHint: String
     let noChangelog: String
     /// 计数文案模板，{n} 由 JS 在筛选时替换；Swift 侧用 templateCount 渲染初始值。
@@ -43,7 +42,6 @@ struct SiteStrings {
                 size: "Size",
                 fileSize: "File size",
                 languages: "Languages",
-                source: "Open template HTML",
                 interactiveHint: "Click and type inside the preview — the template responds live.",
                 noChangelog: "No release notes yet.",
                 countOne: "{n} template",
@@ -63,7 +61,6 @@ struct SiteStrings {
             size: "尺寸",
             fileSize: "文件大小",
             languages: "语言",
-            source: "打开模板 HTML",
             interactiveHint: "可直接在预览中点击、输入，模板会实时响应。",
             noChangelog: "暂无更新日志。",
             countOne: "{n} 个模板",
@@ -502,7 +499,6 @@ enum PageRenderer {
                   <div><dt>\(escapeHTML(strings.languages))</dt><dd>\(escapeHTML(languages))</dd></div>
                 </dl>
               </section>
-              <a class="text-link" href="\(escapeAttribute(payloadHref))" target="_blank" rel="noopener">\(escapeHTML(strings.source)) →</a>
             </aside>
           </div>
           <section class="detail-block changelog-block">
