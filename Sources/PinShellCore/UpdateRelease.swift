@@ -79,6 +79,32 @@ public struct UpdateRelease: Decodable, Equatable, Sendable {
     }
 }
 
+extension UpdateRelease {
+    /// API 不可用（如未认证请求被限流）时按 tag 构造降级信息：
+    /// tag 页链接 + release 中的稳定文件名安装包。没有大小与摘要，下载时跳过校验。
+    /// 稳定链接始终指向最新 release，与刚探测到的 tag 一致。
+    public static func webFallback(tagName: String, repository: String) -> UpdateRelease {
+        let base = "https://github.com/\(repository)/releases"
+        return UpdateRelease(tagName: tagName,
+                             name: nil,   // 无更新说明，让 excerpt() 用本地化兜底文案
+                             body: nil,
+                             htmlURL: URL(string: "\(base)/tag/\(tagName)"),
+                             assets: [ReleaseAsset(name: "PinShell.pkg",
+                                                   browserDownloadURL: URL(string: "\(base)/latest/download/PinShell.pkg")!,
+                                                   size: 0)])
+    }
+}
+
+/// 从 GitHub release 页面 URL 中提取 tag（`.../releases/tag/v1.2.3` → `v1.2.3`）。
+public enum ReleaseTag {
+    public static func fromReleaseURL(_ url: URL) -> String? {
+        let components = url.pathComponents
+        guard components.count >= 3, components[components.count - 2] == "tag" else { return nil }
+        let tag = components[components.count - 1]
+        return tag.isEmpty || tag == "/" ? nil : tag
+    }
+}
+
 /// 版本号比较：数字段逐段比较，非数字后缀忽略，缺位补 0。
 public enum VersionNumber {
     /// 去掉前导 v/V（tag "v1.2.3" → "1.2.3"）。

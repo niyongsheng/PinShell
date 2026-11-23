@@ -79,6 +79,30 @@ final class UpdateReleaseTests: XCTestCase {
         XCTAssertNil(release.pkgAsset)
     }
 
+    func testReleaseTagFromRedirectURL() {
+        XCTAssertEqual(ReleaseTag.fromReleaseURL(
+            URL(string: "https://github.com/niyongsheng/PinShell/releases/tag/v1.4.0")!), "v1.4.0")
+        XCTAssertEqual(ReleaseTag.fromReleaseURL(
+            URL(string: "https://github.com/niyongsheng/PinShell/releases/tag/v1.4.0/")!), "v1.4.0")
+        XCTAssertNil(ReleaseTag.fromReleaseURL(
+            URL(string: "https://github.com/niyongsheng/PinShell/releases/latest")!))
+        XCTAssertNil(ReleaseTag.fromReleaseURL(
+            URL(string: "https://github.com/niyongsheng/PinShell")!))
+    }
+
+    func testWebFallbackRelease() {
+        let release = UpdateRelease.webFallback(tagName: "v1.4.0", repository: "acme/PinShell")
+
+        XCTAssertEqual(release.versionLabel, "1.4.0")
+        XCTAssertEqual(release.htmlURL?.absoluteString,
+                       "https://github.com/acme/PinShell/releases/tag/v1.4.0")
+        XCTAssertEqual(release.pkgAsset?.name, "PinShell.pkg")
+        XCTAssertEqual(release.pkgAsset?.browserDownloadURL.absoluteString,
+                       "https://github.com/acme/PinShell/releases/latest/download/PinShell.pkg")
+        XCTAssertEqual(release.pkgAsset?.size, 0)
+        XCTAssertNil(release.pkgAsset?.sha256)
+    }
+
     func testAssetDigestParsing() {
         let url = URL(string: "https://example.com/a.pkg")!
         XCTAssertEqual(ReleaseAsset(name: "a", browserDownloadURL: url, size: 1,
