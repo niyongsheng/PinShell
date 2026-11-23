@@ -56,6 +56,17 @@ public struct TemplateLibraryLocalization: Codable, Equatable, Sendable {
     }
 }
 
+/// 模板作者。名称必填；主页链接可选，仅允许 HTTPS（本地开发允许 loopback HTTP）。
+public struct TemplateLibraryAuthor: Codable, Equatable, Sendable {
+    public var name: String
+    public var url: String?
+
+    public init(name: String, url: String? = nil) {
+        self.name = name
+        self.url = url
+    }
+}
+
 public struct TemplateLibraryListing: Codable, Equatable, Sendable {
     public var tagline: String?
     public var highlights: [String]?
@@ -152,6 +163,7 @@ public struct TemplateLibraryEntry: Codable, Equatable, Sendable {
     public var minAppVersion: String?
     public var category: String?
     public var tags: [String]?
+    public var author: TemplateLibraryAuthor?
     public var defaultLanguage: String?
     public var fallbackLanguage: String?
     public var languages: [String: TemplateLibraryLocalization]?
@@ -164,6 +176,7 @@ public struct TemplateLibraryEntry: Codable, Equatable, Sendable {
     public init(id: String, version: String, file: String,
                 order: Int? = nil, minAppVersion: String? = nil,
                 category: String? = nil, tags: [String]? = nil,
+                author: TemplateLibraryAuthor? = nil,
                 defaultLanguage: String? = nil, fallbackLanguage: String? = nil,
                 languages: [String: TemplateLibraryLocalization]? = nil,
                 listing: [String: TemplateLibraryListing]? = nil,
@@ -178,6 +191,7 @@ public struct TemplateLibraryEntry: Codable, Equatable, Sendable {
         self.minAppVersion = minAppVersion
         self.category = category
         self.tags = tags
+        self.author = author
         self.defaultLanguage = defaultLanguage
         self.fallbackLanguage = fallbackLanguage
         self.languages = languages

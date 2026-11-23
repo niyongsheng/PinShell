@@ -10,6 +10,7 @@ public struct TemplateSourceManifest: Codable, Equatable, Sendable {
     public var minAppVersion: String?
     public var category: String
     public var tags: [String]?
+    public var author: TemplateLibraryAuthor?
     public var listing: [String: TemplateLibraryListing]?
     public var changelog: [String: TemplateLibraryChangelogEntry]?
 
@@ -20,6 +21,7 @@ public struct TemplateSourceManifest: Codable, Equatable, Sendable {
                 minAppVersion: String? = nil,
                 category: String,
                 tags: [String]? = nil,
+                author: TemplateLibraryAuthor? = nil,
                 listing: [String: TemplateLibraryListing]? = nil,
                 changelog: [String: TemplateLibraryChangelogEntry]? = nil) {
         self.schemaVersion = schemaVersion
@@ -29,6 +31,7 @@ public struct TemplateSourceManifest: Codable, Equatable, Sendable {
         self.minAppVersion = minAppVersion
         self.category = category
         self.tags = tags
+        self.author = author
         self.listing = listing
         self.changelog = changelog
     }
@@ -72,6 +75,12 @@ public enum TemplateSourceManifestValidator {
                 throw TemplateLibraryValidationError.invalidTags(manifest.id)
             }
         }
+
+        guard let author = manifest.author else {
+            throw TemplateLibraryValidationError.invalidManifest(
+                "\(manifest.id): missing author")
+        }
+        try TemplateLibraryValidation.validateAuthor(author, templateID: manifest.id)
 
         for (language, listing) in manifest.listing ?? [:] {
             guard !language.isEmpty,

@@ -32,6 +32,15 @@ final class TemplateLibraryModelsTests: XCTestCase {
         XCTAssertNoThrow(try JSONDecoder().decode(TemplateLibraryIndex.self, from: data))
     }
 
+    func testAuthorRoundTrips() throws {
+        var entry = TemplateLibraryFixtures.entry()
+        entry.author = TemplateLibraryAuthor(
+            name: "Nico", url: "https://github.com/niyongsheng")
+        let data = try JSONEncoder().encode(entry)
+        let decoded = try JSONDecoder().decode(TemplateLibraryEntry.self, from: data)
+        XCTAssertEqual(decoded.author, entry.author)
+    }
+
     func testChangelogSortsNewestFirst() {
         var entry = TemplateLibraryFixtures.entry(version: "1.2.0")
         entry.changelog?["1.1.0"] = TemplateLibraryChangelogEntry(
@@ -135,6 +144,22 @@ final class TemplateLibraryValidationTests: XCTestCase {
             XCTAssertEqual($0 as? TemplateLibraryValidationError,
                            .emptyLocalization(language: "en", field: "name"))
         }
+    }
+
+    func testRejectsInvalidAuthor() {
+        var entry = TemplateLibraryFixtures.entry()
+        entry.author = TemplateLibraryAuthor(name: " ")
+        XCTAssertThrowsError(try TemplateLibraryValidation.validate(entry)) {
+            XCTAssertEqual($0 as? TemplateLibraryValidationError, .invalidAuthor("todo"))
+        }
+
+        entry.author = TemplateLibraryAuthor(name: "Nico", url: "http://example.com/nicoy")
+        XCTAssertThrowsError(try TemplateLibraryValidation.validate(entry)) {
+            XCTAssertEqual($0 as? TemplateLibraryValidationError, .invalidAuthor("todo"))
+        }
+
+        entry.author = TemplateLibraryAuthor(name: "Nico")
+        XCTAssertNoThrow(try TemplateLibraryValidation.validate(entry))
     }
 
     func testRejectsInvalidPreview() {

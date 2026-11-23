@@ -14,6 +14,7 @@ public enum TemplateLibraryValidationError: Error, Equatable, CustomStringConver
     case invalidPageURL(String)
     case invalidCategory(String)
     case invalidTags(String)
+    case invalidAuthor(String)
     case invalidPreview(String)
     case missingLocalization(String)
     case emptyLocalization(language: String, field: String)
@@ -47,6 +48,8 @@ public enum TemplateLibraryValidationError: Error, Equatable, CustomStringConver
             return "invalid category \(category)"
         case .invalidTags(let id):
             return "invalid tags for template \(id)"
+        case .invalidAuthor(let id):
+            return "invalid author for template \(id)"
         case .invalidPreview(let id):
             return "invalid preview for template \(id)"
         case .missingLocalization(let id):
@@ -147,6 +150,10 @@ public enum TemplateLibraryValidation {
             }
         }
 
+        if let author = entry.author {
+            try validateAuthor(author, templateID: entry.id)
+        }
+
         try validateLanguages(entry)
         try validateChangelog(entry)
         try validatePreview(entry)
@@ -192,18 +199,34 @@ public enum TemplateLibraryValidation {
     public static func isAllowedPayloadURL(_ value: String,
                                            allowAbsoluteHTTPS: Bool) -> Bool {
         if isSafeRelativePath(value) { return true }
-        guard allowAbsoluteHTTPS, let url = URL(string: value) else { return false }
-        return isAllowedRemoteURL(url)
+        return allowAbsoluteHTTPS && isAllowedRemoteURL(value)
     }
 
     public static func isAllowedPageURL(_ value: String) -> Bool {
-        if isSafeRelativePath(value) { return true }
-        guard let url = URL(string: value) else { return false }
-        return isAllowedRemoteURL(url)
+        isSafeRelativePath(value) || isAllowedRemoteURL(value)
+    }
+
+    /// 作者名称必填且为单行；主页链接可选，仅允许 HTTPS（本地开发允许 loopback HTTP）。
+    public static func validateAuthor(_ author: TemplateLibraryAuthor,
+                                      templateID: String) throws {
+        let name = author.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name.count <= 64,
+              name == author.name,
+              !name.contains(where: { $0.isNewline }) else {
+            throw TemplateLibraryValidationError.invalidAuthor(templateID)
+        }
+        if let url = author.url, !isAllowedRemoteURL(url) {
+            throw TemplateLibraryValidationError.invalidAuthor(templateID)
+        }
     }
 
     public static func isAllowedCatalogURL(_ url: URL) -> Bool {
         isAllowedRemoteURL(url)
+    }
+
+    public static func isAllowedRemoteURL(_ value: String) -> Bool {
+        guard let url = URL(string: value) else { return false }
+        return isAllowedRemoteURL(url)
     }
 
     /// HTTPS 任意主机；HTTP 仅 loopback（本地开发）。

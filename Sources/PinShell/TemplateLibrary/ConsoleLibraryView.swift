@@ -346,6 +346,7 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
             return row.localizedName.lowercased().contains(query)
                 || row.localizedDescription.lowercased().contains(query)
                 || row.entry.id.contains(query)
+                || (row.entry.author?.name.lowercased().contains(query) ?? false)
                 || (row.entry.tags ?? []).contains(where: { $0.contains(query) })
         }
     }

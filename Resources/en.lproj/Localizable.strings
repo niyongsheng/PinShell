@@ -221,6 +221,9 @@
 "library.menu.ignore" = "Ignore Version %@";
 "library.menu.unignore" = "Unignore Updates";
 "library.menu.reveal" = "Show in Finder";
+"library.meta.author" = "by %@";
+"library.detail.author" = "Author";
+"library.detail.authorPage" = "Author Profile";
 "library.detail.highlights" = "Highlights";
 "library.detail.changelog" = "What's New";
 "library.detail.close" = "Close";

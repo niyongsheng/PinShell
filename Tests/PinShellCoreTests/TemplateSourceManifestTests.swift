@@ -10,6 +10,8 @@ final class TemplateSourceManifestTests: XCTestCase {
             minAppVersion: "1.4.0",
             category: "productivity",
             tags: ["tasks", "eisenhower"],
+            author: TemplateLibraryAuthor(
+                name: "Nico", url: "https://github.com/niyongsheng"),
             listing: [
                 "zh-Hans": TemplateLibraryListing(
                     tagline: "把今天安放在屏幕一角。",
@@ -55,6 +57,29 @@ final class TemplateSourceManifestTests: XCTestCase {
         }
     }
 
+    func testRejectsMissingAuthor() {
+        var value = manifest()
+        value.author = nil
+        XCTAssertThrowsError(try TemplateSourceManifestValidator.validate(
+            value, expectedID: "todo", categories: ["productivity"]))
+    }
+
+    func testRejectsInvalidAuthor() {
+        var value = manifest()
+        value.author = TemplateLibraryAuthor(name: "  ")
+        XCTAssertThrowsError(try TemplateSourceManifestValidator.validate(
+            value, expectedID: "todo", categories: ["productivity"])) {
+            XCTAssertEqual($0 as? TemplateLibraryValidationError, .invalidAuthor("todo"))
+        }
+
+        value.author = TemplateLibraryAuthor(
+            name: "Nico", url: "http://example.com/nicoy")
+        XCTAssertThrowsError(try TemplateSourceManifestValidator.validate(
+            value, expectedID: "todo", categories: ["productivity"])) {
+            XCTAssertEqual($0 as? TemplateLibraryValidationError, .invalidAuthor("todo"))
+        }
+    }
+
     func testRejectsBadDatesAndVersions() {
         var value = manifest()
         value.version = "1.0"
@@ -72,6 +97,8 @@ final class TemplateSourceManifestTests: XCTestCase {
         let decoded = try JSONDecoder().decode(TemplateSourceManifest.self, from: data)
         XCTAssertEqual(decoded.id, "todo")
         XCTAssertEqual(decoded.listing?["zh-Hans"]?.highlights, ["列表与四象限"])
+        XCTAssertEqual(decoded.author?.name, "Nico")
+        XCTAssertEqual(decoded.author?.url, "https://github.com/niyongsheng")
         XCTAssertEqual(decoded.changelog?["1.0.0"]?.notes?["en"],
                        "First library release.")
     }

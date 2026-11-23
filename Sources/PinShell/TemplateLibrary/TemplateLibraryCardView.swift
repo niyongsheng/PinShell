@@ -173,13 +173,17 @@ final class TemplateLibraryCardView: NSView {
             applyStyle(readOnly ? .secondary : .primary)
         }
 
-        toolTip = "\(row.localizedName) · \(service.categoryName(for: row.entry.category)) · v\(row.entry.version)"
+        let author = row.entry.author.map { " · \($0.name)" } ?? ""
+        toolTip = "\(row.localizedName)\(author) · \(service.categoryName(for: row.entry.category)) · v\(row.entry.version)"
     }
 
     private func metaText() -> String {
         let category = service.categoryName(for: row.entry.category)
         let size = row.entry.preview.map { "\($0.width ?? 0)×\($0.height ?? 0)" } ?? ""
-        return ["v\(row.entry.version)", category, size]
+        let author = row.entry.author.map {
+            String(format: NSLocalizedString("library.meta.author", comment: ""), $0.name)
+        } ?? ""
+        return ["v\(row.entry.version)", author, category, size]
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
     }
@@ -297,6 +301,14 @@ final class TemplateLibraryCardView: NSView {
                 lines.append(contentsOf: highlights.map { "• \($0)" })
             }
         }
+        if let author = entry.author {
+            lines.append("")
+            var line = "\(NSLocalizedString("library.detail.author", comment: "")) · \(author.name)"
+            if let url = author.url {
+                line += "\n\(url)"
+            }
+            lines.append(line)
+        }
         if let notes = entry.changelogNotes(
             version: entry.version,
             preferredLanguages: LanguageTag.templatePreferredLanguages) {
@@ -313,10 +325,16 @@ final class TemplateLibraryCardView: NSView {
         alert.messageText = row.localizedName
         alert.informativeText = lines.joined(separator: "\n")
         alert.addButton(withTitle: NSLocalizedString("library.menu.website", comment: ""))
+        let authorURL = entry.author?.url.flatMap { URL(string: $0) }
+        if authorURL != nil {
+            alert.addButton(withTitle: NSLocalizedString("library.detail.authorPage", comment: ""))
+        }
         alert.addButton(withTitle: NSLocalizedString("library.detail.close", comment: ""))
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
             service.openWebsite(for: row)
+        } else if let authorURL, response == .alertSecondButtonReturn {
+            NSWorkspace.shared.open(authorURL)
         }
     }
 
