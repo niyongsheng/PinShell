@@ -89,6 +89,7 @@
 "console.detail.size" = "Size";
 "console.detail.position" = "Position";
 "console.detail.order" = "Order";
+"console.detail.version" = "Version";
 "console.position.auto" = "Auto";
 "console.toolbar.show" = "Show Overlay";
 "console.toolbar.hide" = "Hide Overlay";

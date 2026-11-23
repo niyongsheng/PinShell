@@ -89,6 +89,7 @@
 "console.detail.size" = "尺寸";
 "console.detail.position" = "位置";
 "console.detail.order" = "排序";
+"console.detail.version" = "版本";
 "console.position.auto" = "自动";
 "console.toolbar.show" = "显示悬浮窗";
 "console.toolbar.hide" = "隐藏悬浮窗";

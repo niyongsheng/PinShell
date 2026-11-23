@@ -344,6 +344,13 @@ final class TemplateLibraryService {
         rows.first(where: { $0.entry.file == file })?.evaluation.isEdited ?? false
     }
 
+    /// 已安装模板对应的目录作者信息；目录未加载或文件不是从模板库安装时返回 nil。
+    func author(forFile file: String) -> TemplateLibraryAuthor? {
+        guard let entry = snapshot?.index.templates.first(where: { $0.file == file }),
+              state.installed[entry.id] != nil else { return nil }
+        return entry.author
+    }
+
     // MARK: - Private
 
     private func performInstall(entry: TemplateLibraryEntry,

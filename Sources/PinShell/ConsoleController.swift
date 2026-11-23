@@ -144,6 +144,12 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         detail.onEdit = { [weak self] item in
             self?.edit(item)
         }
+        detail.authorProvider = { [weak self] file in
+            self?.libraryService.author(forFile: file)
+        }
+        detail.versionProvider = { [weak self] file in
+            self?.libraryService.installedVersion(forFile: file)
+        }
     }
 
     private func installObservers() {
@@ -215,6 +221,8 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
 
     func show() {
         templatesWatcher?.start()
+        // 目录同时提供本地模板的作者信息；后台加载，失败时不影响控制台。
+        Task { await libraryService.ensureLoaded() }
         window.contentView?.layoutSubtreeIfNeeded()
         sidebar.reloadTemplates(selecting: windowController.currentURL)
         sidebar.updateAppliedTemplate(windowController.currentURL)
@@ -282,6 +290,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
     private func libraryChanged() {
         sidebar.updateLibraryBadge(libraryService.updateCount)
         detail.refreshLibrary()
+        detail.refreshLibraryMetadata()
     }
 
     private func syncDetailToSidebar() {

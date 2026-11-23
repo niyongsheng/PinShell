@@ -10,6 +10,10 @@ final class ConsoleDetailViewController: NSViewController {
     var onEdit: ((TemplateItem) -> Void)?
     var onOpenLibrary: (() -> Void)?
     var onOpenInstalled: ((String) -> Void)?
+    /// 按文件名查询在线目录中的作者；本地模板不在目录中时返回 nil。
+    var authorProvider: ((String) -> TemplateLibraryAuthor?)?
+    /// 按文件名查询已安装模板的版本号；本地模板不在模板库中时返回 nil。
+    var versionProvider: ((String) -> String?)?
 
     private(set) var currentTemplate: TemplateItem?
 
@@ -56,6 +60,9 @@ final class ConsoleDetailViewController: NSViewController {
                                   font: .systemFont(ofSize: 26, weight: .semibold),
                                   tracking: -0.4))
     private let subtitleLabel = NSTextField(wrappingLabelWithString: "")
+    /// 副标题行：说明文字靠左，模板库版本号右对齐。
+    private let subtitleRow = NSStackView()
+    private let versionLabel = NSTextField(labelWithString: "")
     private let showingChip = StatusChip()
 
     private lazy var applyButton = makeConsoleButton(
@@ -88,6 +95,21 @@ final class ConsoleDetailViewController: NSViewController {
             accessibilityLabel: NSLocalizedString("console.toolbar.folder", comment: ""),
             target: self,
             action: #selector(revealTapped)))
+
+    private lazy var authorButton = makeIconButton(
+        symbol: "arrow.up.right.square",
+        accessibilityLabel: NSLocalizedString("library.detail.authorPage", comment: ""),
+        target: self,
+        action: #selector(openAuthorPage))
+
+    private lazy var authorInfoRow = ConsoleInfoRow(
+        label: NSLocalizedString("library.detail.author", comment: ""),
+        value: "—",
+        accessory: authorButton)
+
+    /// 作者行与紧随其后的分隔线一起隐藏，避免本地模板出现空行或双分隔线。
+    private let authorDivider = HairlineView()
+    private var currentAuthor: TemplateLibraryAuthor?
 
     private lazy var sizeInfoRow = ConsoleInfoRow(
         label: NSLocalizedString("console.detail.size", comment: ""),
@@ -236,6 +258,26 @@ final class ConsoleDetailViewController: NSViewController {
         subtitleLabel.textColor = .secondaryLabelColor
         subtitleLabel.maximumNumberOfLines = 2
         subtitleLabel.lineBreakMode = .byWordWrapping
+        subtitleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        versionLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        versionLabel.textColor = .tertiaryLabelColor
+        versionLabel.alignment = .right
+        versionLabel.setContentHuggingPriority(.required, for: .horizontal)
+        versionLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+        versionLabel.isHidden = true
+        versionLabel.setAccessibilityLabel(
+            NSLocalizedString("console.detail.version", comment: ""))
+
+        let subtitleSpacer = NSView()
+        subtitleSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        subtitleSpacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        subtitleRow.orientation = .horizontal
+        subtitleRow.alignment = .firstBaseline
+        subtitleRow.spacing = ConsoleTheme.Space.xs
+        subtitleRow.addArrangedSubview(subtitleLabel)
+        subtitleRow.addArrangedSubview(subtitleSpacer)
+        subtitleRow.addArrangedSubview(versionLabel)
 
         showingChip.configure(text: NSLocalizedString("console.detail.showing", comment: ""),
                               symbol: "pin.fill",
@@ -261,13 +303,13 @@ final class ConsoleDetailViewController: NSViewController {
         let infoCard = buildInfoCard()
 
         let stack = templatePage.stack
-        for view in [previewCard, headerRow, subtitleLabel, actions, infoCard] {
+        for view in [previewCard, headerRow, subtitleRow, actions, infoCard] {
             stack.addArrangedSubview(view)
             view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
         stack.setCustomSpacing(14, after: previewCard)
         stack.setCustomSpacing(6, after: headerRow)
-        stack.setCustomSpacing(14, after: subtitleLabel)
+        stack.setCustomSpacing(14, after: subtitleRow)
         stack.setCustomSpacing(18, after: actions)
     }
 
@@ -289,16 +331,19 @@ final class ConsoleDetailViewController: NSViewController {
         stack.addArrangedSubview(title)
         stack.setCustomSpacing(ConsoleTheme.Space.sm, after: title)
 
-        let rows: [NSView] = [fileInfoRow, sizeInfoRow, positionInfoRow, orderInfoRow]
+        let rows: [NSView] = [fileInfoRow, authorInfoRow, sizeInfoRow,
+                              positionInfoRow, orderInfoRow]
         for (index, row) in rows.enumerated() {
             stack.addArrangedSubview(row)
             row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
             if index < rows.count - 1 {
-                let divider = HairlineView()
+                let divider = row === authorInfoRow ? authorDivider : HairlineView()
                 stack.addArrangedSubview(divider)
                 divider.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
             }
         }
+        authorInfoRow.isHidden = true
+        authorDivider.isHidden = true
 
         card.contentView.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -409,6 +454,7 @@ final class ConsoleDetailViewController: NSViewController {
         subtitleLabel.isHidden = item.description.isEmpty
 
         fileInfoRow.configure(value: item.file)
+        refreshLibraryMetadata()
         sizeInfoRow.configure(value: "\(NumberFormat.text(item.size.width))×"
                                     + "\(NumberFormat.text(item.size.height))")
         positionInfoRow.configure(value: positionText(item.spec.position))
@@ -431,8 +477,42 @@ final class ConsoleDetailViewController: NSViewController {
         layoutPreview()
     }
 
+    /// 目录加载/刷新完成后，补上当前模板的作者与版本信息。
+    func refreshLibraryMetadata() {
+        guard let item = currentTemplate else {
+            updateAuthor(nil)
+            updateVersion(nil)
+            return
+        }
+        updateAuthor(authorProvider?(item.file))
+        updateVersion(versionProvider?(item.file))
+    }
+
+    private func updateVersion(_ version: String?) {
+        versionLabel.stringValue = version.map { "v\($0)" } ?? ""
+        versionLabel.isHidden = version == nil
+        // 说明为空时这一行由版本号单独撑起，避免整行被隐藏。
+        subtitleRow.isHidden = subtitleLabel.isHidden && versionLabel.isHidden
+    }
+
+    private func updateAuthor(_ author: TemplateLibraryAuthor?) {
+        currentAuthor = author
+        guard let author else {
+            authorInfoRow.isHidden = true
+            authorDivider.isHidden = true
+            authorButton.isHidden = true
+            return
+        }
+        authorInfoRow.configure(value: author.name)
+        authorInfoRow.isHidden = false
+        authorDivider.isHidden = false
+        authorButton.isHidden = author.url.flatMap(URL.init(string:)) == nil
+    }
+
     func showEmpty() {
         currentTemplate = nil
+        updateAuthor(nil)
+        updateVersion(nil)
         show(.empty)
     }
 
@@ -567,6 +647,11 @@ final class ConsoleDetailViewController: NSViewController {
     @objc private func revealTapped() {
         guard let item = currentTemplate else { return }
         NSWorkspace.shared.activateFileViewerSelecting([item.url])
+    }
+
+    @objc private func openAuthorPage() {
+        guard let url = currentAuthor?.url.flatMap(URL.init(string:)) else { return }
+        NSWorkspace.shared.open(url)
     }
 
     @objc private func moreTapped() {
