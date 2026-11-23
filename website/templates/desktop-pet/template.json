@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "desktop-pet",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "releaseDate": "2026-11-23",
   "minAppVersion": "1.4.0",
   "category": "companion",
@@ -13,14 +13,28 @@
   "listing": {
     "zh-Hans": {
       "tagline": "住在屏幕角落的桌面宠物。",
-      "highlights": ["双向 pet:* 事件", "心情、睡眠与抚摸", "Agent 提问会排队等待回答"]
+      "highlights": ["双向 pet:* 事件", "心情、睡眠与抚摸", "Agent 在线状态显示", "12 种动作，含跑动与后空翻"]
     },
     "en": {
       "tagline": "A small companion living in the corner of your screen.",
-      "highlights": ["Two-way pet:* events", "Moods, sleep, and petting", "Queued questions for the agent"]
+      "highlights": ["Two-way pet:* events", "Moods, sleep, and petting", "Agent presence indicator", "12 actions, including run and backflip"]
     }
   },
   "changelog": {
+    "1.0.2": {
+      "date": "2026-11-23",
+      "notes": {
+        "zh-Hans": "新增 5 个大幅动作：跑动、鱼跃、后空翻、打滚、连跳。",
+        "en": "Added five bigger moves: run, leap, backflip, roll, and bounce."
+      }
+    },
+    "1.0.1": {
+      "date": "2026-11-23",
+      "notes": {
+        "zh-Hans": "移除宠物聊天输入：标准 MCP 无法主动发起会话。在线徽标改为仅在 Agent 长轮询时显示。",
+        "en": "Removed the pet's chat input: standard MCP cannot start a turn. The AI badge now lights only while the agent is polling for events."
+      }
+    },
     "1.0.0": {
       "date": "2026-11-23",
       "notes": {
