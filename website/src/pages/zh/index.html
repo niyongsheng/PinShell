@@ -1,0 +1,112 @@
+<!-- include: head.html -->
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <!-- include: nav.zh.html -->
+
+  <main id="main">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">PinShell for macOS</p>
+        <h1>为 AI 打造的<br>实时桌面窗口。</h1>
+        <p class="lead">让 Agent 在你屏幕的一角，用 HTML 实时沟通、展示与提问。任务结束，窗口即收起。</p>
+        <div class="cta-row">
+          <a class="button primary" href="{{DOWNLOAD_URL}}">下载 for macOS</a>
+          <a class="button secondary" href="templates/">浏览模板库</a>
+        </div>
+        <p class="fine">macOS 13+ · Apple Silicon 与 Intel · Apache 2.0</p>
+      </div>
+      <div class="hero-stage" aria-label="PinShell 模板窗口预览">
+        {{HERO_PANELS}}
+      </div>
+    </section>
+
+    <section class="section" id="features" data-reveal>
+      <div class="section-head">
+        <p class="eyebrow">Overlay</p>
+        <h2>不是另一个 App，<br>是一层界面。</h2>
+        <p>常驻置顶、跨 Space、鼠标穿透。PinShell 只负责把一块透明的 HTML 画布放到桌面上，内容完全由你决定。</p>
+      </div>
+      <div class="feature-grid">
+        <article class="feature">
+          <p class="feature-index">01</p>
+          <h3>常驻桌面</h3>
+          <p>窗口浮在所有 Space 之上，可调透明度、圆角与点击穿透；需要时出现，不抢焦点。</p>
+        </article>
+        <article class="feature">
+          <p class="feature-index">02</p>
+          <h3>HTML 即界面</h3>
+          <p>CSS、Canvas、SVG、动画、音视频。任何浏览器能做的，窗口里都能做，不需要原生控件。</p>
+        </article>
+        <article class="feature">
+          <p class="feature-index">03</p>
+          <h3>随时改写</h3>
+          <p>Agent 可以直接写入、更新、热重载页面。界面跟着对话走，而不是提前打包。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="agent-section" id="agent">
+      <div class="agent-inner" data-reveal>
+        <div>
+          <p class="eyebrow">MCP native</p>
+          <h2>Agent 能写，<br>也能听见。</h2>
+          <p>PinShell 的 MCP server 与 CLI 共用一条控制 socket。页面按钮、表单和事件会回到 Agent，形成真正的双向对话。</p>
+          <div class="flow-row" aria-label="事件流">
+            <span>pinshell_emit</span>
+            <span>pinshell_await_event</span>
+            <span>pinshell_state</span>
+            <span>pinshell_template_show</span>
+          </div>
+        </div>
+        <div class="code-card" aria-label="Claude Code MCP 配置示例">
+          <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span></div>
+          <pre><code><span class="c">// Claude Code · .mcp.json</span>
+{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"pinshell"</span>: {
+      <span class="k">"command"</span>: <span class="s">"/Applications/PinShell.app/Contents/MacOS/PinShell"</span>,
+      <span class="k">"args"</span>: [<span class="s">"mcp"</span>]
+    }
+  }
+}</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="templates" data-reveal>
+      <div class="section-head">
+        <p class="eyebrow">Template Library</p>
+        <h2>模板是可运行的 HTML，<br>不是截图。</h2>
+        <p>十款第一方模板，覆盖效率、监控、专注、娱乐与陪伴。全部托管在在线模板库，按需安装，独立更新。</p>
+      </div>
+      <div class="featured-grid">
+        {{FEATURED_CARDS}}
+      </div>
+      <div class="cta-row" style="margin-top: 30px;">
+        <a class="button secondary" href="templates/">浏览全部模板 →</a>
+      </div>
+    </section>
+
+    <section class="install-section" id="install">
+      <div class="install-inner" data-reveal>
+        <div>
+          <p class="eyebrow">Install</p>
+          <h2>装好。<br>打开控制台，<br>选一个模板。</h2>
+          <p>下载 Universal pkg，交给系统安装器。首次打开若被 Gatekeeper 拦截，按 README 的说明允许一次即可。</p>
+          <div class="install-actions">
+            <a class="button on-dark" href="{{DOWNLOAD_URL}}">下载 PinShell.pkg</a>
+            <a class="button ghost-on-dark" href="{{RELEASES_URL}}">查看更新日志</a>
+          </div>
+        </div>
+        <div class="install-card">
+          <div class="install-row"><span>系统</span><span>macOS 13 或更高</span></div>
+          <div class="install-row"><span>架构</span><span>Apple Silicon + Intel Universal</span></div>
+          <div class="install-row"><span>安装包</span><span>PinShell.pkg · 交给系统 Installer</span></div>
+          <div class="install-row"><span>许可证</span><span>Apache License 2.0</span></div>
+          <p class="install-note">若 Gatekeeper 阻止打开，可在终端执行：<br><code>xattr -dr com.apple.quarantine ~/Downloads/PinShell-*.pkg</code></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- include: footer.zh.html -->

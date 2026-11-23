@@ -1,0 +1,37 @@
+{
+  "name": "PinShell",
+  "tagline": {
+    "zh-Hans": "为 AI 打造的实时桌面窗口。",
+    "en": "A real-time desktop window built for AI."
+  },
+  "downloadURL": "https://github.com/niyongsheng/PinShell/releases/latest/download/PinShell.pkg",
+  "githubURL": "https://github.com/niyongsheng/PinShell",
+  "issuesURL": "https://github.com/niyongsheng/PinShell/issues",
+  "releasesURL": "https://github.com/niyongsheng/PinShell/releases",
+  "featured": ["desktop-pet", "todo", "system-monitor", "ai-radio", "gomoku", "stock-board"],
+  "languages": [
+    {
+      "id": "zh-Hans",
+      "htmlLang": "zh-Hans",
+      "label": "中文",
+      "shortLabel": "中",
+      "pathPrefix": ""
+    },
+    {
+      "id": "en",
+      "htmlLang": "en",
+      "label": "English",
+      "shortLabel": "EN",
+      "pathPrefix": "en/"
+    }
+  ],
+  "categories": [
+    { "id": "productivity", "names": { "zh-Hans": "效率", "en": "Productivity" } },
+    { "id": "focus", "names": { "zh-Hans": "专注", "en": "Focus" } },
+    { "id": "monitoring", "names": { "zh-Hans": "监控", "en": "Monitoring" } },
+    { "id": "companion", "names": { "zh-Hans": "陪伴", "en": "Companion" } },
+    { "id": "media", "names": { "zh-Hans": "影音", "en": "Media" } },
+    { "id": "play", "names": { "zh-Hans": "娱乐", "en": "Play" } },
+    { "id": "social", "names": { "zh-Hans": "社交", "en": "Social" } }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "system-monitor",
+  "version": "1.0.0",
+  "releaseDate": "2026-11-23",
+  "minAppVersion": "1.4.0",
+  "category": "monitoring",
+  "tags": ["cpu", "memory", "network"],
+  "listing": {
+    "zh-Hans": {
+      "tagline": "CPU、内存、磁盘与网络，一眼看清。",
+      "highlights": ["环形与条形两种视图", "Agent 推送系统指标", "毛玻璃仪表盘"]
+    },
+    "en": {
+      "tagline": "CPU, memory, disk, and network at a glance.",
+      "highlights": ["Ring and bar views", "Agent-pushed system stats", "Glass instrument panel"]
+    }
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-11-23",
+      "notes": {
+        "zh-Hans": "首个在线版本：系统状态监控与 Agent 数据协议。",
+        "en": "First library release: system status monitor with agent data protocol."
+      }
+    }
+  }
+}

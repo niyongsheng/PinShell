@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "goal-progress",
+  "version": "1.0.0",
+  "releaseDate": "2026-11-23",
+  "minAppVersion": "1.4.0",
+  "category": "productivity",
+  "tags": ["bilibili", "goals", "live"],
+  "listing": {
+    "zh-Hans": {
+      "tagline": "把目标放在看得见的地方。",
+      "highlights": ["实时 B 站粉丝数", "目标进度条", "Agent 可推送数据"]
+    },
+    "en": {
+      "tagline": "Keep the goal where you can see it.",
+      "highlights": ["Live Bilibili follower count", "Goal progress bar", "Agent-pushed stats"]
+    }
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-11-23",
+      "notes": {
+        "zh-Hans": "首个在线版本：B 站粉丝目标进度。",
+        "en": "First library release: Bilibili follower goal progress."
+      }
+    }
+  }
+}

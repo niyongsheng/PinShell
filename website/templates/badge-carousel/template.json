@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "badge-carousel",
+  "version": "1.0.0",
+  "releaseDate": "2026-11-23",
+  "minAppVersion": "1.4.0",
+  "category": "social",
+  "tags": ["social", "badges", "streaming"],
+  "listing": {
+    "zh-Hans": {
+      "tagline": "轮播你的社交名片。",
+      "highlights": ["多账号徽章轮播", "实时在线标记", "240×80 紧凑尺寸"]
+    },
+    "en": {
+      "tagline": "Rotate your social badges.",
+      "highlights": ["Multi-account carousel", "Live presence dot", "Compact 240×80 frame"]
+    }
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-11-23",
+      "notes": {
+        "zh-Hans": "首个在线版本：社交账号徽章轮播。",
+        "en": "First library release: rotating social badges."
+      }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "decision-maker",
+  "version": "1.0.0",
+  "releaseDate": "2026-11-23",
+  "minAppVersion": "1.4.0",
+  "category": "play",
+  "tags": ["wheel", "coin", "random"],
+  "listing": {
+    "zh-Hans": {
+      "tagline": "把犹豫交给转盘和硬币。",
+      "highlights": ["2–12 个自定义选项", "转盘 + 3D 硬币", "音效与结果动画"]
+    },
+    "en": {
+      "tagline": "Hand the hesitation to a wheel and a coin.",
+      "highlights": ["2–12 custom options", "Wheel plus 3D coin", "Sound and result motion"]
+    }
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-11-23",
+      "notes": {
+        "zh-Hans": "首个在线版本：转盘与硬币两种决策方式。",
+        "en": "First library release: wheel and coin decision modes."
+      }
+    }
+  }
+}

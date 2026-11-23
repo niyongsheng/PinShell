@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "stock-board",
+  "version": "1.0.0",
+  "releaseDate": "2026-11-23",
+  "minAppVersion": "1.4.0",
+  "category": "monitoring",
+  "tags": ["stocks", "market", "eastmoney"],
+  "listing": {
+    "zh-Hans": {
+      "tagline": "A 股指数与自选，一屏掌握。",
+      "highlights": ["沪深指数与分时图", "自选股编辑", "交易时段自动刷新"]
+    },
+    "en": {
+      "tagline": "A-share indices and your watchlist, in one glance.",
+      "highlights": ["Shanghai and Shenzhen indices", "Editable watchlist", "Trading-hours refresh"]
+    }
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-11-23",
+      "notes": {
+        "zh-Hans": "首个在线版本：A 股指数与自选看板。",
+        "en": "First library release: A-share index and watchlist board."
+      }
+    }
+  }
+}

@@ -1,4 +1,5 @@
 .build/
 build/
+website/public/
 .DS_Store
 *.xcuserstate

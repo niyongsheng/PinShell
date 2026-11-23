@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "todo",
+  "version": "1.0.0",
+  "releaseDate": "2026-11-23",
+  "minAppVersion": "1.4.0",
+  "category": "productivity",
+  "tags": ["tasks", "eisenhower", "local-storage"],
+  "listing": {
+    "zh-Hans": {
+      "tagline": "把今天安放在屏幕一角。",
+      "highlights": ["列表与四象限", "拖动排序与本地保存", "Agent 可读取变更"]
+    },
+    "en": {
+      "tagline": "Keep today in the corner of your screen.",
+      "highlights": ["List and Eisenhower views", "Drag ordering with local persistence", "Agent-readable changes"]
+    }
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-11-23",
+      "notes": {
+        "zh-Hans": "首个在线版本：列表与四象限待办。",
+        "en": "First library release: list and Eisenhower todo."
+      }
+    }
+  }
+}

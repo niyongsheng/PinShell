@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script type="application/json" id="pinshell:i18n">
+{
+  "default": "zh-Hans",
+  "fallback": "en",
+  "languages": {
+    "zh-Hans": {
+      "meta": {
+        "name": "待办事项",
+        "description": "支持列表与四象限两种视图的浮动待办清单"
+      }
+    },
+    "en": {
+      "meta": {
+        "name": "Todo List",
+        "description": "Floating todo list with list and Eisenhower views"
+      },
+      "ui": {
+        "title": "Todo List",
+        "viewAria": "Switch view",
+        "viewListTitle": "List view",
+        "viewList": "List",
+        "viewMatrixTitle": "Eisenhower view",
+        "viewMatrix": "Eisenhower",
+        "inputPlaceholder": "Add a todo, press Return",
+        "addAria": "Add",
+        "menuAria": "Choose a quadrant",
+        "summaryEmpty": "No todos yet",
+        "clearDone": "Clear completed",
+        "targetHint": "New todos go to “{name}” (tap to change)",
+        "q1Name": "Urgent & important",
+        "q1Action": "Do now",
+        "q1Hint": "Handle it right away",
+        "q2Name": "Important, not urgent",
+        "q2Action": "Schedule",
+        "q2Hint": "Make time for it",
+        "q3Name": "Urgent, not important",
+        "q3Action": "Delegate",
+        "q3Hint": "Delegate if possible",
+        "q4Name": "Not urgent or important",
+        "q4Action": "Don't do",
+        "q4Hint": "Consider dropping it",
+        "emptyQuadrant": "No todos",
+        "emptyList": "No todos today — enjoy the moment ✨",
+        "summaryAllDone": "All done — nice work",
+        "summaryRemaining": "{n} to go",
+        "badgeTitle": "{done} done of {total}",
+        "markIncomplete": "Mark as not done",
+        "markComplete": "Mark as done",
+        "delete": "Delete",
+        "moveNext": "Move to next quadrant",
+        "tagTitle": "{name} · {action} (tap to move to next quadrant)",
+        "tagAria": "Quadrant: {name}. Tap to move to the next quadrant.",
+        "seed": [
+          { "id": 1, "text": "Reply to client emails", "done": true, "q": 1 },
+          { "id": 2, "text": "Organize today's meeting notes", "done": false, "q": 1 },
+          { "id": 3, "text": "Plan next week's project", "done": false, "q": 2 },
+          { "id": 4, "text": "Reply to the group chain message", "done": false, "q": 3 },
+          { "id": 5, "text": "Clean up old bookmarks", "done": false, "q": 4 }
+        ]
+      }
+    }
+  }
+}
+</script>
+<title>待办事项</title>
+<meta name="description" content="支持列表与四象限两种视图的浮动待办清单">
+<meta name="pinshell:size" content="368x480">
+<meta name="pinshell:radius" content="20">
+<meta name="pinshell:order" content="3">
+<link rel="stylesheet" href="design-tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { color: #f5f5f7; user-select: none; -webkit-user-select: none; }
+  button { font: inherit; color: inherit; }
+  button:focus-visible { outline: 2px solid #2997ff; outline-offset: 1px; }
+
+  .panel {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 14px;
+    background:
+      radial-gradient(80% 60% at 0% 0%, rgba(255, 105, 97, 0.055), transparent 60%),
+      radial-gradient(80% 60% at 100% 100%, rgba(41, 151, 255, 0.055), transparent 60%),
+      rgba(28, 28, 30, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 20px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
+    overflow: hidden;
+  }
+
+  header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none; }
+  .headline { min-width: 0; }
+  .title { font-size: 15px; font-weight: 650; letter-spacing: -0.2px; white-space: nowrap; }
+  .date {
+    margin-top: 2px; font-size: 10.5px; color: rgba(255, 255, 255, 0.45);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .head-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+  .view-switch {
+    display: flex; gap: 2px; padding: 2px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .view-btn {
+    height: 21px; padding: 0 8px; border: 0; border-radius: 999px;
+    background: transparent; color: rgba(255, 255, 255, 0.45);
+    font-size: 10px; font-weight: 600; white-space: nowrap; cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .view-btn:hover { color: rgba(255, 255, 255, 0.8); }
+  .view-btn[aria-selected="true"] {
+    background: rgba(255, 255, 255, 0.14); color: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  .count {
+    min-width: 34px; padding: 3px 9px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 600; text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: #2997ff; background: rgba(41, 151, 255, 0.13);
+  }
+  .progress-track {
+    height: 4px; flex: none; border-radius: 999px; overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .progress-bar {
+    height: 100%; width: 0%; border-radius: inherit;
+    background: linear-gradient(90deg, #2997ff, #64d2ff);
+    transition: width 0.28s cubic-bezier(.2,.8,.2,1);
+  }
+
+  /* ── 添加行 ───────────────────────────────────────── */
+  .add-wrap { position: relative; flex: none; display: flex; gap: 6px; }
+  .add-wrap input {
+    flex: 1; min-width: 0; height: 32px; padding: 0 11px;
+    border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.10);
+    background: rgba(255, 255, 255, 0.06);
+    color: #f5f5f7; font: inherit; font-size: 12px; outline: none;
+  }
+  .add-wrap input::placeholder { color: rgba(255, 255, 255, 0.32); }
+  .add-wrap input:focus { border-color: rgba(41, 151, 255, 0.7); background: rgba(41, 151, 255, 0.08); }
+  .target {
+    display: flex; align-items: center; gap: 5px; flex: none;
+    height: 32px; padding: 0 7px; border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    background: rgba(255, 255, 255, 0.06);
+    font-size: 10.5px; font-weight: 600; color: rgba(255, 255, 255, 0.72);
+    cursor: pointer; transition: background 0.15s ease, color 0.15s ease;
+  }
+  .target:hover, .target[aria-expanded="true"] { background: rgba(255, 255, 255, 0.11); color: #fff; }
+  .target-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: #2997ff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25); }
+  .target svg { width: 8px; height: 8px; opacity: 0.45; }
+  .add-btn {
+    width: 32px; height: 32px; flex: none;
+    border: 0; border-radius: 10px;
+    background: linear-gradient(180deg, #3aa0ff, #0077e6);
+    color: #fff; font-size: 19px; font-weight: 400; line-height: 1;
+    cursor: pointer; transition: transform 0.12s ease, filter 0.12s ease;
+  }
+  .add-btn:hover { filter: brightness(1.08); }
+  .add-btn:active { transform: scale(0.94); }
+
+  .menu {
+    position: absolute; top: calc(100% + 6px); right: 38px; z-index: 20;
+    width: 196px; padding: 5px;
+    border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.10);
+    background: rgba(42, 42, 45, 0.98);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.5);
+    animation: menuIn 0.14s ease both;
+  }
+  @keyframes menuIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .menu button {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; height: 30px; padding: 0 8px;
+    border: 0; border-radius: 8px; background: transparent;
+    font-size: 11.5px; color: #f5f5f7; text-align: left; cursor: pointer;
+  }
+  .menu button:hover { background: rgba(255, 255, 255, 0.07); }
+  .menu button[aria-selected="true"] { background: rgba(255, 255, 255, 0.06); }
+  .m-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--c); }
+  .m-action { margin-left: auto; font-size: 10px; color: rgba(255, 255, 255, 0.38); }
+  .menu button[aria-selected="true"] .m-action { color: var(--c); }
+
+  /* ── 四象限矩阵 ───────────────────────────────────── */
+  .grid {
+    flex: 1; min-height: 0;
+    display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+    gap: 8px;
+  }
+  .quadrant {
+    --q: #98989f; --q-soft: rgba(152, 152, 159, 0.10); --q-line: rgba(152, 152, 159, 0.5);
+    min-height: 0; display: flex; flex-direction: column; gap: 5px;
+    padding: 8px; border-radius: 12px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    overflow: hidden;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .quadrant.q1 { --q: #ff6961; --q-soft: rgba(255, 105, 97, 0.10); --q-line: rgba(255, 105, 97, 0.55); }
+  .quadrant.q2 { --q: #2997ff; --q-soft: rgba(41, 151, 255, 0.10); --q-line: rgba(41, 151, 255, 0.55); }
+  .quadrant.q3 { --q: #ffb340; --q-soft: rgba(255, 179, 64, 0.10); --q-line: rgba(255, 179, 64, 0.55); }
+  .quadrant.q4 { --q: #98989f; --q-soft: rgba(152, 152, 159, 0.10); --q-line: rgba(152, 152, 159, 0.55); }
+  .quadrant.drop { border-color: var(--q-line); background: var(--q-soft); }
+  .q-head { flex: none; display: flex; align-items: center; gap: 5px; padding: 0 2px; }
+  .q-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--q); }
+  .q-title {
+    flex: 1; min-width: 0; font-size: 10.5px; font-weight: 600;
+    color: rgba(255, 255, 255, 0.72);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .q-count {
+    flex: none; font-size: 10px; font-variant-numeric: tabular-nums;
+    color: rgba(255, 255, 255, 0.35);
+  }
+  .q-list {
+    flex: 1; min-height: 0; margin: 0; padding: 0 1px 0 0; list-style: none;
+    overflow-y: auto; scrollbar-width: none;
+  }
+  .q-list::-webkit-scrollbar { display: none; }
+
+  .q-list li {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 1px 4px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    -webkit-user-drag: element;
+  }
+  .q-list li:last-child { border-bottom: 0; }
+  .q-list li.enter { animation: itemIn 0.22s cubic-bezier(.2,.8,.2,1) both; }
+  .q-list li.dragging { opacity: 0.35; }
+  @keyframes itemIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .q-empty {
+    display: block; padding: 12px 0; text-align: center;
+    font-size: 10px; color: rgba(255, 255, 255, 0.26);
+  }
+
+  /* ── 列表视图 ─────────────────────────────────────── */
+  .flat-list {
+    flex: 1; min-height: 0; margin: 0; padding: 0 2px 0 0; list-style: none;
+    overflow-y: auto; scrollbar-width: none;
+  }
+  .flat-list::-webkit-scrollbar { display: none; }
+  .flat-list li {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 4px 7px 2px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  }
+  .flat-list li:last-child { border-bottom: 0; }
+  .flat-list li.enter { animation: itemIn 0.22s cubic-bezier(.2,.8,.2,1) both; }
+  .flat-list .text { font-size: 12.5px; }
+  .flat-list li.flat-empty {
+    display: block; padding: 30px 0; border-bottom: 0;
+    text-align: center; font-size: 11.5px; color: rgba(255, 255, 255, 0.32);
+  }
+  .q-tag {
+    display: flex; align-items: center; gap: 3px; flex: none;
+    height: 17px; padding: 0 5px; border: 0; border-radius: 5px;
+    font-size: 9px; font-weight: 600; white-space: nowrap; cursor: pointer;
+    transition: filter 0.15s ease, opacity 0.15s ease;
+  }
+  .q-tag:hover { filter: brightness(1.35); }
+  .q-tag-dot { width: 4px; height: 4px; flex: none; border-radius: 50%; }
+  li.done .q-tag { opacity: 0.5; }
+
+  .check {
+    width: 16px; height: 16px; flex: none; padding: 0; border-radius: 50%;
+    border: 1.6px solid rgba(255, 255, 255, 0.26);
+    background: transparent;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.16s ease;
+  }
+  .check:hover { border-color: var(--q); }
+  .check:focus-visible { outline: 2px solid var(--q); outline-offset: 1px; }
+  .check svg { width: 9px; height: 9px; opacity: 0; transform: scale(0.6); transition: all 0.16s ease; }
+  li.done .check { background: var(--q); border-color: var(--q); }
+  li.done .check svg { opacity: 1; transform: scale(1); }
+  .text {
+    flex: 1; min-width: 0; font-size: 11.5px; line-height: 1.35;
+    color: #f5f5f7; transition: color 0.16s ease;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  li.done .text { color: rgba(255, 255, 255, 0.35); text-decoration: line-through; }
+  .move, .remove {
+    width: 16px; height: 16px; flex: none; padding: 0;
+    border: 0; border-radius: 5px; background: transparent;
+    line-height: 1; cursor: pointer;
+    opacity: 0; transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+  }
+  .move { color: rgba(255, 255, 255, 0.4); font-size: 10px; }
+  .remove { color: rgba(255, 255, 255, 0.3); font-size: 13px; }
+  li:hover .move, li:hover .remove,
+  .move:focus-visible, .remove:focus-visible { opacity: 1; }
+  .move:hover { background: var(--q-soft); color: var(--q); }
+  .remove:hover { background: rgba(255, 69, 58, 0.18); color: #ff6961; }
+
+  footer {
+    display: flex; align-items: center; justify-content: space-between; flex: none;
+    font-size: 10.5px; color: rgba(255, 255, 255, 0.42);
+  }
+  .clear {
+    border: 0; padding: 4px 8px; border-radius: 7px; cursor: pointer;
+    background: transparent; color: rgba(255, 255, 255, 0.45);
+    font: inherit; font-size: 10.5px;
+    transition: background 0.16s ease, color 0.16s ease;
+  }
+  .clear:hover { background: rgba(255, 255, 255, 0.08); color: #f5f5f7; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <header>
+    <div class="headline">
+      <div class="title" data-i18n="title">待办事项</div>
+      <div class="date" id="date"></div>
+    </div>
+    <div class="head-actions">
+      <div class="view-switch" role="tablist" aria-label="切换视图" data-i18n-aria-label="viewAria">
+        <button class="view-btn" type="button" data-view="list" role="tab"
+                aria-selected="false" title="列表视图" data-i18n="viewList" data-i18n-title="viewListTitle">列表</button>
+        <button class="view-btn" type="button" data-view="matrix" role="tab"
+                aria-selected="true" title="四象限视图" data-i18n="viewMatrix" data-i18n-title="viewMatrixTitle">四象限</button>
+      </div>
+      <div class="count" id="count">0/0</div>
+    </div>
+  </header>
+
+  <div class="progress-track"><div class="progress-bar" id="progress"></div></div>
+
+  <div class="add-wrap">
+    <input id="newTodo" maxlength="80" placeholder="添加待办，回车确认" autocomplete="off" data-i18n-placeholder="inputPlaceholder">
+    <button class="target" id="targetBtn" type="button"
+            title="选择新待办所属象限" aria-haspopup="listbox" aria-expanded="false">
+      <span class="target-dot" id="targetDot"></span>
+      <span id="targetLabel">立即做</span>
+      <svg viewBox="0 0 8 8" fill="none" aria-hidden="true">
+        <path d="M1.5 3 4 5.5 6.5 3" stroke="currentColor" stroke-width="1.3"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button class="add-btn" id="addBtn" type="button" aria-label="添加" data-i18n-aria-label="addAria">+</button>
+    <div class="menu" id="targetMenu" role="listbox" aria-label="选择象限" data-i18n-aria-label="menuAria" hidden></div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <ul class="flat-list" id="flatList" hidden></ul>
+
+  <footer>
+    <span id="summary">还没有待办</span>
+    <button class="clear" id="clearBtn" type="button" data-i18n="clearDone">清除已完成</button>
+  </footer>
+</div>
+
+
+<script src="pinshell-i18n.js"></script>
+<script>window.PS = window.PS || { lang: 'zh-Hans', locale: 'zh-Hans', languages: [], get: function (k, f) { return f; }, t: function (k, f) { return f; }, list: function (k, f) { return f || []; }, apply: function () {} };</script>
+<script>
+  const bridge = window.pinshell || { emit() {}, log() {} };
+  const itemsKey = 'pinshell.todo.v1';
+  const targetKey = 'pinshell.todo.target.v1';
+  const viewKey = 'pinshell.todo.view.v1';
+
+  const QUADRANTS = {
+    1: { name: PS.t('q1Name', '紧急且重要'),   action: PS.t('q1Action', '立即做'), hint: PS.t('q1Hint', '马上处理'), color: '#ff6961' },
+    2: { name: PS.t('q2Name', '重要不紧急'),   action: PS.t('q2Action', '计划做'), hint: PS.t('q2Hint', '安排时间'), color: '#2997ff' },
+    3: { name: PS.t('q3Name', '紧急不重要'),   action: PS.t('q3Action', '委托做'), hint: PS.t('q3Hint', '尽量委托'), color: '#ffb340' },
+    4: { name: PS.t('q4Name', '不重要不紧急'), action: PS.t('q4Action', '别做'),   hint: PS.t('q4Hint', '考虑舍弃'), color: '#98989f' },
+  };
+  const ORDER = [1, 2, 3, 4];
+
+  const seed = PS.get('seed', [
+    { id: 1, text: '回复客户邮件', done: true, q: 1 },
+    { id: 2, text: '整理今天的会议记录', done: false, q: 1 },
+    { id: 3, text: '制定下周项目计划', done: false, q: 2 },
+    { id: 4, text: '回复群里的接龙通知', done: false, q: 3 },
+    { id: 5, text: '整理收藏夹里的旧链接', done: false, q: 4 },
+  ]);
+
+  let items = loadItems();
+  let nextId = items.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+  items.forEach(item => { if (!item.id) item.id = nextId++; });
+  let target = loadTarget();
+  let view = loadView();
+  let dragId = null;
+  let justAdded = null;
+
+  const gridEl = document.getElementById('grid');
+  const flatEl = document.getElementById('flatList');
+  const viewBtns = Array.from(document.querySelectorAll('.view-btn'));
+  const inputEl = document.getElementById('newTodo');
+  const countEl = document.getElementById('count');
+  const summaryEl = document.getElementById('summary');
+  const progressEl = document.getElementById('progress');
+  const dateEl = document.getElementById('date');
+  const targetBtn = document.getElementById('targetBtn');
+  const targetDot = document.getElementById('targetDot');
+  const targetLabel = document.getElementById('targetLabel');
+  const menuEl = document.getElementById('targetMenu');
+
+  dateEl.textContent = new Date().toLocaleDateString(
+    PS.locale,
+    { month: 'long', day: 'numeric', weekday: 'short' }
+  );
+
+  // ── 数据 ───────────────────────────────────────────
+  function loadItems() {
+    try {
+      const raw = localStorage.getItem(itemsKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return parsed.map(normalizeItem).filter(Boolean);
+        }
+      }
+    } catch (e) {}
+    return seed.map(item => ({ ...item }));
+  }
+
+  function normalizeItem(entry) {
+    if (!entry || typeof entry.text !== 'string' || !entry.text.trim()) return null;
+    const q = Number(entry.q);
+    return {
+      id: Number(entry.id) || 0,
+      text: entry.text,
+      done: !!entry.done,
+      q: QUADRANTS[q] ? q : 1, // 旧版数据没有象限字段，默认归入「紧急且重要」
+    };
+  }
+
+  function loadTarget() {
+    try {
+      const value = Number(localStorage.getItem(targetKey));
+      if (QUADRANTS[value]) return value;
+    } catch (e) {}
+    return 1;
+  }
+
+  function loadView() {
+    try {
+      const value = localStorage.getItem(viewKey);
+      if (value === 'list' || value === 'matrix') return value;
+    } catch (e) {}
+    return 'matrix';
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(itemsKey, JSON.stringify(items));
+      localStorage.setItem(targetKey, String(target));
+      localStorage.setItem(viewKey, view);
+    } catch (e) {}
+    const done = items.filter(item => item.done).length;
+    const quadrants = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    for (const item of items) quadrants[item.q] += 1;
+    bridge.emit('todo:changed', { total: items.length, done, quadrants, target, view });
+  }
+
+  function tint(hex, alpha) {
+    const value = parseInt(hex.slice(1), 16);
+    return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+  }
+
+  // ── 构建象限与菜单 ─────────────────────────────────
+  function buildGrid() {
+    gridEl.textContent = '';
+    for (const q of ORDER) {
+      const meta = QUADRANTS[q];
+      const section = document.createElement('section');
+      section.className = `quadrant q${q}`;
+      section.dataset.q = String(q);
+
+      const head = document.createElement('div');
+      head.className = 'q-head';
+      head.title = `${meta.name} · ${meta.hint}`;
+
+      const dot = document.createElement('span');
+      dot.className = 'q-dot';
+
+      const title = document.createElement('span');
+      title.className = 'q-title';
+      title.textContent = meta.name;
+
+      const count = document.createElement('span');
+      count.className = 'q-count';
+      count.textContent = '0';
+
+      const list = document.createElement('ul');
+      list.className = 'q-list';
+
+      head.append(dot, title, count);
+      section.append(head, list);
+      bindQuadrant(section);
+      gridEl.appendChild(section);
+    }
+  }
+
+  function buildMenu() {
+    menuEl.textContent = '';
+    for (const q of ORDER) {
+      const meta = QUADRANTS[q];
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.q = String(q);
+      btn.setAttribute('role', 'option');
+      btn.style.setProperty('--c', meta.color);
+
+      const dot = document.createElement('span');
+      dot.className = 'm-dot';
+
+      const name = document.createElement('span');
+      name.textContent = meta.name;
+
+      const action = document.createElement('span');
+      action.className = 'm-action';
+      action.textContent = meta.action;
+
+      btn.append(dot, name, action);
+      btn.addEventListener('click', () => {
+        target = q;
+        save();
+        renderTarget();
+        closeMenu();
+        inputEl.focus();
+      });
+      menuEl.appendChild(btn);
+    }
+  }
+
+  function renderTarget() {
+    const meta = QUADRANTS[target];
+    targetDot.style.background = meta.color;
+    targetLabel.textContent = meta.action;
+    targetBtn.title = PS.t('targetHint', '新待办加入「{name}」（点击切换）', { name: meta.name });
+    for (const btn of menuEl.querySelectorAll('button')) {
+      btn.setAttribute('aria-selected', String(Number(btn.dataset.q) === target));
+    }
+  }
+
+  function openMenu() {
+    menuEl.hidden = false;
+    targetBtn.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeMenu() {
+    menuEl.hidden = true;
+    targetBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  // ── 渲染 ───────────────────────────────────────────
+  function render() {
+    for (const q of ORDER) {
+      const section = gridEl.querySelector(`.quadrant[data-q="${q}"]`);
+      const list = section.querySelector('.q-list');
+      const scrollTop = list.scrollTop;
+      list.textContent = '';
+
+      const qItems = items.filter(item => item.q === q);
+
+      if (qItems.length === 0) {
+        const empty = document.createElement('li');
+        empty.className = 'q-empty';
+        empty.textContent = PS.t('emptyQuadrant', '暂无待办');
+        list.appendChild(empty);
+      }
+
+      for (const item of qItems) {
+        list.appendChild(renderItem(item, 'matrix'));
+      }
+
+      const qDone = qItems.filter(item => item.done).length;
+      const badge = section.querySelector('.q-count');
+      badge.textContent = qItems.length === 0 ? '0' : `${qDone}/${qItems.length}`;
+      badge.title = PS.t('badgeTitle', '{done} 项已完成，共 {total} 项',
+                         { done: qDone, total: qItems.length });
+      list.scrollTop = scrollTop;
+    }
+
+    renderFlatList();
+
+    const done = items.filter(item => item.done).length;
+    const total = items.length;
+    countEl.textContent = `${done}/${total}`;
+    summaryEl.textContent = total === 0
+      ? PS.t('summaryEmpty', '还没有待办')
+      : (done === total
+          ? PS.t('summaryAllDone', '全部完成，太棒了')
+          : PS.t('summaryRemaining', '还有 {n} 项待办', { n: total - done }));
+    progressEl.style.width = total === 0 ? '0%' : `${Math.round(done / total * 100)}%`;
+    justAdded = null;
+    save();
+  }
+
+  function renderFlatList() {
+    const scrollTop = flatEl.scrollTop;
+    flatEl.textContent = '';
+
+    if (items.length === 0) {
+      const empty = document.createElement('li');
+      empty.className = 'flat-empty';
+      empty.textContent = PS.t('emptyList', '今天还没有待办，享受当下 ✨');
+      flatEl.appendChild(empty);
+      return;
+    }
+
+    for (const item of items) {
+      flatEl.appendChild(renderItem(item, 'list'));
+    }
+    flatEl.scrollTop = scrollTop;
+  }
+
+  function renderItem(item, mode) {
+    const meta = QUADRANTS[item.q];
+    const li = document.createElement('li');
+    li.className = item.done ? 'done' : '';
+    if (item.id === justAdded) li.classList.add('enter');
+    li.dataset.id = String(item.id);
+    li.draggable = mode === 'matrix';
+    li.style.setProperty('--q', meta.color);
+
+    const check = document.createElement('button');
+    check.type = 'button';
+    check.className = 'check';
+    check.setAttribute('aria-pressed', String(item.done));
+    check.setAttribute('aria-label', item.done
+      ? PS.t('markIncomplete', '标记为未完成')
+      : PS.t('markComplete', '标记为完成'));
+    check.innerHTML = '<svg viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.2 6.2 4.8 8.8 9.8 3.4" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    check.addEventListener('click', () => toggle(item.id));
+
+    const text = document.createElement('div');
+    text.className = 'text';
+    text.textContent = item.text;
+    text.title = item.text;
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'remove';
+    remove.textContent = '×';
+    remove.title = PS.t('delete', '删除');
+    remove.setAttribute('aria-label', PS.t('delete', '删除'));
+    remove.addEventListener('click', () => removeItem(item.id));
+
+    if (mode === 'matrix') {
+      const move = document.createElement('button');
+      move.type = 'button';
+      move.className = 'move';
+      move.textContent = '⇄';
+      move.title = PS.t('moveNext', '移到下一象限');
+      move.setAttribute('aria-label', PS.t('moveNext', '移到下一象限'));
+      move.addEventListener('click', () => cycleQuadrant(item.id));
+
+      li.addEventListener('dragstart', event => {
+        dragId = item.id;
+        li.classList.add('dragging');
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(item.id));
+      });
+      li.addEventListener('dragend', () => {
+        li.classList.remove('dragging');
+        clearDragState();
+      });
+
+      li.append(check, text, move, remove);
+    } else {
+      const tag = document.createElement('button');
+      tag.type = 'button';
+      tag.className = 'q-tag';
+      tag.style.color = meta.color;
+      tag.style.background = tint(meta.color, 0.12);
+      tag.title = PS.t('tagTitle', '{name} · {action}（点击移到下一象限）',
+                       { name: meta.name, action: meta.action });
+      tag.setAttribute('aria-label', PS.t('tagAria', '象限：{name}，点击移到下一象限',
+                                          { name: meta.name }));
+
+      const tagDot = document.createElement('span');
+      tagDot.className = 'q-tag-dot';
+      tagDot.style.background = meta.color;
+
+      tag.append(tagDot, meta.action);
+      tag.addEventListener('click', () => cycleQuadrant(item.id));
+      li.append(check, text, tag, remove);
+    }
+
+    return li;
+  }
+
+  // ── 操作 ───────────────────────────────────────────
+  function add() {
+    const text = inputEl.value.trim();
+    if (!text) return;
+    const item = { id: nextId++, text, done: false, q: target };
+    items.push(item);
+    inputEl.value = '';
+    justAdded = item.id;
+    render();
+    if (view === 'list') {
+      flatEl.scrollTop = flatEl.scrollHeight;
+    } else {
+      const list = gridEl.querySelector(`.quadrant[data-q="${target}"] .q-list`);
+      if (list) list.scrollTop = list.scrollHeight;
+    }
+  }
+
+  function toggle(id) {
+    const item = items.find(entry => entry.id === id);
+    if (!item) return;
+    item.done = !item.done;
+    render();
+  }
+
+  function cycleQuadrant(id) {
+    const item = items.find(entry => entry.id === id);
+    if (!item) return;
+    item.q = item.q % 4 + 1;
+    render();
+  }
+
+  function removeItem(id) {
+    items = items.filter(entry => entry.id !== id);
+    render();
+  }
+
+  function applyView() {
+    gridEl.hidden = view !== 'matrix';
+    flatEl.hidden = view !== 'list';
+    for (const btn of viewBtns) {
+      btn.setAttribute('aria-selected', String(btn.dataset.view === view));
+    }
+  }
+
+  function setView(next) {
+    if (view === next) return;
+    view = next;
+    applyView();
+    render();
+  }
+
+  // ── 拖放：条目可在象限间移动 ───────────────────────
+  function clearDragState() {
+    dragId = null;
+    for (const section of gridEl.querySelectorAll('.quadrant.drop')) {
+      section.classList.remove('drop');
+    }
+  }
+
+  function bindQuadrant(section) {
+    section.addEventListener('dragover', event => {
+      if (dragId === null) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      section.classList.add('drop');
+    });
+    section.addEventListener('dragleave', event => {
+      if (!section.contains(event.relatedTarget)) section.classList.remove('drop');
+    });
+    section.addEventListener('drop', event => {
+      event.preventDefault();
+      const id = Number(event.dataTransfer.getData('text/plain')) || dragId;
+      const item = items.find(entry => entry.id === id);
+      const q = Number(section.dataset.q);
+      clearDragState();
+      if (item && item.q !== q && QUADRANTS[q]) {
+        item.q = q;
+        render();
+      }
+    });
+  }
+
+  // ── 事件绑定 ───────────────────────────────────────
+  for (const btn of viewBtns) {
+    btn.addEventListener('click', () => setView(btn.dataset.view));
+  }
+
+  targetBtn.addEventListener('click', event => {
+    event.stopPropagation();
+    if (menuEl.hidden) openMenu();
+    else closeMenu();
+  });
+  document.addEventListener('click', event => {
+    if (menuEl.hidden) return;
+    if (!menuEl.contains(event.target) && !targetBtn.contains(event.target)) closeMenu();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') closeMenu();
+  });
+
+  document.getElementById('addBtn').addEventListener('click', add);
+  inputEl.addEventListener('keydown', event => {
+    if (event.key === 'Enter') add();
+  });
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    items = items.filter(item => !item.done);
+    render();
+  });
+
+  buildGrid();
+  buildMenu();
+  renderTarget();
+  applyView();
+  render();
+</script>
+</body>
+</html>

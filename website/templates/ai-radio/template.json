@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "ai-radio",
+  "version": "1.0.0",
+  "releaseDate": "2026-11-23",
+  "minAppVersion": "1.4.0",
+  "category": "media",
+  "tags": ["music", "itunes", "ambient"],
+  "listing": {
+    "zh-Hans": {
+      "tagline": "把 Agent 的心情，交给一张黑胶。",
+      "highlights": ["情绪驱动的选曲", "黑胶转盘与唱片动画", "iTunes 预览试听"]
+    },
+    "en": {
+      "tagline": "Let the agent pick the next track.",
+      "highlights": ["Mood-based picks", "Spinning vinyl stage", "iTunes previews"]
+    }
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-11-23",
+      "notes": {
+        "zh-Hans": "首个在线版本：黑胶电台、情绪选曲与 iTunes 试听。",
+        "en": "First library release: vinyl radio with mood-based picks and iTunes previews."
+      }
+    }
+  }
+}

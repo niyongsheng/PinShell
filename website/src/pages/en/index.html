@@ -1,0 +1,112 @@
+<!-- include: head.html -->
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <!-- include: nav.en.html -->
+
+  <main id="main">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">PinShell for macOS</p>
+        <h1>A real-time desktop window<br>built for AI.</h1>
+        <p class="lead">Give the agent a corner of the screen for live HTML: progress, choices, status, and questions. When the task ends, the window goes away.</p>
+        <div class="cta-row">
+          <a class="button primary" href="{{DOWNLOAD_URL}}">Download for macOS</a>
+          <a class="button secondary" href="templates/">Browse templates</a>
+        </div>
+        <p class="fine">macOS 13+ · Apple Silicon and Intel · Apache 2.0</p>
+      </div>
+      <div class="hero-stage" aria-label="PinShell template window previews">
+        {{HERO_PANELS}}
+      </div>
+    </section>
+
+    <section class="section" id="features" data-reveal>
+      <div class="section-head">
+        <p class="eyebrow">Overlay</p>
+        <h2>Not another app.<br>A layer.</h2>
+        <p>Always on top, across Spaces, click-through when you need it. PinShell only places a transparent HTML canvas on the desktop; the content is yours.</p>
+      </div>
+      <div class="feature-grid">
+        <article class="feature">
+          <p class="feature-index">01</p>
+          <h3>Always there</h3>
+          <p>Floats above every Space, with adjustable opacity, radius, and click-through. It appears when needed and never steals focus.</p>
+        </article>
+        <article class="feature">
+          <p class="feature-index">02</p>
+          <h3>HTML is the interface</h3>
+          <p>CSS, Canvas, SVG, animation, audio, and video. Anything the browser can do, the window can do — no native controls required.</p>
+        </article>
+        <article class="feature">
+          <p class="feature-index">03</p>
+          <h3>Rewritten live</h3>
+          <p>The agent can write, update, and hot-reload the page. The interface follows the conversation instead of being packaged in advance.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="agent-section" id="agent">
+      <div class="agent-inner" data-reveal>
+        <div>
+          <p class="eyebrow">MCP native</p>
+          <h2>Agents can write.<br>And listen.</h2>
+          <p>PinShell's MCP server and CLI share one control socket. Buttons, forms, and events travel back to the agent, making the window a real two-way conversation.</p>
+          <div class="flow-row" aria-label="Event stream">
+            <span>pinshell_emit</span>
+            <span>pinshell_await_event</span>
+            <span>pinshell_state</span>
+            <span>pinshell_template_show</span>
+          </div>
+        </div>
+        <div class="code-card" aria-label="Claude Code MCP configuration example">
+          <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span></div>
+          <pre><code><span class="c">// Claude Code · .mcp.json</span>
+{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"pinshell"</span>: {
+      <span class="k">"command"</span>: <span class="s">"/Applications/PinShell.app/Contents/MacOS/PinShell"</span>,
+      <span class="k">"args"</span>: [<span class="s">"mcp"</span>]
+    }
+  }
+}</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="templates" data-reveal>
+      <div class="section-head">
+        <p class="eyebrow">Template Library</p>
+        <h2>Templates are live HTML,<br>not screenshots.</h2>
+        <p>Ten first-party templates for productivity, monitoring, focus, play, and companionship. All live in the online library — install what you need, update each one independently.</p>
+      </div>
+      <div class="featured-grid">
+        {{FEATURED_CARDS}}
+      </div>
+      <div class="cta-row" style="margin-top: 30px;">
+        <a class="button secondary" href="templates/">Browse all templates →</a>
+      </div>
+    </section>
+
+    <section class="install-section" id="install">
+      <div class="install-inner" data-reveal>
+        <div>
+          <p class="eyebrow">Install</p>
+          <h2>Install.<br>Open the console,<br>pick a template.</h2>
+          <p>Download the universal pkg and hand it to the system Installer. If Gatekeeper blocks the first launch, follow the README to allow it once.</p>
+          <div class="install-actions">
+            <a class="button on-dark" href="{{DOWNLOAD_URL}}">Download PinShell.pkg</a>
+            <a class="button ghost-on-dark" href="{{RELEASES_URL}}">Release notes</a>
+          </div>
+        </div>
+        <div class="install-card">
+          <div class="install-row"><span>System</span><span>macOS 13 or later</span></div>
+          <div class="install-row"><span>Architecture</span><span>Apple Silicon + Intel universal</span></div>
+          <div class="install-row"><span>Package</span><span>PinShell.pkg · system Installer</span></div>
+          <div class="install-row"><span>License</span><span>Apache License 2.0</span></div>
+          <p class="install-note">If Gatekeeper blocks it, run:<br><code>xattr -dr com.apple.quarantine ~/Downloads/PinShell-*.pkg</code></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- include: footer.en.html -->

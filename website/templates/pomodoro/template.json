@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "pomodoro",
+  "version": "1.0.0",
+  "releaseDate": "2026-11-23",
+  "minAppVersion": "1.4.0",
+  "category": "focus",
+  "tags": ["timer", "focus", "breaks"],
+  "listing": {
+    "zh-Hans": {
+      "tagline": "25 分钟，只做一件事。",
+      "highlights": ["专注、短休与长休", "四轮一个长休", "Agent 可发送指令"]
+    },
+    "en": {
+      "tagline": "Twenty-five minutes for one thing.",
+      "highlights": ["Focus, short break, long break", "Long break every four rounds", "Agent commands"]
+    }
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-11-23",
+      "notes": {
+        "zh-Hans": "首个在线版本：番茄时钟与 Agent 指令。",
+        "en": "First library release: Pomodoro timer with agent commands."
+      }
+    }
+  }
+}

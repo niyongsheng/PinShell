@@ -4,6 +4,9 @@ import PackageDescription
 let package = Package(
     name: "PinShell",
     platforms: [.macOS(.v13)],
+    products: [
+        .library(name: "PinShellCore", targets: ["PinShellCore"])
+    ],
     targets: [
         .target(
             name: "PinShellCore",

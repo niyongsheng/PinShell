@@ -1,0 +1,44 @@
+<!-- include: head.html -->
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <!-- include: nav.zh.html -->
+
+  <main id="main" class="gallery-page">
+    <header class="gallery-head">
+      <p class="eyebrow">Template Library</p>
+      <h1>模板库</h1>
+      <p>十款可运行的 HTML 模板，覆盖效率、监控、专注、娱乐与陪伴。预览是真实页面，安装后可独立更新。</p>
+    </header>
+
+    <div class="gallery-controls">
+      <label class="search-wrap">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+          <circle cx="8.5" cy="8.5" r="5.5"></circle>
+          <path d="M12.8 12.8 17 17" stroke-linecap="round"></path>
+        </svg>
+        <span class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">搜索模板</span>
+        <input class="search" type="search" placeholder="搜索模板…" autocomplete="off" data-gallery-search>
+      </label>
+      <div class="chips" aria-label="按分类筛选">
+        {{CATEGORY_FILTERS}}
+      </div>
+    </div>
+
+    <p class="gallery-meta"><span data-gallery-count>{{TEMPLATE_COUNT}}</span> · 全部为单文件 HTML，可独立更新</p>
+
+    <div class="gallery-grid">
+      <div class="template-grid" data-gallery-grid>
+        {{TEMPLATE_CARDS}}
+      </div>
+      <p class="empty-state" data-empty-state hidden>没有匹配的模板。换个关键词，或选择“全部”。</p>
+    </div>
+
+    <div class="install-hint">
+      <div class="hint-card">
+        <span class="hint-key">⌘K</span>
+        <p>在 PinShell 中打开<strong>控制台</strong>，进入<strong>在线模板库</strong>，即可安装、更新或忽略版本。详情页的下载按钮提供包含 HTML 与 sidecars 的 zip 包。</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- include: footer.zh.html -->

@@ -1,0 +1,1899 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script type="application/json" id="pinshell:i18n">
+{
+  "default": "zh-Hans",
+  "fallback": "en",
+  "languages": {
+    "zh-Hans": {
+      "meta": {
+        "name": "桌面宠物",
+        "description": "会看眼色、能接 AI 指令的桌面小猫：点击、顺毛、提问，还能同步工作状态"
+      }
+    },
+    "en": {
+      "meta": {
+        "name": "Desktop Pet",
+        "description": "A desktop cat that reads the room and takes AI instructions: tap, pet, ask, and sync work status"
+      },
+      "ui": {
+        "petAria": "Desktop pet",
+        "chatOpen": "Say something to the AI",
+        "chatTitle": "Say something to the AI",
+        "close": "Close",
+        "soundOn": "Turn sound on",
+        "soundOff": "Turn sound off",
+        "muted": "Muted",
+        "unmuted": "Sound on",
+        "chipContinue": "Continue",
+        "chipContinueText": "Keep going",
+        "chipBusy": "What are you working on?",
+        "chipBusyText": "What are you working on?",
+        "chipRest": "Take a break",
+        "chipRestText": "Take a break",
+        "chatPlaceholder": "Message the AI…",
+        "chatAria": "Message for the AI",
+        "send": "Send",
+        "chatPlaceholderOnline": "Ask the AI…",
+        "chatHintOnline": "AI is online — ask away, or use a shortcut.",
+        "chatHintOffline": "No AI is connected. Your note will stay here.",
+        "chatHintPending": "Noted — the AI will see it when it's back.",
+        "askSending": "Let me ask the AI…",
+        "askOffline": "No AI is connected — I'll keep your note until one is back.",
+        "askNoReply": "The AI hasn't replied yet — your note is still here.",
+        "alertDefault": "Take a look!",
+        "greetMorning": "Good morning ☀️",
+        "greetLateMorning": "Good morning~",
+        "greetNoon": "Had lunch? 🍚",
+        "greetAfternoon": "Good afternoon — drink some water",
+        "greetEvening": "Good evening 🌙",
+        "greetLate": "Still up so late?",
+        "greetBack": "Good to see you again ♥",
+        "milestone10": "Are we friends now?",
+        "milestone30": "You're my best partner ♥",
+        "milestone60": "I can't do without you.",
+        "wakeLines": ["Mmm… what time is it", "I wasn't sleeping, just thinking", "Five more minutes…", "You're back ✨", "Time for a stretch~"],
+        "dizzyLines": ["Seeing stars…", "Stop shaking me", "I'm dizzy"],
+        "pokeLines": ["Haha, that tickles!", "No poking my belly", "Mew—", "Too much!"],
+        "purrLines": ["Purrr…", "Right there", "So comfy I'm snoring"],
+        "headLines": ["Purr purr~", "Pet me again", "So nice…", "You worked hard today", "Meow~", "I like you ♥"],
+        "headLinesHigh": ["Purr purr~", "Pet me again", "So nice…", "You worked hard today", "Meow~", "You're my favorite ♥"],
+        "daydreams": ["Dried fish…", "Today's code will go smoothly", "I want some sun", "That bird downstairs is back", "Naps are serious business"],
+        "careLines": ["Get up and stretch", "Eyes tired? Look into the distance", "Drink some water 🥤", "Been sitting too long — move a bit"]
+      }
+    }
+  }
+}
+</script>
+<title>桌面宠物</title>
+<meta name="description" content="会看眼色、能接 AI 指令的桌面小猫：点击、顺毛、提问，还能同步工作状态">
+<meta name="pinshell:size" content="200x200">
+<meta name="pinshell:radius" content="0">
+<meta name="pinshell:order" content="5">
+<link rel="stylesheet" href="design-tokens.css">
+<!--
+  AGENT PROTOCOL · 桌面宠物 v2
+
+  Agent → page (pinshell_emit / CLI emit):
+    pet:hello      { name? }                          上线：挥手 + 显示 AI 徽标
+    pet:say        { text, mood?, tone?, duration? }  说话；tone: calm|happy|excited|worried|thinking
+    pet:mood       { mood, holdMs? }                  idle|happy|thinking|working|excited|sleepy|worried|alert
+    pet:task       { label, progress?, status? }      status: running|done|failed|waiting；done/failed 自动收起
+    pet:animate    { name }                           jump|spin|shake|dance|wave|nod|dizzy
+    pet:celebrate  { text? }                          彩带 + 跳跃 + 音效
+    pet:alert      { text?, level? }                  ❗ + 抖动 + 音效
+    pet:reply      { requestId, text, mood? }         回复 pet:ask
+    pet:reset      {}                                 清空任务/情绪/提问，回到 idle
+    agent:message  { text }                           兼容旧协议，等同 pet:say
+    agent:presence { online, count }                  App 派发：当前有 listen 订阅的 agent 会话
+
+  Page → agent (pinshell_poll_events):
+    pet:ready      { version, mood, muted, affection, moods[], features[] }
+    pet:tap        { area: head|body, count, mood, affection }
+    pet:pet        { affection, mood }                被顺毛
+    pet:ask        { requestId, text, mood }          用户在宠物聊天框里留言/提问
+    pet:sleep      { at }
+    pet:wake       { at }
+
+  Rules: reply to pet:ask with pet:reply (echo requestId); reply within ~10 s for
+  a live answer, later replies are still shown and clear the pending note. Keep
+  copy under ~40 chars; push at most one update every ~10 s; the pet is fully
+  usable without an agent. window.PinShellPet exposes say/mood/animate/task/
+  celebrate/alert/reset/state for pinshell_eval.
+-->
+<style>
+  * { box-sizing: border-box; }
+
+  :root {
+    --glass: rgba(28, 28, 30, 0.90);
+    --line: rgba(255, 255, 255, 0.10);
+    --ink: #f5f5f7;
+    --muted: rgba(245, 245, 247, 0.62);
+    --accent: #ffd479;
+    --danger: #ff6b4a;
+    --ok: #57d98a;
+  }
+
+  body {
+    user-select: none; -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    color: var(--ink);
+  }
+
+  /* ── 舞台 ───────────────────────────────────────────────────── */
+  .stage {
+    position: absolute; inset: 0;
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 6px;
+    transition: transform 0.22s ease, opacity 0.22s ease;
+    transform-origin: 50% 92%;
+  }
+  body.chatting .stage { transform: translateY(12px) scale(0.84); opacity: 0.28; }
+
+  .pet-wrap {
+    position: relative;
+    width: 136px; height: 132px;
+    cursor: pointer;
+    animation: float 3.4s ease-in-out infinite;
+    filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.25));
+    transform-origin: 50% 92%;
+  }
+  .pet-body {
+    position: absolute; inset: 0;
+    transform-origin: 50% 92%;
+  }
+  svg { width: 100%; height: 100%; display: block; overflow: visible; }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+
+  /* ── 光环：随情绪换色 ───────────────────────────────────────── */
+  .aura {
+    position: absolute; left: 50%; top: 54%;
+    width: 150px; height: 150px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(242, 166, 90, 0.20), rgba(242, 166, 90, 0) 68%);
+    opacity: 0.85;
+    pointer-events: none;
+    transition: background 0.5s ease, opacity 0.5s ease;
+  }
+  body[data-mood="happy"] .aura,
+  body[data-mood="excited"] .aura {
+    background: radial-gradient(circle, rgba(255, 148, 176, 0.24), rgba(255, 148, 176, 0) 68%);
+  }
+  body[data-mood="thinking"] .aura,
+  body[data-mood="working"] .aura {
+    background: radial-gradient(circle, rgba(90, 162, 255, 0.23), rgba(90, 162, 255, 0) 68%);
+  }
+  body[data-mood="worried"] .aura {
+    background: radial-gradient(circle, rgba(132, 154, 184, 0.20), rgba(132, 154, 184, 0) 68%);
+  }
+  body[data-mood="alert"] .aura {
+    background: radial-gradient(circle, rgba(255, 107, 74, 0.28), rgba(255, 107, 74, 0) 68%);
+    animation: auraPulse 0.9s ease-in-out infinite;
+  }
+  body[data-mood="sleepy"] .aura { opacity: 0.40; }
+  @keyframes auraPulse {
+    0%, 100% { opacity: 0.45; transform: translate(-50%, -50%) scale(0.96); }
+    50% { opacity: 1; transform: translate(-50%, -50%) scale(1.07); }
+  }
+
+  /* ── 基础身体动画 ───────────────────────────────────────────── */
+  .tail {
+    transform-origin: 118px 112px;
+    animation: wag 1.35s ease-in-out infinite;
+  }
+  @keyframes wag {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(-13deg); }
+  }
+  .eyes-normal { transform-origin: 80px 72px; animation: blink 4.8s infinite; }
+  @keyframes blink {
+    0%, 43%, 49%, 100% { transform: scaleY(1); }
+    46% { transform: scaleY(0.08); }
+  }
+  .pupils {
+    transform: translate(var(--look-x, 0px), var(--look-y, 0px));
+    transition: transform 0.16s ease-out;
+  }
+  .ear-left { transform-origin: 60px 44px; animation: twitch 5.5s ease-in-out infinite; }
+  .ear-right { transform-origin: 100px 44px; animation: twitch 5.5s ease-in-out 0.18s infinite; }
+  @keyframes twitch {
+    0%, 88%, 100% { transform: rotate(0deg); }
+    91% { transform: rotate(-7deg); }
+    94% { transform: rotate(3deg); }
+  }
+  @keyframes twitchFast {
+    0%, 100% { transform: rotate(0deg); }
+    30% { transform: rotate(-9deg); }
+    60% { transform: rotate(4deg); }
+  }
+
+  .shadow {
+    position: absolute; bottom: 0; left: 50%; width: 74px; height: 12px;
+    transform: translateX(-50%); border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(0, 0, 0, 0.30), rgba(0, 0, 0, 0));
+    animation: shadowPulse 3.4s ease-in-out infinite;
+  }
+  @keyframes shadowPulse {
+    0%, 100% { transform: translateX(-50%) scaleX(1); opacity: 0.9; }
+    50% { transform: translateX(-50%) scaleX(0.86); opacity: 0.6; }
+  }
+
+  /* ── 表情：按 body[data-mood] 切换 ──────────────────────────── */
+  .eyes-happy, .eyes-wide, .brows, .mouth-open, .mouth-flat, .mouth-worried,
+  .sweat { display: none; }
+
+  body[data-mood="happy"] .eyes-normal,
+  body[data-mood="excited"] .eyes-normal,
+  body[data-mood="alert"] .eyes-normal { display: none; }
+  body[data-mood="happy"] .eyes-happy,
+  body[data-mood="excited"] .eyes-happy { display: block; }
+  body[data-mood="alert"] .eyes-wide { display: block; }
+
+  body[data-mood="happy"] .mouth-smile,
+  body[data-mood="excited"] .mouth-smile,
+  body[data-mood="alert"] .mouth-smile,
+  body[data-mood="thinking"] .mouth-smile,
+  body[data-mood="working"] .mouth-smile,
+  body[data-mood="sleepy"] .mouth-smile,
+  body[data-mood="worried"] .mouth-smile { display: none; }
+  body[data-mood="happy"] .mouth-open,
+  body[data-mood="excited"] .mouth-open,
+  body[data-mood="alert"] .mouth-open { display: block; }
+  body[data-mood="thinking"] .mouth-flat,
+  body[data-mood="working"] .mouth-flat,
+  body[data-mood="sleepy"] .mouth-flat { display: block; }
+  body[data-mood="worried"] .mouth-worried { display: block; }
+  body[data-mood="worried"] .brows { display: block; }
+  body[data-mood="worried"] .sweat { display: block; }
+
+  body[data-mood="thinking"] .pupils { --look-x: 1.8px; --look-y: -2.4px; }
+  body[data-mood="worried"] .pupils { --look-x: 0px; --look-y: 1.2px; }
+
+  body[data-mood="happy"] .tail { animation-duration: 0.85s; }
+  body[data-mood="excited"] .tail { animation-duration: 0.5s; }
+  body[data-mood="alert"] .tail { animation-duration: 0.6s; }
+  body[data-mood="sleepy"] .tail { animation-duration: 4.6s; }
+
+  body[data-mood="thinking"] .pet-wrap { animation-duration: 4.6s; }
+  body[data-mood="working"] .pet-wrap { animation-duration: 4.6s; }
+  body[data-mood="sleepy"] .pet-wrap { animation-duration: 6.6s; }
+  body[data-mood="excited"] .pet-wrap { animation-duration: 1.7s; }
+  body[data-mood="sleepy"] .eyes-normal { animation: none; transform: scaleY(0.08); }
+  body[data-mood="alert"] .ear-left,
+  body[data-mood="alert"] .ear-right { animation: none; transform: rotate(-8deg); }
+  body[data-mood="sleepy"] .ear-left,
+  body[data-mood="sleepy"] .ear-right { animation-play-state: paused; }
+
+  /* ── 情绪小徽标 ─────────────────────────────────────────────── */
+  .zzz {
+    position: absolute; top: 2px; right: 0;
+    padding: 2px 6px;
+    border-radius: 8px;
+    background: rgba(28, 28, 30, 0.66);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 9.5px; font-weight: 600; letter-spacing: 0.06em;
+    color: rgba(255, 255, 255, 0.8);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  body[data-mood="sleepy"] .zzz {
+    opacity: 1;
+    animation: zzzFloat 2.8s ease-in-out infinite;
+  }
+  @keyframes zzzFloat {
+    0%, 100% { transform: translateY(0) rotate(-4deg); opacity: 0.25; }
+    50% { transform: translateY(-5px) rotate(4deg); opacity: 0.75; }
+  }
+
+  .think-dots {
+    position: absolute; right: 0; top: 16px;
+    display: none; gap: 3px; align-items: center;
+    padding: 5px 7px;
+    border-radius: 10px;
+    background: var(--glass);
+    border: 1px solid var(--line);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+    pointer-events: none;
+  }
+  body[data-mood="thinking"] .think-dots { display: flex; }
+  .think-dots i {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: #9ec5ff;
+    animation: dotPulse 1.1s ease-in-out infinite;
+  }
+  .think-dots i:nth-child(2) { animation-delay: 0.14s; }
+  .think-dots i:nth-child(3) { animation-delay: 0.28s; }
+  @keyframes dotPulse {
+    0%, 100% { opacity: 0.25; transform: translateY(0); }
+    50% { opacity: 1; transform: translateY(-2px); }
+  }
+
+  .alert-badge {
+    position: absolute; left: 0; top: 10px;
+    width: 16px; height: 16px;
+    display: none; align-items: center; justify-content: center;
+    border-radius: 50%;
+    background: var(--danger);
+    color: #2a0d05;
+    font-size: 11px; font-weight: 800; line-height: 1;
+    box-shadow: 0 2px 10px rgba(255, 80, 60, 0.55);
+    pointer-events: none;
+  }
+  body[data-mood="alert"] .alert-badge {
+    display: flex;
+    animation: badgePop 0.9s ease-in-out infinite;
+  }
+  @keyframes badgePop {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.16); }
+  }
+
+  .thought {
+    position: absolute; right: -6px; top: 8px;
+    max-width: 100px;
+    padding: 5px 8px;
+    border-radius: 10px;
+    background: var(--glass);
+    border: 1px solid var(--line);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 9.5px; line-height: 1.3; text-align: center;
+    opacity: 0; transform: translateY(4px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+  }
+  .thought.show { opacity: 1; transform: translateY(0); }
+
+  /* ── 顶部 HUD：任务条 + 对话气泡 ────────────────────────────── */
+  .hud {
+    position: absolute; top: 6px; left: 8px; right: 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    z-index: 5; pointer-events: none;
+    transition: opacity 0.18s ease;
+  }
+  body.chatting .hud { opacity: 0; }
+
+  .task {
+    position: relative;
+    display: flex; align-items: center; gap: 6px;
+    max-width: 100%;
+    padding: 5px 9px;
+    border-radius: 10px;
+    background: var(--glass);
+    border: 1px solid var(--line);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.30);
+    font-size: 10.5px; line-height: 1.2;
+    overflow: hidden;
+    opacity: 0; transform: translateY(-4px);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+  .task[hidden] { display: none; }
+  .task.show { opacity: 1; transform: translateY(0); }
+  .task-icon { flex: none; width: 11px; height: 11px; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+  .task-icon.spinner {
+    border: 1.5px solid rgba(255, 255, 255, 0.25);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: taskSpin 0.8s linear infinite;
+  }
+  @keyframes taskSpin { to { transform: rotate(360deg); } }
+  .task-label {
+    flex: 0 1 auto; min-width: 0; max-width: 132px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .task-pct { flex: none; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 9.5px; }
+  .task[data-status="done"] .task-icon { color: var(--ok); }
+  .task[data-status="done"] .task-fill { background: var(--ok); }
+  .task[data-status="failed"] .task-icon { color: var(--danger); }
+  .task[data-status="failed"] .task-fill { background: var(--danger); }
+  .task[data-status="waiting"] .task-icon { color: var(--accent); }
+  .task-track {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    height: 2px; background: rgba(255, 255, 255, 0.08);
+    opacity: 0; transition: opacity 0.2s ease;
+  }
+  .task.has-progress .task-track { opacity: 1; }
+  .task-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #ffd479, #ff9f0a);
+    transition: width 0.3s ease;
+  }
+
+  .speech {
+    position: relative;
+    max-width: 100%;
+    padding: 7px 11px;
+    border-radius: 12px;
+    background: var(--glass);
+    border: 1px solid var(--line);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.30);
+    color: var(--ink);
+    font-size: 11px; line-height: 1.35; text-align: center;
+    opacity: 0; transform: translateY(3px) scale(0.96);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    pointer-events: none;
+  }
+  .speech.show { opacity: 1; transform: translateY(0) scale(1); }
+  .speech::after {
+    content: ''; position: absolute; bottom: -5px; left: 50%;
+    width: 10px; height: 10px; transform: translateX(-50%) rotate(45deg);
+    background: var(--glass);
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .speech-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* ── 粒子层 ─────────────────────────────────────────────────── */
+  .hearts, .confetti, .sparkles {
+    position: absolute; inset: 0;
+    pointer-events: none; overflow: hidden;
+  }
+  .hearts { z-index: 4; }
+  .confetti { z-index: 5; }
+  .sparkles { z-index: 3; }
+  .heart {
+    position: absolute; font-size: 12px; color: #ff6b8b;
+    animation: heartUp 1.1s ease-out forwards;
+  }
+  @keyframes heartUp {
+    0% { opacity: 0; transform: translateY(0) scale(0.6); }
+    20% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-46px) scale(1.15); }
+  }
+  .confetti-piece {
+    position: absolute; top: -8px;
+    width: 5px; height: 7px; border-radius: 1px;
+    animation: confettiFall 1.5s ease-in forwards;
+  }
+  @keyframes confettiFall {
+    0% { opacity: 0; transform: translateY(0) rotate(0deg); }
+    10% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(210px) rotate(540deg); }
+  }
+  .spark {
+    position: absolute; font-size: 9px;
+    animation: sparkUp 1.2s ease-out forwards;
+  }
+  @keyframes sparkUp {
+    0% { opacity: 0; transform: translateY(0) scale(0.5); }
+    25% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-38px) scale(1.1); }
+  }
+
+  /* ── 行为动画（挂在 pet-wrap，作用在 pet-body / 五官上）───────── */
+  .anim-jump .pet-body { animation: jump 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  @keyframes jump {
+    0% { transform: translateY(0) scale(1, 1); }
+    35% { transform: translateY(-17px) scale(0.96, 1.05); }
+    65% { transform: translateY(0) scale(1.05, 0.95); }
+    100% { transform: translateY(0) scale(1, 1); }
+  }
+  .anim-jump .shadow { animation: shadowJump 0.5s ease; }
+  @keyframes shadowJump {
+    0%, 100% { transform: translateX(-50%) scale(1); opacity: 0.9; }
+    40% { transform: translateX(-50%) scale(0.78); opacity: 0.45; }
+  }
+
+  .anim-spin .pet-body { animation: spinPet 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
+  @keyframes spinPet {
+    0% { transform: rotate(0deg) translateY(0); }
+    50% { transform: rotate(180deg) translateY(-8px); }
+    100% { transform: rotate(360deg) translateY(0); }
+  }
+
+  .anim-shake .pet-body { animation: shake 0.5s ease-in-out; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px) rotate(-2deg); }
+    40% { transform: translateX(4px) rotate(2deg); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(2px); }
+  }
+
+  .anim-dance .pet-body { animation: dance 1.2s ease-in-out; }
+  @keyframes dance {
+    0%, 100% { transform: rotate(0deg) translateY(0); }
+    20% { transform: rotate(-7deg) translateY(-3px); }
+    40% { transform: rotate(6deg) translateY(0); }
+    60% { transform: rotate(-5deg) translateY(-3px); }
+    80% { transform: rotate(4deg) translateY(0); }
+  }
+  .anim-dance .tail { animation-duration: 0.4s; }
+
+  .anim-wave .pet-body { animation: wave 0.9s ease-in-out; }
+  @keyframes wave {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-6deg) translateY(-2px); }
+    50% { transform: rotate(2deg); }
+    75% { transform: rotate(-5deg) translateY(-2px); }
+  }
+  .anim-wave .ear-left, .anim-wave .ear-right { animation: twitchFast 0.45s ease-in-out 2; }
+
+  .anim-nod .pet-body { animation: nod 0.7s ease-in-out; }
+  @keyframes nod {
+    0%, 100% { transform: translateY(0); }
+    30% { transform: translateY(4px) rotate(2deg); }
+    60% { transform: translateY(3px) rotate(-1deg); }
+  }
+
+  .anim-dizzy .pet-body { animation: dizzyWobble 0.35s ease-in-out 4; }
+  @keyframes dizzyWobble {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-5deg); }
+    75% { transform: rotate(5deg); }
+  }
+  .anim-dizzy .pupils {
+    animation: eyeSpin 0.7s linear 2;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  @keyframes eyeSpin { to { transform: rotate(360deg); } }
+
+  .anim-purr .pet-body { animation: purrShake 0.09s linear infinite; }
+  @keyframes purrShake {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(0.6px); }
+  }
+
+  .anim-yawn .pet-body { animation: yawn 1.5s ease-in-out; }
+  @keyframes yawn {
+    0%, 100% { transform: scale(1, 1); }
+    40% { transform: scale(1.02, 0.97) translateY(1px); }
+    70% { transform: scale(0.99, 1.02); }
+  }
+  .anim-yawn .eyes-normal { animation: none; transform: scaleY(0.12); }
+  .anim-yawn .mouth-smile { display: none; }
+  .anim-yawn .mouth-open { display: block; }
+
+  .anim-stretch .pet-body { animation: stretch 1.8s ease-in-out; }
+  @keyframes stretch {
+    0%, 100% { transform: scale(1, 1) translateY(0); }
+    35% { transform: scale(1.03, 1.05) translateY(-3px); }
+    70% { transform: scale(0.99, 0.98); }
+  }
+  .anim-stretch .tail { animation-duration: 0.7s; }
+
+  .anim-groom .pet-body { animation: groom 1.6s ease-in-out; }
+  @keyframes groom {
+    0%, 100% { transform: rotate(0deg); }
+    30% { transform: rotate(-5deg) translateX(-2px); }
+    55% { transform: rotate(4deg) translateX(2px); }
+    80% { transform: rotate(-2deg); }
+  }
+
+  .anim-ear .ear-left { animation: twitchFast 0.5s ease-in-out 2; }
+  .anim-ear .ear-right { animation: twitchFast 0.5s ease-in-out 2 0.1s; }
+
+  /* ── 控件 ───────────────────────────────────────────────────── */
+  .controls {
+    position: absolute; right: 4px; bottom: 4px;
+    display: flex; gap: 4px;
+    z-index: 7;
+  }
+  .ctl {
+    position: relative;
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 50%;
+    background: rgba(28, 28, 30, 0.72);
+    color: rgba(255, 255, 255, 0.55);
+    cursor: pointer;
+    opacity: 0.42;
+    transition: opacity 0.18s ease, background 0.18s ease,
+                color 0.18s ease, transform 0.12s ease;
+  }
+  .ctl:hover { opacity: 1; background: rgba(255, 255, 255, 0.12); color: #ffffff; }
+  .ctl:active { transform: scale(0.9); }
+  .ctl.muted { opacity: 0.8; color: #ff9f0a; }
+  .ctl.online { opacity: 1; color: var(--accent); }
+  .ctl.online::after {
+    content: ''; position: absolute; right: 1px; bottom: 1px;
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+  }
+  .ctl svg { width: 11px; height: 11px; display: block; }
+  .ctl:focus-visible { outline: 2px solid var(--ps-primary-focus); outline-offset: 1px; opacity: 1; }
+
+  .ai-badge {
+    position: absolute; right: 4px; bottom: 58px;
+    display: flex; align-items: center; gap: 4px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(28, 28, 30, 0.72);
+    border: 1px solid rgba(255, 212, 121, 0.28);
+    color: var(--accent);
+    font-size: 8.5px; font-weight: 600; letter-spacing: 0.08em;
+    opacity: 0; transform: scale(0.9);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+    z-index: 6;
+  }
+  .ai-badge i {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+    animation: dotPulse 1.4s ease-in-out infinite;
+  }
+  .ai-badge.show { opacity: 1; transform: scale(1); }
+
+  /* ── 聊天卡片 ───────────────────────────────────────────────── */
+  .chat-card {
+    position: absolute; inset: 7px;
+    z-index: 20;
+    display: flex; flex-direction: column; gap: 7px;
+    padding: 9px;
+    border-radius: 16px;
+    background: rgba(24, 24, 26, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+    opacity: 0; transform: translateY(6px) scale(0.98);
+    transition: opacity 0.16s ease, transform 0.16s ease;
+    pointer-events: none;
+  }
+  .chat-card.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+  .chat-card[hidden] { display: none; }
+
+  .chat-head {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 10.5px; color: var(--muted);
+  }
+  .chat-title { font-weight: 600; color: var(--ink); letter-spacing: 0.02em; }
+  .chat-close {
+    margin-left: auto;
+    width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0; border: none; border-radius: 50%;
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--muted);
+    font-size: 12px; line-height: 1;
+    cursor: pointer;
+  }
+  .chat-close:hover { background: rgba(255, 255, 255, 0.14); color: var(--ink); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip {
+    padding: 4px 8px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--ink);
+    font-size: 10px; line-height: 1.2;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .chip:hover { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.18); }
+  .chip:active { transform: scale(0.96); }
+
+  .chat-hint {
+    font-size: 9px; line-height: 1.35; color: var(--muted);
+    margin-top: auto;
+  }
+
+  .chat-form { display: flex; gap: 6px; }
+  .chat-input {
+    flex: 1; min-width: 0; height: 30px;
+    padding: 0 9px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--ink);
+    font-family: var(--ps-font-text);
+    font-size: 11.5px;
+    outline: none;
+    user-select: text; -webkit-user-select: text;
+  }
+  .chat-input::placeholder { color: rgba(245, 245, 247, 0.38); }
+  .chat-input:focus {
+    border-color: rgba(255, 212, 121, 0.65);
+    box-shadow: 0 0 0 2px rgba(255, 212, 121, 0.14);
+  }
+  .chat-send {
+    flex: none;
+    width: 34px; height: 30px;
+    border: none; border-radius: 9px;
+    background: var(--accent); color: #2a1d08;
+    font-size: 11px; font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.12s ease, filter 0.15s ease;
+  }
+  .chat-send:hover { filter: brightness(1.05); }
+  .chat-send:active { transform: scale(0.95); }
+
+  /* ── 后台省电 / 减弱动态 ────────────────────────────────────── */
+  html.page-hidden *,
+  html.page-hidden *::before,
+  html.page-hidden *::after { animation-play-state: paused !important; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+</style>
+</head>
+<body data-mood="idle">
+<div class="hud" id="hud">
+  <div class="task" id="task" hidden>
+    <span class="task-icon" id="taskIcon"></span>
+    <span class="task-label" id="taskLabel"></span>
+    <span class="task-pct" id="taskPct" hidden></span>
+    <span class="task-track"><i class="task-fill" id="taskFill"></i></span>
+  </div>
+  <div class="speech" id="speech">
+    <span class="speech-text" id="speechText"></span>
+  </div>
+</div>
+
+<div class="stage" id="stage">
+  <div class="hearts" id="hearts"></div>
+  <div class="confetti" id="confetti"></div>
+  <div class="pet-wrap" id="pet">
+    <div class="aura"></div>
+    <div class="shadow"></div>
+    <div class="pet-body" id="petBody">
+      <div class="zzz">Zzz</div>
+      <div class="think-dots"><i></i><i></i><i></i></div>
+      <div class="alert-badge">!</div>
+      <div class="thought" id="thought"></div>
+      <div class="sparkles" id="sparkles"></div>
+      <svg viewBox="0 0 160 150" aria-label="桌面宠物" data-i18n-aria-label="petAria">
+        <!-- 尾巴 -->
+        <g class="tail">
+          <path d="M114 112 C140 114 146 94 136 82 C130 75 120 78 121 88"
+                fill="none" stroke="#e89b4b" stroke-width="10" stroke-linecap="round"/>
+          <path d="M114 112 C140 114 146 94 136 82 C130 75 120 78 121 88"
+                fill="none" stroke="#f6b36a" stroke-width="7" stroke-linecap="round"/>
+        </g>
+
+        <!-- 身体 -->
+        <ellipse cx="80" cy="113" rx="39" ry="29" fill="#f2a65a"/>
+        <ellipse cx="80" cy="120" rx="25" ry="19" fill="#ffe8cc"/>
+        <ellipse cx="52" cy="134" rx="12" ry="7" fill="#f7c184"/>
+        <ellipse cx="108" cy="134" rx="12" ry="7" fill="#f7c184"/>
+
+        <!-- 耳朵 -->
+        <g class="ear-left">
+          <path d="M48 54 L56 25 L76 44 Z" fill="#f2a65a" stroke="#e18f3f" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M55 49 L59 33 L69 45 Z" fill="#ffb3c2"/>
+        </g>
+        <g class="ear-right">
+          <path d="M112 54 L104 25 L84 44 Z" fill="#f2a65a" stroke="#e18f3f" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M105 49 L101 33 L91 45 Z" fill="#ffb3c2"/>
+        </g>
+
+        <!-- 头 -->
+        <circle cx="80" cy="72" r="35" fill="#f6b36a"/>
+        <path d="M60 92 Q80 104 100 92 Q94 108 80 108 Q66 108 60 92 Z" fill="#ffe8cc"/>
+
+        <!-- 眼睛：普通 / 开心 / 睁大 -->
+        <g class="eyes-normal">
+          <g class="pupils">
+            <ellipse cx="66" cy="72" rx="4.4" ry="5.8" fill="#3a2a20"/>
+            <ellipse cx="94" cy="72" rx="4.4" ry="5.8" fill="#3a2a20"/>
+            <circle cx="67.6" cy="70" r="1.5" fill="#ffffff"/>
+            <circle cx="95.6" cy="70" r="1.5" fill="#ffffff"/>
+          </g>
+        </g>
+        <g class="eyes-happy">
+          <path d="M60.5 74 Q66 67.5 71.5 74" fill="none"
+                stroke="#3a2a20" stroke-width="2.6" stroke-linecap="round"/>
+          <path d="M88.5 74 Q94 67.5 99.5 74" fill="none"
+                stroke="#3a2a20" stroke-width="2.6" stroke-linecap="round"/>
+        </g>
+        <g class="eyes-wide">
+          <ellipse cx="66" cy="72" rx="5.6" ry="6.8" fill="#3a2a20"/>
+          <ellipse cx="94" cy="72" rx="5.6" ry="6.8" fill="#3a2a20"/>
+          <circle cx="67.9" cy="69.6" r="1.9" fill="#ffffff"/>
+          <circle cx="95.9" cy="69.6" r="1.9" fill="#ffffff"/>
+        </g>
+
+        <!-- 担心时的眉毛 -->
+        <g class="brows" stroke="#a05a3c" stroke-width="1.6" stroke-linecap="round">
+          <path d="M58 63 L71 67"/>
+          <path d="M102 63 L89 67"/>
+        </g>
+
+        <!-- 鼻子与嘴 -->
+        <path d="M77 84 L83 84 L80 87 Z" fill="#e2758a"/>
+        <g class="mouth mouth-smile">
+          <path d="M80 87 Q80 92 74 92 M80 87 Q80 92 86 92"
+                fill="none" stroke="#a05a3c" stroke-width="1.4" stroke-linecap="round"/>
+        </g>
+        <g class="mouth mouth-open">
+          <ellipse cx="80" cy="92.5" rx="5.2" ry="4.2" fill="#8a4a34"/>
+          <ellipse cx="80" cy="94" rx="2.6" ry="1.6" fill="#ff9aa8"/>
+        </g>
+        <g class="mouth mouth-flat">
+          <path d="M75 92 L85 92" fill="none"
+                stroke="#a05a3c" stroke-width="1.4" stroke-linecap="round"/>
+        </g>
+        <g class="mouth mouth-worried">
+          <path d="M74 94 Q80 89.5 86 94" fill="none"
+                stroke="#a05a3c" stroke-width="1.4" stroke-linecap="round"/>
+        </g>
+
+        <!-- 腮红与胡须 -->
+        <ellipse cx="55" cy="83" rx="6.5" ry="3.6" fill="#ffb3c2" opacity="0.75"/>
+        <ellipse cx="105" cy="83" rx="6.5" ry="3.6" fill="#ffb3c2" opacity="0.75"/>
+        <g stroke="#c77a45" stroke-width="1.2" stroke-linecap="round" opacity="0.75">
+          <path d="M44 78 L56 80"/><path d="M44 84 L56 84"/>
+          <path d="M116 78 L104 80"/><path d="M116 84 L104 84"/>
+        </g>
+
+        <!-- 担心的汗滴 -->
+        <path class="sweat"
+              d="M112 58 C112 58 117 65.5 117 69.5 A5 5 0 0 1 107 69.5 C107 65.5 112 58 112 58 Z"
+              fill="#7fc4ff" opacity="0.85"/>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<div class="ai-badge" id="aiBadge" aria-hidden="true"><i></i>AI</div>
+
+<div class="controls">
+  <button class="ctl" id="chatBtn" type="button" aria-label="和 AI 说点什么" data-i18n-aria-label="chatOpen">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M13.5 8.2c0 2.6-2.5 4.7-5.5 4.7-.6 0-1.2-.1-1.7-.2L4 14l.5-2.2C3.3 10.9 2.5 9.6 2.5 8.2 2.5 5.6 5 3.5 8 3.5s5.5 2.1 5.5 4.7Z"/>
+    </svg>
+  </button>
+  <button class="ctl" id="soundBtn" type="button" aria-label="关闭声音"></button>
+</div>
+
+<div class="chat-card" id="chatCard" hidden>
+  <div class="chat-head">
+    <span class="chat-title" data-i18n="chatTitle">和 AI 说点什么</span>
+    <button class="chat-close" id="chatClose" type="button" aria-label="关闭" data-i18n-aria-label="close">×</button>
+  </div>
+  <div class="chips" id="chips">
+    <button class="chip" type="button" data-text="继续吧" data-i18n="chipContinue" data-i18n-data-text="chipContinueText">继续</button>
+    <button class="chip" type="button" data-text="你在忙什么？" data-i18n="chipBusy" data-i18n-data-text="chipBusyText">在忙什么</button>
+    <button class="chip" type="button" data-text="歇一会儿吧" data-i18n="chipRest" data-i18n-data-text="chipRestText">歇一会儿</button>
+  </div>
+  <div class="chat-hint" id="chatHint">AI 在线会直接回答；不在线留言会留着。</div>
+  <form class="chat-form" id="chatForm">
+    <input class="chat-input" id="chatInput" type="text" maxlength="120"
+           autocomplete="off" spellcheck="false" placeholder="留句话给 AI…"
+           aria-label="给 AI 的留言" data-i18n-aria-label="chatAria">
+    <button class="chat-send" id="chatSend" type="submit" data-i18n="send">发送</button>
+  </form>
+</div>
+
+
+<script src="pinshell-i18n.js"></script>
+<script>window.PS = window.PS || { lang: 'zh-Hans', locale: 'zh-Hans', languages: [], get: function (k, f) { return f; }, t: function (k, f) { return f; }, list: function (k, f) { return f || []; }, apply: function () {} };</script>
+<script>
+(() => {
+  'use strict';
+
+  const bridge = window.pinshell || { emit() {}, on() {}, log() {} };
+  const $ = id => document.getElementById(id);
+
+  const pet = $('pet');
+  const speech = $('speech');
+  const speechText = $('speechText');
+  const taskEl = $('task');
+  const taskIcon = $('taskIcon');
+  const taskLabel = $('taskLabel');
+  const taskPct = $('taskPct');
+  const taskFill = $('taskFill');
+  const hearts = $('hearts');
+  const confetti = $('confetti');
+  const sparkles = $('sparkles');
+  const thought = $('thought');
+  const aiBadge = $('aiBadge');
+  const chatCard = $('chatCard');
+  const chatForm = $('chatForm');
+  const chatInput = $('chatInput');
+  const chatHint = $('chatHint');
+  const chatBtn = $('chatBtn');
+  const chatClose = $('chatClose');
+  const chips = $('chips');
+  const soundBtn = $('soundBtn');
+
+  const VERSION = 2;
+  const MOODS = ['idle', 'happy', 'thinking', 'working', 'excited',
+                 'sleepy', 'worried', 'alert'];
+  const MUTED_KEY = 'pinshell.pet.muted.v1';
+  const AFFECTION_KEY = 'pinshell.pet.affection.v1';
+  const SLEEP_AFTER = 60 * 1000;
+  const AGENT_SLEEP_AFTER = 3 * 60 * 1000;
+  const AGENT_ONLINE_MS = 90 * 1000;
+  const ASK_TIMEOUT = 12 * 1000;
+  const MAX_ASK = 120;
+  const MAX_PENDING_ASKS = 5;
+
+  const reduceMotion = window.matchMedia
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let mood = 'idle';
+  let sleeping = false;
+  let muted = loadMuted();
+  let affection = loadAffection();
+  let agentLastAt = 0;
+  let agentConnected = false;
+  let activeTask = null;
+  let taskOwnsMood = false;
+  let asking = null;
+  let pendingAsks = [];
+  let askSeq = 0;
+  let chatOpen = false;
+  let taps = 0;
+  let tapAt = 0;
+  let lastLine = '';
+  let sessionStart = Date.now();
+  let hiddenAt = 0;
+  let careShown = false;
+
+  let speechTimer = null;
+  let typeTimer = null;
+  let moodTimer = null;
+  let sleepTimer = null;
+  let idleTimer = null;
+  let badgeTimer = null;
+  let taskTimer = null;
+  let askTimer = null;
+  let tapTimer = null;
+  let thoughtTimer = null;
+  const animTimers = new Map();
+
+  const stroke = { lastX: null, dir: 0, flips: 0, lastAt: 0, lastPurr: 0 };
+
+  // ── 宠物台词 ─────────────────────────────────────────────────
+  const WAKE_LINES = PS.list('wakeLines',
+    ['唔…几点了', '我没睡，我在想事情', '再睡五分钟…', '你回来啦 ✨', '伸个懒腰～']);
+  const DIZZY_LINES = PS.list('dizzyLines', ['眼冒金星…', '别晃啦', '晕了晕了']);
+  const POKE_LINES = PS.list('pokeLines', ['哈哈哈 痒！', '别戳肚子啦', '喵呜——', '过分了哦']);
+  const PURR_LINES = PS.list('purrLines', ['呼噜噜…', '就是这个位置', '舒服到打呼']);
+
+  function headLines() {
+    if (affection >= 30) {
+      return PS.list('headLinesHigh',
+        ['呼噜呼噜～', '再摸一下嘛', '好舒服…', '你今天也很努力', '喵～', '最喜欢你啦 ♥']);
+    }
+    return PS.list('headLines',
+      ['呼噜呼噜～', '再摸一下嘛', '好舒服…', '你今天也很努力', '喵～', '喜欢你 ♥']);
+  }
+
+  // ── 本地持久化 ────────────────────────────────────────────────
+  function loadMuted() {
+    try { return localStorage.getItem(MUTED_KEY) === '1'; } catch (error) { return false; }
+  }
+  function loadAffection() {
+    try {
+      const value = Number(localStorage.getItem(AFFECTION_KEY));
+      return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+    } catch (error) { return 0; }
+  }
+  function saveAffection() {
+    try { localStorage.setItem(AFFECTION_KEY, String(affection)); } catch (error) {}
+  }
+
+  // ── 声音：Web Audio 合成，不依赖外部文件 ───────────────────────
+  const SPEAKER_ON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h2.1L8.4 3.6v8.8L5.1 10H3z"/><path d="M10.7 6.1a2.7 2.7 0 0 1 0 3.8"/><path d="M12.4 4.4a5.1 5.1 0 0 1 0 7.2"/></svg>';
+  const SPEAKER_OFF = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h2.1L8.4 3.6v8.8L5.1 10H3z"/><path d="m10.8 6.2 3.4 3.6m0-3.6-3.4 3.6"/></svg>';
+
+  let audioContext = null;
+
+  function ensureAudio() {
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtor) return null;
+    if (!audioContext) {
+      try { audioContext = new AudioCtor(); } catch (error) { return null; }
+    }
+    if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
+    return audioContext;
+  }
+
+  function tone(options) {
+    if (muted) return;
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const {
+      frequency, endFrequency, type = 'sine',
+      duration = 0.25, gain = 0.06, delay = 0,
+    } = options;
+    try {
+      const start = ctx.currentTime + delay;
+      const osc = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const env = ctx.createGain();
+
+      filter.type = 'lowpass';
+      filter.frequency.value = 2400;
+      osc.type = type;
+      osc.frequency.setValueAtTime(frequency, start);
+      if (endFrequency && endFrequency !== frequency) {
+        osc.frequency.exponentialRampToValueAtTime(endFrequency, start + duration * 0.85);
+      }
+      env.gain.setValueAtTime(0.0001, start);
+      env.gain.exponentialRampToValueAtTime(gain, start + 0.015);
+      env.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+      osc.connect(filter).connect(env).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + duration + 0.02);
+    } catch (error) {}
+  }
+
+  function meow(scale = 1) {
+    tone({ frequency: 560 * scale, endFrequency: 860 * scale, type: 'triangle',
+           duration: 0.3, gain: 0.075 });
+    tone({ frequency: 1180 * scale, endFrequency: 940 * scale, type: 'sine',
+           duration: 0.22, gain: 0.02, delay: 0.03 });
+  }
+  function chime() {
+    tone({ frequency: 880, duration: 0.45, gain: 0.05 });
+    tone({ frequency: 1318.51, duration: 0.55, gain: 0.045, delay: 0.12 });
+  }
+  function purr() {
+    tone({ frequency: 190, endFrequency: 150, type: 'sine', duration: 0.9, gain: 0.022 });
+  }
+  function pop() {
+    tone({ frequency: 420, endFrequency: 560, type: 'sine', duration: 0.12, gain: 0.04 });
+  }
+  function giggle() {
+    tone({ frequency: 720, endFrequency: 980, type: 'triangle', duration: 0.1, gain: 0.05 });
+    tone({ frequency: 760, endFrequency: 1020, type: 'triangle', duration: 0.1,
+           gain: 0.045, delay: 0.11 });
+  }
+  function successSound() {
+    [660, 880, 1318.51].forEach((frequency, index) => {
+      tone({ frequency, duration: 0.35, gain: 0.045, delay: index * 0.09 });
+    });
+  }
+  function alertSound() {
+    tone({ frequency: 880, endFrequency: 660, type: 'square', duration: 0.16, gain: 0.03 });
+    tone({ frequency: 880, endFrequency: 660, type: 'square', duration: 0.16,
+           gain: 0.03, delay: 0.2 });
+  }
+  function sadTone() {
+    tone({ frequency: 392, endFrequency: 294, type: 'sine', duration: 0.4, gain: 0.04 });
+  }
+
+  function renderSound() {
+    soundBtn.innerHTML = muted ? SPEAKER_OFF : SPEAKER_ON;
+    soundBtn.classList.toggle('muted', muted);
+    soundBtn.title = muted
+      ? PS.t('soundOn', '开启声音')
+      : PS.t('soundOff', '关闭声音');
+    soundBtn.setAttribute('aria-label', soundBtn.title);
+  }
+
+  soundBtn.addEventListener('click', event => {
+    event.stopPropagation();
+    muted = !muted;
+    try { localStorage.setItem(MUTED_KEY, muted ? '1' : '0'); } catch (error) {}
+    renderSound();
+    if (muted) {
+      say(PS.t('muted', '已静音'), { duration: 1400 });
+    } else {
+      pop();
+      say(PS.t('unmuted', '声音已开启'), { duration: 1400 });
+    }
+  });
+
+  // ── 情绪 ─────────────────────────────────────────────────────
+  function restingMood() {
+    if (activeTask) {
+      if (activeTask.status === 'running') return 'working';
+      if (activeTask.status === 'waiting') return 'thinking';
+    }
+    return 'idle';
+  }
+
+  function setMood(next, holdMs = 0) {
+    if (!MOODS.includes(next)) return;
+    clearTimeout(moodTimer);
+    mood = next;
+    document.body.dataset.mood = next;
+    sleeping = next === 'sleepy';
+    if (sleeping) {
+      clearTimeout(sleepTimer);
+    } else {
+      scheduleSleep();
+    }
+    if (holdMs > 0 && next !== 'sleepy') {
+      moodTimer = setTimeout(() => {
+        if (mood === next) setMood(restingMood());
+      }, holdMs);
+    }
+  }
+
+  function toneToMood(tone) {
+    switch (tone) {
+      case 'happy': return 'happy';
+      case 'excited': return 'excited';
+      case 'worried': return 'worried';
+      case 'thinking': return 'thinking';
+      default: return '';
+    }
+  }
+
+  // ── 说话 ─────────────────────────────────────────────────────
+  function say(text, options = {}) {
+    const value = String(text == null ? '' : text).trim().slice(0, 160);
+    if (!value) {
+      speech.classList.remove('show');
+      return;
+    }
+    clearInterval(typeTimer);
+    clearTimeout(speechTimer);
+
+    speechText.textContent = '';
+    speech.classList.add('show');
+
+    const chars = Array.from(value);
+    let index = 0;
+    typeTimer = setInterval(() => {
+      index += 1;
+      speechText.textContent = chars.slice(0, index).join('');
+      if (index >= chars.length) {
+        clearInterval(typeTimer);
+        typeTimer = null;
+      }
+    }, 16);
+
+    const duration = Number(options.duration);
+    const hold = Number.isFinite(duration) && duration > 0
+      ? Math.min(duration, 12000)
+      : Math.min(7200, Math.max(2400, 1300 + value.length * 95));
+
+    speechTimer = setTimeout(() => speech.classList.remove('show'), hold);
+  }
+
+  function pickLine(pool) {
+    if (!Array.isArray(pool) || pool.length === 0) return '';
+    const options = pool.length > 1 ? pool.filter(line => line !== lastLine) : pool;
+    const line = options[Math.floor(Math.random() * options.length)];
+    lastLine = line;
+    return line;
+  }
+
+  function localSay(pool, options) {
+    say(pickLine(pool), options);
+  }
+
+  // ── 睡眠 / 唤醒 ───────────────────────────────────────────────
+  function agentOnline() {
+    return agentConnected || Date.now() - agentLastAt < AGENT_ONLINE_MS;
+  }
+
+  function scheduleSleep() {
+    clearTimeout(sleepTimer);
+    if (sleeping) return;
+    const delay = agentOnline() ? AGENT_SLEEP_AFTER : SLEEP_AFTER;
+    sleepTimer = setTimeout(fallAsleep, delay);
+  }
+
+  function fallAsleep() {
+    if (sleeping || chatOpen || asking || document.hidden) {
+      scheduleSleep();
+      return;
+    }
+    setMood('sleepy');
+    purr();
+    emit('pet:sleep', { at: Date.now() });
+  }
+
+  function wakeUp(quiet = false) {
+    if (!sleeping) {
+      scheduleSleep();
+      return;
+    }
+    setMood('idle');
+    emit('pet:wake', { at: Date.now() });
+    if (!quiet) {
+      localSay(WAKE_LINES, { duration: 2300 });
+      meow(0.82);
+      spawnHearts(2);
+      pulse('anim-stretch', 1500);
+    }
+  }
+
+  // ── 点击 / 摸头 / 顺毛 ────────────────────────────────────────
+  function react(event) {
+    if (chatOpen) return;
+
+    const wasSleeping = sleeping;
+    const rect = pet.getBoundingClientRect();
+    const relativeY = (event.clientY - rect.top) / rect.height;
+    const area = relativeY < 0.52 ? 'head' : 'body';
+
+    if (wasSleeping) {
+      taps = 0;
+      wakeUp();
+      emit('pet:tap', { area, count: 1, mood, affection, woke: true });
+      return;
+    }
+
+    wakeUp(true);
+    const now = Date.now();
+    if (now - tapAt > 2500) taps = 0;
+    tapAt = now;
+    taps += 1;
+    const count = taps;
+
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(() => { taps = 0; }, 2500);
+
+    if (taps >= 5) {
+      taps = 0;
+      setMood('worried', 2600);
+      pulse('anim-dizzy', 1400);
+      spawnSparkles(5, '#ffd479');
+      localSay(DIZZY_LINES, { duration: 2000 });
+      meow(1.15);
+    } else if (area === 'head') {
+      addAffection(1);
+      setMood(taps >= 3 ? 'excited' : 'happy', taps >= 3 ? 3200 : 4200);
+      spawnHearts(2 + Math.floor(Math.random() * 3));
+      spawnSparkles(2, '#ffb3c2');
+      localSay(headLines(), { duration: 2200 });
+      meow(0.9 + (taps % 5) * 0.05);
+    } else {
+      setMood('happy', 3000);
+      spawnHearts(1);
+      pulse('anim-shake', 420);
+      localSay(POKE_LINES, { duration: 2000 });
+      giggle();
+    }
+
+    emit('pet:tap', { area, count, mood, affection, woke: false });
+  }
+
+  function addAffection(amount) {
+    const before = affection;
+    affection = Math.max(0, affection + amount);
+    saveAffection();
+    const milestones = [
+      { at: 10, line: PS.t('milestone10', '我们算熟了吧？') },
+      { at: 30, line: PS.t('milestone30', '你是我最好的搭档 ♥') },
+      { at: 60, line: PS.t('milestone60', '离不开你了。') },
+    ];
+    for (const milestone of milestones) {
+      if (before < milestone.at && affection >= milestone.at) {
+        setTimeout(() => {
+          setMood('excited', 4000);
+          spawnHearts(5);
+          spawnSparkles(6, '#ffd479');
+          say(milestone.line, { duration: 3200 });
+          chime();
+        }, 700);
+        break;
+      }
+    }
+  }
+
+  function petStroke() {
+    addAffection(1);
+    setMood('happy', 4800);
+    spawnHearts(3);
+    spawnSparkles(3, '#ffb3c2');
+    purr();
+    pulse('anim-purr', 1100);
+    if (Math.random() < 0.45) {
+      localSay(PURR_LINES, { duration: 2000 });
+    }
+    emit('pet:pet', { affection, mood });
+  }
+
+  pet.addEventListener('click', react);
+
+  pet.addEventListener('pointermove', event => {
+    const now = Date.now();
+    if (stroke.lastX == null || now - stroke.lastAt > 600) {
+      stroke.lastX = event.clientX;
+      stroke.dir = 0;
+      stroke.flips = 0;
+      stroke.lastAt = now;
+      return;
+    }
+    const dx = event.clientX - stroke.lastX;
+    if (Math.abs(dx) < 3) return;
+
+    const dir = Math.sign(dx);
+    if (stroke.dir && dir !== stroke.dir) stroke.flips += 1;
+    stroke.dir = dir;
+    stroke.lastX = event.clientX;
+    stroke.lastAt = now;
+
+    if (stroke.flips >= 4 && now - stroke.lastPurr > 2500) {
+      stroke.flips = 0;
+      stroke.lastPurr = now;
+      petStroke();
+    }
+  });
+
+  // 眼睛跟随光标（窗口内）
+  document.addEventListener('pointermove', event => {
+    if (chatOpen) return;
+    const rect = pet.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height * 0.52;
+    const x = Math.max(-2.6, Math.min(2.6, (event.clientX - cx) / 42));
+    const y = Math.max(-2.2, Math.min(2.2, (event.clientY - cy) / 42));
+    pet.style.setProperty('--look-x', x.toFixed(2) + 'px');
+    pet.style.setProperty('--look-y', y.toFixed(2) + 'px');
+  });
+
+  document.addEventListener('pointerleave', () => {
+    pet.style.setProperty('--look-x', '0px');
+    pet.style.setProperty('--look-y', '0px');
+    stroke.lastX = null;
+    stroke.flips = 0;
+  });
+
+  // ── 粒子 / 动画 ──────────────────────────────────────────────
+  function spawnHearts(count = 3) {
+    for (let i = 0; i < count; i += 1) {
+      const heart = document.createElement('span');
+      heart.className = 'heart';
+      heart.textContent = '♥';
+      heart.style.left = (50 + (Math.random() - 0.5) * 56) + '%';
+      heart.style.bottom = (36 + Math.random() * 18) + 'px';
+      heart.style.animationDelay = (i * 70) + 'ms';
+      hearts.appendChild(heart);
+      setTimeout(() => heart.remove(), 1400 + i * 70);
+    }
+  }
+
+  function spawnSparkles(count = 3, color = '#ffd479') {
+    for (let i = 0; i < count; i += 1) {
+      const spark = document.createElement('span');
+      spark.className = 'spark';
+      spark.textContent = '✦';
+      spark.style.color = color;
+      spark.style.left = (36 + Math.random() * 40) + '%';
+      spark.style.bottom = (52 + Math.random() * 34) + 'px';
+      spark.style.animationDelay = (i * 90) + 'ms';
+      sparkles.appendChild(spark);
+      setTimeout(() => spark.remove(), 1400 + i * 90);
+    }
+  }
+
+  function spawnConfetti(count = 18) {
+    const colors = ['#ffd479', '#ff8fab', '#7fd0c2', '#9ec5ff', '#ffe8cc'];
+    const total = reduceMotion ? Math.min(8, count) : count;
+    for (let i = 0; i < total; i += 1) {
+      const piece = document.createElement('span');
+      piece.className = 'confetti-piece';
+      piece.style.left = (8 + Math.random() * 84) + '%';
+      piece.style.background = colors[i % colors.length];
+      piece.style.animationDelay = (Math.random() * 260) + 'ms';
+      piece.style.transform = 'rotate(' + Math.floor(Math.random() * 180) + 'deg)';
+      confetti.appendChild(piece);
+      setTimeout(() => piece.remove(), 2000);
+    }
+  }
+
+  function pulse(className, duration) {
+    for (const [name, timer] of animTimers) {
+      clearTimeout(timer);
+      pet.classList.remove(name);
+    }
+    animTimers.clear();
+    pet.classList.add(className);
+    const timer = setTimeout(() => {
+      pet.classList.remove(className);
+      animTimers.delete(className);
+    }, duration);
+    animTimers.set(className, timer);
+  }
+
+  const ANIMATIONS = {
+    jump: ['anim-jump', 520],
+    spin: ['anim-spin', 720],
+    shake: ['anim-shake', 520],
+    dance: ['anim-dance', 1240],
+    wave: ['anim-wave', 940],
+    nod: ['anim-nod', 720],
+    dizzy: ['anim-dizzy', 1450],
+  };
+
+  function animate(name) {
+    const entry = ANIMATIONS[name];
+    if (!entry) return;
+    if (sleeping) wakeUp(true);
+    pulse(entry[0], entry[1]);
+  }
+
+  // ── 顶部任务条 ───────────────────────────────────────────────
+  function setTask(data) {
+    let payload = data;
+    if (typeof payload === 'string') payload = { label: payload };
+    if (!payload || typeof payload !== 'object') return;
+
+    presence();
+    wakeUp(true);
+
+    const label = String(payload.label || payload.text || '').trim().slice(0, 60);
+    if (!label) {
+      clearTask();
+      return;
+    }
+
+    const status = ['running', 'done', 'failed', 'waiting'].includes(payload.status)
+      ? payload.status
+      : 'running';
+    const rawProgress = Number(payload.progress);
+    const progress = Number.isFinite(rawProgress)
+      ? Math.max(0, Math.min(1, rawProgress))
+      : null;
+
+    activeTask = { label, status, progress };
+    taskLabel.textContent = label;
+    taskEl.dataset.status = status;
+    taskEl.classList.toggle('has-progress', progress != null);
+    taskPct.hidden = progress == null;
+    taskPct.textContent = progress == null ? '' : Math.round(progress * 100) + '%';
+    taskFill.style.width = (progress == null ? 0 : progress * 100) + '%';
+
+    taskIcon.className = 'task-icon';
+    taskIcon.textContent = '';
+    clearTimeout(taskTimer);
+
+    if (status === 'done') {
+      taskIcon.textContent = '✓';
+      setMood('happy', 4200);
+      taskTimer = setTimeout(clearTask, 4200);
+    } else if (status === 'failed') {
+      taskIcon.textContent = '✕';
+      setMood('alert', 5200);
+      taskTimer = setTimeout(clearTask, 5200);
+    } else if (status === 'waiting') {
+      taskIcon.textContent = '⏳';
+      setMood('thinking');
+      taskOwnsMood = true;
+    } else {
+      taskIcon.classList.add('spinner');
+      setMood('working');
+      taskOwnsMood = true;
+    }
+
+    taskEl.hidden = false;
+    requestAnimationFrame(() => taskEl.classList.add('show'));
+  }
+
+  function clearTask() {
+    clearTimeout(taskTimer);
+    taskTimer = null;
+    activeTask = null;
+    taskEl.classList.remove('show');
+    setTimeout(() => {
+      if (!activeTask) taskEl.hidden = true;
+    }, 200);
+    taskFill.style.width = '0%';
+    if (taskOwnsMood && (mood === 'working' || mood === 'thinking')) {
+      setMood('idle');
+    }
+    taskOwnsMood = false;
+  }
+
+  // ── AI 在线状态 ──────────────────────────────────────────────
+  function presence() {
+    agentLastAt = Date.now();
+    aiBadge.classList.add('show');
+    updatePresenceUI();
+    clearTimeout(badgeTimer);
+    if (!agentConnected) {
+      badgeTimer = setTimeout(() => {
+        aiBadge.classList.remove('show');
+        updatePresenceUI();
+      }, AGENT_ONLINE_MS);
+    }
+    scheduleSleep();
+  }
+
+  function updatePresenceUI() {
+    const online = agentOnline();
+    chatBtn.classList.toggle('online', online);
+    chatInput.placeholder = online
+      ? PS.t('chatPlaceholderOnline', '问 AI 点什么…')
+      : PS.t('chatPlaceholder', '留句话给 AI…');
+    if (pendingAsks.length) {
+      chatHint.textContent = PS.t('chatHintPending', '已留言，AI 回来会看到。');
+    } else {
+      chatHint.textContent = online
+        ? PS.t('chatHintOnline', 'AI 在线，直接问吧；也可以点下面的快捷话。')
+        : PS.t('chatHintOffline', 'AI 没连着，留言会留着，等它回来。');
+    }
+  }
+
+  // ── 用户提问 → agent ─────────────────────────────────────────
+  function sendAsk(text) {
+    const value = String(text == null ? '' : text).trim().slice(0, MAX_ASK);
+    if (!value) return;
+
+    closeChat();
+    wakeUp(true);
+    setMood('thinking');
+
+    const requestId = ++askSeq;
+    const ask = { id: requestId, text: value, at: Date.now() };
+    pendingAsks.push(ask);
+    if (pendingAsks.length > MAX_PENDING_ASKS) pendingAsks.shift();
+    asking = ask;
+    say(PS.t('askSending', '我问问 AI…'), { duration: 1600 });
+    emit('pet:ask', { requestId, text: value, mood });
+    updatePresenceUI();
+
+    clearTimeout(askTimer);
+    askTimer = setTimeout(() => {
+      if (!asking || asking.id !== requestId) return;
+      asking = null;
+      if (!agentOnline()) {
+        setMood('worried', 3600);
+        say(PS.t('askOffline', 'AI 没连着，留言我先留着，等它回来～'), { duration: 3600 });
+      } else {
+        setMood('idle');
+        say(PS.t('askNoReply', 'AI 还没回，留言我留着，等它回来再看'), { duration: 3400 });
+      }
+      sadTone();
+      updatePresenceUI();
+    }, ASK_TIMEOUT);
+  }
+
+  function handleReply(data) {
+    const payload = typeof data === 'string' ? { text: data } : (data || {});
+    const text = String(payload.text || payload.message || '').trim();
+    if (!text) return;
+
+    if (payload.requestId != null) {
+      const id = Number(payload.requestId);
+      const index = pendingAsks.findIndex(item => item.id === id);
+      if (index >= 0) pendingAsks.splice(index, 1);
+    } else {
+      pendingAsks.length = 0;
+    }
+
+    clearTimeout(askTimer);
+    askTimer = null;
+    asking = null;
+
+    presence();
+    wakeUp(true);
+    setMood(payload.mood ? String(payload.mood) : 'happy', payload.mood ? 0 : 5000);
+    say(text, { duration: payload.duration });
+    chime();
+    spawnHearts(2);
+  }
+
+  // ── 聊天卡片 ─────────────────────────────────────────────────
+  function openChat() {
+    if (chatOpen) {
+      chatInput.focus();
+      return;
+    }
+    chatOpen = true;
+    chatCard.hidden = false;
+    requestAnimationFrame(() => {
+      if (chatOpen) chatCard.classList.add('show');
+    });
+    document.body.classList.add('chatting');
+    clearTimeout(idleTimer);
+    speech.classList.remove('show');
+    updatePresenceUI();
+    setTimeout(() => chatInput.focus(), 80);
+  }
+
+  function closeChat() {
+    if (!chatOpen) return;
+    chatOpen = false;
+    chatCard.classList.remove('show');
+    document.body.classList.remove('chatting');
+    setTimeout(() => {
+      if (!chatOpen) chatCard.hidden = true;
+    }, 180);
+    chatInput.value = '';
+    chatInput.blur();
+    scheduleIdle();
+  }
+
+  chatBtn.addEventListener('click', event => {
+    event.stopPropagation();
+    openChat();
+  });
+  chatClose.addEventListener('click', closeChat);
+  chatForm.addEventListener('submit', event => {
+    event.preventDefault();
+    sendAsk(chatInput.value);
+  });
+  chips.addEventListener('click', event => {
+    const chip = event.target.closest('.chip');
+    if (!chip) return;
+    sendAsk(chip.dataset.text);
+  });
+  document.addEventListener('pointerdown', event => {
+    if (!chatOpen) return;
+    if (chatCard.contains(event.target) || chatBtn.contains(event.target)) return;
+    closeChat();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && chatOpen) closeChat();
+  });
+
+  // ── 闲置小动作 ───────────────────────────────────────────────
+  const DAYDREAMS = PS.list('daydreams',
+    ['小鱼干…', '今天的代码会很顺吧', '想晒太阳', '楼下那只鸟又来了', '午睡是正经事']);
+  const CARE_LINES = PS.list('careLines',
+    ['起来伸个懒腰吧', '眼睛累了吧，看看远处', '喝口水 🥤', '坐太久啦，动一动']);
+
+  function scheduleIdle() {
+    clearTimeout(idleTimer);
+    if (document.hidden || sleeping || chatOpen) return;
+    idleTimer = setTimeout(() => {
+      runIdle();
+      scheduleIdle();
+    }, 7000 + Math.random() * 9000);
+  }
+
+  function runIdle() {
+    if (document.hidden || sleeping || chatOpen) return;
+    if (mood === 'alert' || mood === 'thinking' || mood === 'working') {
+      if (Math.random() < 0.6) return;
+    }
+    const roll = Math.random();
+    if (roll < 0.26) {
+      lookAround();
+    } else if (roll < 0.44) {
+      pulse('anim-yawn', 1500);
+    } else if (roll < 0.60) {
+      pulse('anim-stretch', 1800);
+    } else if (roll < 0.72) {
+      pulse('anim-groom', 1600);
+    } else if (roll < 0.84) {
+      daydream();
+    } else if (roll < 0.94) {
+      pulse('anim-ear', 900);
+    } else {
+      localSay(CARE_LINES, { duration: 3200 });
+    }
+  }
+
+  function lookAround() {
+    const x = (Math.random() < 0.5 ? -1 : 1) * (1.2 + Math.random() * 1.2);
+    const y = (Math.random() - 0.5) * 2;
+    pet.style.setProperty('--look-x', x.toFixed(2) + 'px');
+    pet.style.setProperty('--look-y', y.toFixed(2) + 'px');
+    setTimeout(() => {
+      pet.style.setProperty('--look-x', '0px');
+      pet.style.setProperty('--look-y', '0px');
+    }, 1500);
+  }
+
+  function daydream() {
+    thought.textContent = pickLine(DAYDREAMS);
+    thought.classList.add('show');
+    clearTimeout(thoughtTimer);
+    thoughtTimer = setTimeout(() => thought.classList.remove('show'), 3200);
+  }
+
+  // ── agent → page ─────────────────────────────────────────────
+  function emit(name, data) {
+    try { bridge.emit(name, data); } catch (error) {}
+  }
+
+  function listen(name, handler) {
+    try {
+      bridge.on(name, data => {
+        try { handler(data); } catch (error) {
+          try { bridge.log('pet: ' + (error && error.message ? error.message : error)); } catch (e) {}
+        }
+      });
+    } catch (error) {}
+  }
+
+  function handleHello(data) {
+    presence();
+    wakeUp(true);
+    animate('wave');
+    chime();
+    spawnSparkles(3, '#ffd479');
+  }
+
+  function handleSay(data) {
+    const payload = typeof data === 'string' ? { text: data } : (data || {});
+    const text = String(payload.text || payload.message || '').trim();
+    if (!text) return;
+
+    presence();
+    wakeUp(true);
+
+    if (asking) {
+      clearTimeout(askTimer);
+      askTimer = null;
+      asking = null;
+    }
+    pendingAsks.length = 0;
+    updatePresenceUI();
+
+    const nextMood = payload.mood || toneToMood(payload.tone);
+    if (nextMood) setMood(String(nextMood), Number(payload.holdMs) || 0);
+    say(text, { duration: payload.duration });
+    if (nextMood === 'excited') pop();
+  }
+
+  function handleMood(data) {
+    const payload = typeof data === 'string' ? { mood: data } : (data || {});
+    const next = String(payload.mood || '');
+    if (!MOODS.includes(next)) return;
+    presence();
+    wakeUp(true);
+    setMood(next, Number(payload.holdMs) || 0);
+  }
+
+  function celebrate(data) {
+    const text = typeof data === 'string' ? data : (data && data.text);
+    presence();
+    wakeUp(true);
+    setMood('happy', 6200);
+    animate('jump');
+    spawnConfetti(20);
+    spawnSparkles(6, '#ffd479');
+    successSound();
+    if (text) say(text, { duration: 5200 });
+  }
+
+  function petAlert(data) {
+    const payload = typeof data === 'string' ? { text: data } : (data || {});
+    presence();
+    wakeUp(true);
+    setMood('alert', 6200);
+    animate('shake');
+    alertSound();
+    say(payload.text || PS.t('alertDefault', '需要你看一下！'), { duration: 5200 });
+  }
+
+  function resetAll() {
+    clearTask();
+    clearTimeout(askTimer);
+    askTimer = null;
+    asking = null;
+    pendingAsks.length = 0;
+    updatePresenceUI();
+    clearTimeout(thoughtTimer);
+    thought.classList.remove('show');
+    speech.classList.remove('show');
+    closeChat();
+    setMood('idle');
+    taskOwnsMood = false;
+  }
+
+  listen('pet:hello', handleHello);
+  listen('pet:say', handleSay);
+  listen('agent:message', handleSay);
+  listen('pet:mood', handleMood);
+  listen('pet:task', setTask);
+  listen('pet:animate', data => {
+    animate(typeof data === 'string' ? data : (data && (data.name || data.animate)));
+  });
+  listen('pet:celebrate', celebrate);
+  listen('pet:alert', petAlert);
+  listen('pet:reply', handleReply);
+  listen('pet:reset', resetAll);
+  listen('agent:presence', data => {
+    const payload = data && typeof data === 'object' ? data : {};
+    const online = !!payload.online;
+    if (online === agentConnected) {
+      updatePresenceUI();
+      return;
+    }
+    agentConnected = online;
+    if (online) {
+      presence();
+    } else {
+      clearTimeout(badgeTimer);
+      aiBadge.classList.remove('show');
+      updatePresenceUI();
+      scheduleSleep();
+    }
+  });
+
+  window.PinShellPet = {
+    version: VERSION,
+    get state() {
+      return {
+        mood, sleeping, muted, affection,
+        agentConnected,
+        agentOnline: agentOnline(),
+        task: activeTask,
+        asking: asking ? { id: asking.id, text: asking.text } : null,
+        pendingAsks: pendingAsks.map(item => ({ id: item.id, text: item.text })),
+        chatOpen,
+      };
+    },
+    say,
+    mood: setMood,
+    animate,
+    task: setTask,
+    celebrate,
+    alert: petAlert,
+    reset: resetAll,
+  };
+
+  // ── 问候 / 久坐提醒 / 可见性 ─────────────────────────────────
+  function greet() {
+    const hour = new Date().getHours();
+    let line;
+    if (hour >= 5 && hour < 10) line = PS.t('greetMorning', '早呀 ☀️');
+    else if (hour < 12) line = PS.t('greetLateMorning', '上午好～');
+    else if (hour < 14) line = PS.t('greetNoon', '午饭吃了吗 🍚');
+    else if (hour < 18) line = PS.t('greetAfternoon', '下午好，喝口水吧');
+    else if (hour < 23) line = PS.t('greetEvening', '晚上好 🌙');
+    else line = PS.t('greetLate', '这么晚还在忙？');
+
+    if (sleeping) return;
+    setTimeout(() => {
+      if (taps === 0 && !chatOpen && !sleeping && !agentOnline()) {
+        if (affection >= 30 && Math.random() < 0.5) line = PS.t('greetBack', '又见面啦 ♥');
+        say(line, { duration: 2400 });
+      }
+    }, 600);
+  }
+
+  setInterval(() => {
+    if (document.hidden || sleeping || chatOpen || asking) return;
+    if (careShown) return;
+    if (Date.now() - sessionStart < 50 * 60 * 1000) return;
+    careShown = true;
+    setMood('happy', 3200);
+    pulse('anim-stretch', 1800);
+    localSay(CARE_LINES, { duration: 3600 });
+  }, 60 * 1000);
+
+  document.addEventListener('visibilitychange', () => {
+    document.documentElement.classList.toggle('page-hidden', document.hidden);
+    if (document.hidden) {
+      hiddenAt = Date.now();
+      clearTimeout(idleTimer);
+      return;
+    }
+    if (hiddenAt && Date.now() - hiddenAt > 5 * 60 * 1000) {
+      sessionStart = Date.now();
+      careShown = false;
+    }
+    hiddenAt = 0;
+    scheduleIdle();
+    if (!sleeping) scheduleSleep();
+  });
+
+  // ── 启动 ─────────────────────────────────────────────────────
+  renderSound();
+  setMood('idle');
+  updatePresenceUI();
+  greet();
+  scheduleIdle();
+  scheduleSleep();
+  emit('pet:ready', {
+    version: VERSION,
+    mood,
+    muted,
+    affection,
+    moods: MOODS.slice(),
+    features: ['mood', 'task', 'animate', 'chat', 'affection'],
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "desktop-pet",
+  "version": "1.0.0",
+  "releaseDate": "2026-11-23",
+  "minAppVersion": "1.4.0",
+  "category": "companion",
+  "tags": ["pet", "agent", "companion"],
+  "listing": {
+    "zh-Hans": {
+      "tagline": "住在屏幕角落的桌面宠物。",
+      "highlights": ["双向 pet:* 事件", "心情、睡眠与抚摸", "Agent 提问会排队等待回答"]
+    },
+    "en": {
+      "tagline": "A small companion living in the corner of your screen.",
+      "highlights": ["Two-way pet:* events", "Moods, sleep, and petting", "Queued questions for the agent"]
+    }
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-11-23",
+      "notes": {
+        "zh-Hans": "首个在线版本：桌面宠物 v2，支持 Agent 在场与问题队列。",
+        "en": "First library release: desktop pet v2 with agent presence and queued questions."
+      }
+    }
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "sourceVersion": "1.4.0",
+  "templates": [
+    {
+      "id": "ai-radio",
+      "file": "ai-radio.html",
+      "version": "1.0.0",
+      "sha256": "64338a2f00c8c290eb3f461581e86179586357e412f4f85936542a5c45e5b516",
+      "bytes": 63988
+    },
+    {
+      "id": "badge-carousel",
+      "file": "badge-carousel.html",
+      "version": "1.0.0",
+      "sha256": "be664908280e02b8eaa38678e6bf93ef8807acdb59481fcf283a4ec8055d82fa",
+      "bytes": 12662
+    },
+    {
+      "id": "decision-maker",
+      "file": "decision-maker.html",
+      "version": "1.0.0",
+      "sha256": "f714019cfc67b6be6d62fd020df1c7a86e2ed1eaf8b066b27aa0c687f0399f25",
+      "bytes": 45116
+    },
+    {
+      "id": "desktop-pet",
+      "file": "desktop-pet.html",
+      "version": "1.0.0",
+      "sha256": "765e3107e8d57b409285a6e193edc698fc8b10d63b81761e977f2beaf2543741",
+      "bytes": 69310
+    },
+    {
+      "id": "goal-progress",
+      "file": "goal-progress.html",
+      "version": "1.0.0",
+      "sha256": "a3b9a74a68d92069798ba719870b1c193e1e03c33f6f7b032060a76bc783f9dd",
+      "bytes": 6005
+    },
+    {
+      "id": "gomoku",
+      "file": "gomoku.html",
+      "version": "1.0.0",
+      "sha256": "f3ad80a1589bc1de4bc74f3ceff3995d77eb4be4483c1ff2bbea132a8cefce02",
+      "bytes": 19145
+    },
+    {
+      "id": "pomodoro",
+      "file": "pomodoro.html",
+      "version": "1.0.0",
+      "sha256": "c567877a831eed29b88679d0e5fbe0da7cc46ee0e14862408b4adfa6693c0812",
+      "bytes": 22967
+    },
+    {
+      "id": "stock-board",
+      "file": "stock-board.html",
+      "version": "1.0.0",
+      "sha256": "37a99cd5da9594ab1ce09492773f6989923a1484ac19419fa6af9e0bd53004d4",
+      "bytes": 40445
+    },
+    {
+      "id": "system-monitor",
+      "file": "system-monitor.html",
+      "version": "1.0.0",
+      "sha256": "e4098d35dd180ef98bffe01c88e42919ba3991684fce51558d279a6d28e7cb19",
+      "bytes": 27810
+    },
+    {
+      "id": "todo",
+      "file": "todo.html",
+      "version": "1.0.0",
+      "sha256": "74832daa38c5e89f41b7ac6195b0503c188eb26a3db83e1a82fc309bfba9b243",
+      "bytes": 31656
+    }
+  ]
+}

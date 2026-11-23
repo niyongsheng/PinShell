@@ -1,0 +1,44 @@
+<!-- include: head.html -->
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <!-- include: nav.en.html -->
+
+  <main id="main" class="gallery-page">
+    <header class="gallery-head">
+      <p class="eyebrow">Template Library</p>
+      <h1>Template Library</h1>
+      <p>Ten runnable HTML templates for productivity, monitoring, focus, play, and companionship. Previews are the real pages, and every template updates independently after install.</p>
+    </header>
+
+    <div class="gallery-controls">
+      <label class="search-wrap">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+          <circle cx="8.5" cy="8.5" r="5.5"></circle>
+          <path d="M12.8 12.8 17 17" stroke-linecap="round"></path>
+        </svg>
+        <span class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">Search templates</span>
+        <input class="search" type="search" placeholder="Search templates…" autocomplete="off" data-gallery-search>
+      </label>
+      <div class="chips" aria-label="Filter by category">
+        {{CATEGORY_FILTERS}}
+      </div>
+    </div>
+
+    <p class="gallery-meta"><span data-gallery-count>{{TEMPLATE_COUNT}}</span> · Every template is a single HTML file with independent updates</p>
+
+    <div class="gallery-grid">
+      <div class="template-grid" data-gallery-grid>
+        {{TEMPLATE_CARDS}}
+      </div>
+      <p class="empty-state" data-empty-state hidden>No matching templates. Try another keyword or choose “All”.</p>
+    </div>
+
+    <div class="install-hint">
+      <div class="hint-card">
+        <span class="hint-key">⌘K</span>
+        <p>Open the <strong>PinShell console</strong> and choose <strong>Online Template Library</strong> to install, update, or ignore versions. Detail pages offer a zip bundle with the HTML and sidecars.</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- include: footer.en.html -->
