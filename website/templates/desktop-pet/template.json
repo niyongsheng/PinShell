@@ -6,6 +6,10 @@
   "minAppVersion": "1.4.0",
   "category": "companion",
   "tags": ["pet", "agent", "companion"],
+  "author": {
+    "name": "Nico",
+    "url": "https://github.com/niyongsheng"
+  },
   "listing": {
     "zh-Hans": {
       "tagline": "住在屏幕角落的桌面宠物。",

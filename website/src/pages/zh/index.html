@@ -15,7 +15,7 @@
         </div>
         <p class="fine">macOS 13+ · Apple Silicon 与 Intel · Apache 2.0</p>
       </div>
-      <div class="hero-stage" aria-label="PinShell 模板窗口预览">
+      <div class="hero-stage" role="group" aria-label="PinShell 模板窗口预览">
         {{HERO_PANELS}}
       </div>
     </section>
@@ -23,8 +23,8 @@
     <section class="section" id="features" data-reveal>
       <div class="section-head">
         <p class="eyebrow">Overlay</p>
-        <h2>不是另一个 App，<br>是一层界面。</h2>
-        <p>常驻置顶、跨 Space、鼠标穿透。PinShell 只负责把一块透明的 HTML 画布放到桌面上，内容完全由你决定。</p>
+        <h2>桌面之上，多一层。</h2>
+        <p class="lead">常驻置顶、跨 Space、鼠标穿透。PinShell 只负责把一块透明的 HTML 画布放到桌面上，内容完全由你决定。</p>
       </div>
       <div class="feature-grid">
         <article class="feature">
@@ -49,16 +49,16 @@
       <div class="agent-inner" data-reveal>
         <div>
           <p class="eyebrow">MCP native</p>
-          <h2>Agent 能写，<br>也能听见。</h2>
+          <h2>Agent 接管，<br>能说也会道。</h2>
           <p>PinShell 的 MCP server 与 CLI 共用一条控制 socket。页面按钮、表单和事件会回到 Agent，形成真正的双向对话。</p>
-          <div class="flow-row" aria-label="事件流">
+          <div class="flow-row" role="group" aria-label="事件流">
             <span>pinshell_emit</span>
             <span>pinshell_await_event</span>
             <span>pinshell_state</span>
             <span>pinshell_template_show</span>
           </div>
         </div>
-        <div class="code-card" aria-label="Claude Code MCP 配置示例">
+        <div class="code-card" role="group" aria-label="Claude Code MCP 配置示例">
           <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span></div>
           <pre><code><span class="c">// Claude Code · .mcp.json</span>
 {
@@ -76,13 +76,13 @@
     <section class="section" id="templates" data-reveal>
       <div class="section-head">
         <p class="eyebrow">Template Library</p>
-        <h2>模板是可运行的 HTML，<br>不是截图。</h2>
-        <p>十款第一方模板，覆盖效率、监控、专注、娱乐与陪伴。全部托管在在线模板库，按需安装，独立更新。</p>
+        <h2>模板即页面，预览即运行。</h2>
+        <p class="lead">十款第一方模板，覆盖效率、监控、专注、娱乐与陪伴。全部托管在在线模板库，按需安装，独立更新。</p>
       </div>
       <div class="featured-grid">
         {{FEATURED_CARDS}}
       </div>
-      <div class="cta-row" style="margin-top: 30px;">
+      <div class="cta-row section-cta">
         <a class="button secondary" href="templates/">浏览全部模板 →</a>
       </div>
     </section>
@@ -91,7 +91,7 @@
       <div class="install-inner" data-reveal>
         <div>
           <p class="eyebrow">Install</p>
-          <h2>装好。<br>打开控制台，<br>选一个模板。</h2>
+          <h2>装好。<br>打开控制台，<br>启用一个模板。</h2>
           <p>下载 Universal pkg，交给系统安装器。首次打开若被 Gatekeeper 拦截，按 README 的说明允许一次即可。</p>
           <div class="install-actions">
             <a class="button on-dark" href="{{DOWNLOAD_URL}}">下载 PinShell.pkg</a>

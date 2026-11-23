@@ -79,6 +79,8 @@ enum SiteValidator {
                 continue
             }
             pageCount += 1
+            // 404 会被任意深层路径复用，因此其站内链接必须从站点根开始解析。
+            let allowRootAbsolute = name == "404.html"
             let html = try String(contentsOf: url, encoding: .utf8)
             if html.contains("{{") {
                 throw BuilderError(message: "unreplaced token in \(url.path)")
@@ -93,12 +95,23 @@ enum SiteValidator {
                 let pathOnly = raw.split(separator: "#", maxSplits: 1).first.map(String.init) ?? raw
                 let clean = pathOnly.split(separator: "?", maxSplits: 1).first.map(String.init) ?? pathOnly
                 guard !clean.isEmpty else { continue }
+                let target: URL
                 if clean.hasPrefix("/") {
-                    throw BuilderError(message: "root-absolute link \(raw) in \(url.path)")
+                    guard allowRootAbsolute else {
+                        throw BuilderError(message: "root-absolute link \(raw) in \(url.path)")
+                    }
+                    target = outputURL
+                        .appendingPathComponent(String(clean.dropFirst()))
+                        .standardizedFileURL
+                } else {
+                    guard !allowRootAbsolute else {
+                        throw BuilderError(
+                            message: "root-anchored page requires root-absolute links: \(raw) in \(url.path)")
+                    }
+                    target = url.deletingLastPathComponent()
+                        .appendingPathComponent(clean)
+                        .standardizedFileURL
                 }
-                let target = url.deletingLastPathComponent()
-                    .appendingPathComponent(clean)
-                    .standardizedFileURL
                 guard target.path.hasPrefix(outputURL.path) else {
                     throw BuilderError(message: "link escapes site root: \(raw) in \(url.path)")
                 }

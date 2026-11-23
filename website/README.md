@@ -30,8 +30,9 @@ sizes/hashes, and exits non-zero on problems. CI runs it on every PR.
 
 ## Source layout
 
-- `templates/<id>/template.json` — version, min app version, category, tags, marketing listing,
-  changelog. **No name/description/size/order**: those come from the HTML.
+- `templates/<id>/template.json` — version, min app version, category, tags, author, marketing
+  listing, changelog. **No name/description/size/order**: those come from the HTML.
+  `author.name` is required; `author.url` is optional and must be HTTPS.
 - `templates/<id>/<id>.html` — flat single-file template. Must keep the `pinshell:i18n` block
   (default `zh-Hans`, fallback `en`) and may reference `design-tokens.css` / `pinshell-i18n.js`.
 - `src/pages/` — bilingual home, gallery, detail, and 404 shells.
@@ -62,6 +63,7 @@ first launch of 1.5. Bump the version before editing those files.
 `public/library.json` is the app's only remote input. Key fields per template:
 
 - `languages.<tag>.name/description` — extracted from the HTML i18n block
+- `author.name/url` — attribution shown in the app and detail page
 - `payload.url`, `payload.fileName`, `payload.bytes`, `payload.sha256` — immutable HTML payload
 - `payload.bundleURL` — optional zip for manual website download (HTML + sidecars)
 - `preview` — live preview URL and declared window size
@@ -78,26 +80,3 @@ One-time repo setup: **Settings → Pages → Source: GitHub Actions**, then set
 `pinshell.looplooptech.com`. After that, pushes to `main` that touch `website/**`, the sidecars,
 `Resources/Info.plist`, or the logo rebuild and deploy the site. The generated `CNAME` file pins the
 custom domain.
-
-### Cloudflare DNS
-
-The zone uses Cloudflare DNS. For GitHub Pages use a **DNS-only** CNAME (orange cloud off):
-
-```
-pinshell.looplooptech.com  CNAME  niyongsheng.github.io  TTL Auto  (proxied: false)
-```
-
-If you have a Cloudflare API token with **Zone.Read + Zone.DNS Edit** (or set
-`CLOUDFLARE_ZONE_ID` to skip the zone lookup), the repo includes an idempotent helper:
-
-```bash
-export CLOUDFLARE_API_TOKEN=...   # do not commit the token
-website/scripts/setup-cloudflare-dns.sh
-dig +short pinshell.looplooptech.com CNAME   # expect niyongsheng.github.io.
-```
-
-Proxying GitHub Pages through Cloudflare can break GitHub's custom-domain certificate issuance and
-HTTPS verification, so keep the record DNS-only unless you have deliberately configured Full/Strict
-TLS and accept the extra moving parts. If GitHub asks to verify the domain, add the TXT record shown
-under **Settings → Pages** (usually `_github-pages-challenge-<owner>`). After GitHub Pages issues the
-certificate, enable **Enforce HTTPS** in repo settings.

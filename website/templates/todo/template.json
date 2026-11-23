@@ -6,6 +6,10 @@
   "minAppVersion": "1.4.0",
   "category": "productivity",
   "tags": ["tasks", "eisenhower", "local-storage"],
+  "author": {
+    "name": "Nico",
+    "url": "https://github.com/niyongsheng"
+  },
   "listing": {
     "zh-Hans": {
       "tagline": "把今天安放在屏幕一角。",

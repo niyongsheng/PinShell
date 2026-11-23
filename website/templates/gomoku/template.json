@@ -6,6 +6,10 @@
   "minAppVersion": "1.4.0",
   "category": "play",
   "tags": ["game", "board", "agent"],
+  "author": {
+    "name": "Nico",
+    "url": "https://github.com/niyongsheng"
+  },
   "listing": {
     "zh-Hans": {
       "tagline": "和 Claude 下一盘五子棋。",

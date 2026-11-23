@@ -6,6 +6,10 @@
   "minAppVersion": "1.4.0",
   "category": "play",
   "tags": ["wheel", "coin", "random"],
+  "author": {
+    "name": "Nico",
+    "url": "https://github.com/niyongsheng"
+  },
   "listing": {
     "zh-Hans": {
       "tagline": "把犹豫交给转盘和硬币。",

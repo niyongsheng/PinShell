@@ -6,6 +6,10 @@
   "minAppVersion": "1.4.0",
   "category": "productivity",
   "tags": ["bilibili", "goals", "live"],
+  "author": {
+    "name": "Nico",
+    "url": "https://github.com/niyongsheng"
+  },
   "listing": {
     "zh-Hans": {
       "tagline": "把目标放在看得见的地方。",

@@ -2,7 +2,6 @@ import Foundation
 import PinShellCore
 
 struct SiteStrings {
-    let language: String
     let backToGallery: String
     let downloadHTML: String
     let installApp: String
@@ -12,16 +11,25 @@ struct SiteStrings {
     let metadata: String
     let version: String
     let category: String
+    let author: String
     let size: String
+    let fileSize: String
     let languages: String
     let source: String
+    let interactiveHint: String
     let noChangelog: String
-    let templateCount: (Int) -> String
+    /// 计数文案模板，{n} 由 JS 在筛选时替换；Swift 侧用 templateCount 渲染初始值。
+    let countOne: String
+    let countOther: String
+
+    func templateCount(_ count: Int) -> String {
+        (count == 1 ? countOne : countOther)
+            .replacingOccurrences(of: "{n}", with: "\(count)")
+    }
 
     static func make(language: String) -> SiteStrings {
         if LanguageTag.matches(language, "en") {
             return SiteStrings(
-                language: language,
                 backToGallery: "All templates",
                 downloadHTML: "Download bundle",
                 installApp: "Install PinShell",
@@ -31,16 +39,17 @@ struct SiteStrings {
                 metadata: "Details",
                 version: "Version",
                 category: "Category",
+                author: "Author",
                 size: "Size",
+                fileSize: "File size",
                 languages: "Languages",
-                source: "View source",
+                source: "Open template HTML",
+                interactiveHint: "Click and type inside the preview — the template responds live.",
                 noChangelog: "No release notes yet.",
-                templateCount: { count in
-                    "\(count) template\(count == 1 ? "" : "s")"
-                })
+                countOne: "{n} template",
+                countOther: "{n} templates")
         }
         return SiteStrings(
-            language: language,
             backToGallery: "全部模板",
             downloadHTML: "下载模板包",
             installApp: "安装 PinShell",
@@ -50,11 +59,15 @@ struct SiteStrings {
             metadata: "详情",
             version: "版本",
             category: "分类",
+            author: "作者",
             size: "尺寸",
+            fileSize: "文件大小",
             languages: "语言",
-            source: "查看源码",
+            source: "打开模板 HTML",
+            interactiveHint: "可直接在预览中点击、输入，模板会实时响应。",
             noChangelog: "暂无更新日志。",
-            templateCount: { count in "\(count) 个模板" })
+            countOne: "{n} 个模板",
+            countOther: "{n} 个模板")
     }
 }
 
@@ -120,13 +133,13 @@ enum PageRenderer {
                 langSwitchPath: otherHomePath(language.id, homePaths: homePaths, languages: languages),
                 jsonLD: homeJSONLD)
             var homeExtra = homeTokens
-            homeExtra["HERO_PANELS"] = catalog.templates
-                .filter { site.featured.prefix(3).contains($0.entry.id) }
+            homeExtra["HERO_PANELS"] = (site.hero ?? site.featured)
                 .prefix(3)
+                .compactMap { id in catalog.templates.first { $0.entry.id == id } }
                 .enumerated()
                 .map { index, template in
                     heroPanel(template, index: index, language: language.id,
-                              root: rootPrefix(for: homePath), strings: strings)
+                              root: rootPrefix(for: homePath))
                 }
                 .joined()
             homeExtra["FEATURED_CARDS"] = catalog.templates
@@ -137,8 +150,7 @@ enum PageRenderer {
                          detailHref: rootPrefix(for: homePath) + "templates/\(template.entry.id)/",
                          previewHref: rootPrefix(for: homePath)
                             + "templates/\(template.entry.id)/\(template.entry.version)/\(template.entry.file)?lang=\(language.id)",
-                         category: categoryName(template.entry.category, site: site, language: language.id),
-                         strings: strings)
+                         category: categoryName(template.entry.category, site: site, language: language.id))
                 }
                 .joined()
             try renderPage(
@@ -163,10 +175,11 @@ enum PageRenderer {
                      detailHref: "\(template.entry.id)/",
                      previewHref: rootPrefix(for: galleryPath)
                         + "templates/\(template.entry.id)/\(template.entry.version)/\(template.entry.file)?lang=\(language.id)",
-                     category: categoryName(template.entry.category, site: site, language: language.id),
-                     strings: strings)
+                     category: categoryName(template.entry.category, site: site, language: language.id))
             }.joined()
             galleryExtra["TEMPLATE_COUNT"] = strings.templateCount(catalog.templates.count)
+            galleryExtra["COUNT_ONE"] = strings.countOne
+            galleryExtra["COUNT_OTHER"] = strings.countOther
             try renderPage(
                 source: paths.source.appendingPathComponent(
                     isEN ? "pages/en/templates/index.html" : "pages/zh/templates/index.html"),
@@ -207,11 +220,16 @@ enum PageRenderer {
             }
         }
 
-        // 404
-        let notFoundTokens = commonTokens(
+        // 404 —— 不参与索引；语言替代指向首页，避免出现不存在的 /en/404.html。
+        // GitHub Pages 会保留原始出错路径，所以 404 的站内链接必须从站点根开始解析。
+        var notFoundTokens = commonTokens(
             language: zh, pagePath: "404.html", site: site, siteURL: siteURL,
             title: "404 — PinShell", description: "Page not found.",
-            langSwitchPath: "en/index.html", jsonLD: "")
+            langSwitchPath: "/en/index.html", jsonLD: "")
+        notFoundTokens["ROBOTS"] = #"<meta name="robots" content="noindex">"#
+        notFoundTokens["ROOT"] = "/"
+        notFoundTokens["ALT_ZH"] = absolute(siteURL, "")
+        notFoundTokens["ALT_EN"] = absolute(siteURL, "en/")
         try renderPage(source: paths.source.appendingPathComponent("pages/404.html"),
                        destination: output.appendingPathComponent("404.html"),
                        partials: partials,
@@ -246,6 +264,7 @@ enum PageRenderer {
             "ALT_EN": absolute(siteURL, isEN ? canonicalPath : "en/\(canonicalPath)"),
             "OG_LOCALE": isEN ? "en_US" : "zh_CN",
             "OG_IMAGE": absolute(siteURL, "assets/og-\(isEN ? "en" : "zh").png"),
+            "ROBOTS": "",
             "JSON_LD": jsonLD,
             "SITE_NAME": site.name,
             "DOWNLOAD_URL": site.downloadURL,
@@ -254,7 +273,10 @@ enum PageRenderer {
             "RELEASES_URL": site.releasesURL,
             "LANG_SWITCH_URL": langSwitchPath,
             "LANG_SWITCH_LABEL": otherLanguage == "en" ? "EN" : "中文",
-            "YEAR": "2026",
+            // 模板区下的页面在服务端直接标记当前导航项；404 等页面不标。
+            "NAV_TEMPLATES_CURRENT": pagePath.contains("templates/")
+                ? #" aria-current="page""# : "",
+            "YEAR": String(Calendar.current.component(.year, from: Date())),
         ]
     }
 
@@ -326,11 +348,11 @@ enum PageRenderer {
 
     private static func categoryFilters(site: SiteConfig, language: String) -> String {
         let allTitle = LanguageTag.matches(language, "en") ? "All" : "全部"
-        var html = #"<button class="chip is-active" type="button" data-category-filter="all">\#(escapeHTML(allTitle))</button>"#
+        var html = #"<button class="chip is-active" type="button" aria-pressed="true" data-category-filter="all">\#(escapeHTML(allTitle))</button>"#
         for category in site.categories {
             let name = category.name(preferredLanguages: [language])
             html += "\n"
-            html += #"<button class="chip" type="button" data-category-filter="\#(escapeHTML(category.id))">\#(escapeHTML(name))</button>"#
+            html += #"<button class="chip" type="button" aria-pressed="false" data-category-filter="\#(escapeHTML(category.id))">\#(escapeHTML(name))</button>"#
         }
         return html
     }
@@ -339,14 +361,14 @@ enum PageRenderer {
                              language: String,
                              detailHref: String,
                              previewHref: String,
-                             category: String,
-                             strings: SiteStrings) -> String {
+                             category: String) -> String {
         let entry = template.entry
         let name = entry.localizedName(preferredLanguages: [language])
         let description = entry.localizedDescription(preferredLanguages: [language])
         let width = entry.preview?.width ?? Int(template.metadata.size?.width ?? 0)
         let height = entry.preview?.height ?? Int(template.metadata.size?.height ?? 0)
-        let search = "\(name) \(description) \(entry.id) \((entry.tags ?? []).joined(separator: " "))"
+        let author = entry.author?.name ?? ""
+        let search = "\(name) \(description) \(category) \(author) \(entry.id) \((entry.tags ?? []).joined(separator: " "))"
             .lowercased()
         return """
         <a class="template-card" href="\(escapeAttribute(detailHref))" data-category="\(escapeAttribute(entry.category ?? ""))" data-search="\(escapeAttribute(search))">
@@ -365,8 +387,7 @@ enum PageRenderer {
     private static func heroPanel(_ template: BuiltTemplate,
                                   index: Int,
                                   language: String,
-                                  root: String,
-                                  strings: SiteStrings) -> String {
+                                  root: String) -> String {
         let entry = template.entry
         let name = entry.localizedName(preferredLanguages: [language])
         let width = entry.preview?.width ?? 320
@@ -413,6 +434,16 @@ enum PageRenderer {
         }
         let languages = orderedLanguages.joined(separator: " · ")
 
+        var authorRow = ""
+        if let author = entry.author {
+            var value = escapeHTML(author.name)
+            if let url = author.url {
+                value = "<a href=\"\(escapeAttribute(url))\">\(value)</a>"
+            }
+            authorRow =
+                "<div><dt>\(escapeHTML(strings.author))</dt><dd>\(value)</dd></div>"
+        }
+
         var highlights = ""
         if let items = listing?.highlights, !items.isEmpty {
             highlights = """
@@ -452,8 +483,11 @@ enum PageRenderer {
             <p class="fine">\(escapeHTML(strings.installHint))</p>
           </header>
           <div class="detail-grid">
-            <div class="preview-stage detail-stage" data-src="\(escapeAttribute(payloadHref + "?lang=\(language)"))" data-w="\(width)" data-h="\(height)" data-interactive="true">
-              <div class="preview-poster"><span class="poster-mark"></span><strong>\(escapeHTML(name))</strong><small>\(width)×\(height)</small></div>
+            <div class="stage-wrap">
+              <div class="preview-stage detail-stage" data-src="\(escapeAttribute(payloadHref + "?lang=\(language)"))" data-w="\(width)" data-h="\(height)" data-interactive="true" style="--preview-aspect: \(width) / \(height)">
+                <div class="preview-poster"><span class="poster-mark"></span><strong>\(escapeHTML(name))</strong><small>\(width)×\(height)</small></div>
+              </div>
+              <p class="stage-caption">\(escapeHTML(strings.interactiveHint))</p>
             </div>
             <aside class="detail-side">
               \(highlights)
@@ -462,11 +496,13 @@ enum PageRenderer {
                 <dl class="meta-list">
                   <div><dt>\(escapeHTML(strings.version))</dt><dd>v\(escapeHTML(entry.version))</dd></div>
                   <div><dt>\(escapeHTML(strings.category))</dt><dd>\(escapeHTML(category))</dd></div>
+                  \(authorRow)
                   <div><dt>\(escapeHTML(strings.size))</dt><dd>\(width)×\(height)</dd></div>
+                  <div><dt>\(escapeHTML(strings.fileSize))</dt><dd>\(formattedBytes(entry.payload.bytes))</dd></div>
                   <div><dt>\(escapeHTML(strings.languages))</dt><dd>\(escapeHTML(languages))</dd></div>
                 </dl>
               </section>
-              <a class="text-link" href="\(escapeAttribute(payloadHref))">\(escapeHTML(strings.source)) →</a>
+              <a class="text-link" href="\(escapeAttribute(payloadHref))" target="_blank" rel="noopener">\(escapeHTML(strings.source)) →</a>
             </aside>
           </div>
           <section class="detail-block changelog-block">
@@ -515,7 +551,7 @@ enum PageRenderer {
 
     private static func templateJSON(_ template: BuiltTemplate, language: String,
                                      siteURL: String, site: SiteConfig) -> [String: Any] {
-        [
+        var object: [String: Any] = [
             "@context": "https://schema.org",
             "@type": "SoftwareSourceCode",
             "name": template.entry.localizedName(preferredLanguages: [language]),
@@ -525,6 +561,12 @@ enum PageRenderer {
             "version": template.entry.version,
             "url": absolute(siteURL, "\(languagePrefix(language, site: site))templates/\(template.entry.id)/"),
         ]
+        if let author = template.entry.author {
+            var person: [String: Any] = ["@type": "Person", "name": author.name]
+            if let url = author.url { person["url"] = url }
+            object["author"] = person
+        }
+        return object
     }
 
     private static func jsonLDTag(_ object: [String: Any]) -> String {
@@ -646,6 +688,13 @@ enum PageRenderer {
                 try fm.copyItem(at: item, to: target)
             }
         }
+    }
+
+    /// 与 App 下载器保持一致，避免同一文件在站点与 App 显示不同大小。
+    private static func formattedBytes(_ bytes: Int) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(bytes))
     }
 
     private static func escapeHTML(_ value: String) -> String {

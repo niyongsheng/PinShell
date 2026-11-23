@@ -6,6 +6,10 @@
   "minAppVersion": "1.4.0",
   "category": "monitoring",
   "tags": ["stocks", "market", "eastmoney"],
+  "author": {
+    "name": "Nico",
+    "url": "https://github.com/niyongsheng"
+  },
   "listing": {
     "zh-Hans": {
       "tagline": "A 股指数与自选，一屏掌握。",

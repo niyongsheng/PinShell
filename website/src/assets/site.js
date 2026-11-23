@@ -126,6 +126,8 @@
     const search = document.querySelector('[data-gallery-search]');
     const chips = Array.from(document.querySelectorAll('[data-category-filter]'));
     const empty = document.querySelector('[data-empty-state]');
+    const meta = document.querySelector('[data-gallery-meta]');
+    const count = meta?.querySelector('[data-gallery-count]');
     let category = 'all';
 
     const apply = () => {
@@ -139,16 +141,38 @@
         if (show) visible += 1;
       });
       if (empty) empty.hidden = visible !== 0;
+      if (meta && count) {
+        const template = visible === 1 ? meta.dataset.countOne : meta.dataset.countOther;
+        if (template) {
+          const next = template.replace('{n}', String(visible));
+          if (count.textContent !== next) count.textContent = next;
+        }
+      }
+    };
+
+    const selectCategory = (chip) => {
+      chips.forEach((item) => {
+        const active = item === chip;
+        item.classList.toggle('is-active', active);
+        item.setAttribute('aria-pressed', String(active));
+      });
+      category = chip.dataset.categoryFilter || 'all';
+      apply();
     };
 
     chips.forEach((chip) => {
-      chip.addEventListener('click', () => {
-        chips.forEach((item) => item.classList.toggle('is-active', item === chip));
-        category = chip.dataset.categoryFilter || 'all';
-        apply();
-      });
+      chip.addEventListener('click', () => selectCategory(chip));
     });
-    if (search) search.addEventListener('input', apply);
+    if (search) {
+      search.addEventListener('input', apply);
+      search.addEventListener('search', apply);
+      search.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && search.value) {
+          search.value = '';
+          apply();
+        }
+      });
+    }
     apply();
   }
 })();

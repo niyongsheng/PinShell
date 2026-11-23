@@ -6,6 +6,10 @@
   "minAppVersion": "1.4.0",
   "category": "monitoring",
   "tags": ["cpu", "memory", "network"],
+  "author": {
+    "name": "Nico",
+    "url": "https://github.com/niyongsheng"
+  },
   "listing": {
     "zh-Hans": {
       "tagline": "CPU、内存、磁盘与网络，一眼看清。",

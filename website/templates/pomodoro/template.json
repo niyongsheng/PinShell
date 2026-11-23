@@ -6,6 +6,10 @@
   "minAppVersion": "1.4.0",
   "category": "focus",
   "tags": ["timer", "focus", "breaks"],
+  "author": {
+    "name": "Nico",
+    "url": "https://github.com/niyongsheng"
+  },
   "listing": {
     "zh-Hans": {
       "tagline": "25 分钟，只做一件事。",

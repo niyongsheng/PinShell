@@ -13,7 +13,7 @@
 
 [![爱发电](https://img.shields.io/badge/爱发电-Afdian-946ce6?style=for-the-badge&logo=github&logoColor=white)](https://ifdian.net/a/nico2026)
 
-https://github.com/user-attachments/assets/61bfb0b1-b815-4895-a0f8-fcaf64ad3d0c
+https://github.com/user-attachments/assets/e41163ae-ab77-47e9-a174-7bc201597627
 
 ## 功能
 
@@ -127,6 +127,10 @@ PinShell mcp
 `position` 支持 `top-left`、`top`、`top-right`、`left`、`center`、`right`、`bottom-left`、`bottom`、`bottom-right`，或 `x,y`。CLI 参数会在当前会话中覆盖元数据。
 
 模板位于 PinShell 的模板文件夹，App 会把 `design-tokens.css` 与 `pinshell-i18n.js` 播种到那里。可复用这些共享设计系统。
+
+## 模板
+
+在线模板库由 [`website/templates`](./website/templates) 生成。制作模板请参考[模板贡献规范](./docs/template-contribution.zh-CN.md)。
 
 ## 许可证
 

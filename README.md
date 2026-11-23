@@ -13,7 +13,7 @@ Website & template library: **https://pinshell.looplooptech.com/**
 
 [![爱发电](https://img.shields.io/badge/爱发电-Afdian-946ce6?style=for-the-badge&logo=github&logoColor=white)](https://ifdian.net/a/nico2026)
 
-https://github.com/user-attachments/assets/61bfb0b1-b815-4895-a0f8-fcaf64ad3d0c
+https://github.com/user-attachments/assets/e41163ae-ab77-47e9-a174-7bc201597627
 
 ## Features
 
@@ -127,6 +127,10 @@ Window metadata (applied before load, re-applied on show/reload):
 Position accepts `top-left`, `top`, `top-right`, `left`, `center`, `right`, `bottom-left`, `bottom`, `bottom-right`, or `x,y`. CLI flags override metadata for the session.
 
 Templates live in PinShell's templates folder, where `design-tokens.css` and `pinshell-i18n.js` are seeded by the app. Reuse those shared tokens for the design system.
+
+## Templates
+
+The online library is generated from [`website/templates`](./website/templates). To build a template, see the [template contribution guide](./docs/template-contribution.md).
 
 ## License
 

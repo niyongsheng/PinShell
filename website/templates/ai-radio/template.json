@@ -6,6 +6,10 @@
   "minAppVersion": "1.4.0",
   "category": "media",
   "tags": ["music", "itunes", "ambient"],
+  "author": {
+    "name": "Nico",
+    "url": "https://github.com/niyongsheng"
+  },
   "listing": {
     "zh-Hans": {
       "tagline": "把 Agent 的心情，交给一张黑胶。",
