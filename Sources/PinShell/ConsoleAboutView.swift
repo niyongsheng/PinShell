@@ -39,7 +39,19 @@ final class ConsoleAboutView: NSView {
         subtitle.textColor = .secondaryLabelColor
         subtitle.alignment = .center
 
+        let afdian = makeLinkButton(
+            NSLocalizedString("console.about.afdian", comment: ""),
+            action: #selector(openAfdian))
+        afdian.image = NSImage(systemSymbolName: "heart.fill",
+                               accessibilityDescription: nil)
+        afdian.imagePosition = .imageLeading
+        afdian.contentTintColor = NSColor(srgbRed: 0.58, green: 0.42,
+                                          blue: 0.90, alpha: 1)
+
         let links = NSStackView(views: [
+            afdian,
+            makeLinkButton(NSLocalizedString("console.about.website", comment: ""),
+                           action: #selector(openWebsite)),
             makeLinkButton(NSLocalizedString("console.about.github", comment: ""),
                            action: #selector(openRepository)),
             makeLinkButton(NSLocalizedString("console.about.issues", comment: ""),
@@ -89,6 +101,14 @@ final class ConsoleAboutView: NSView {
     }
 
     // MARK: - 动作
+
+    @objc private func openAfdian() {
+        open("https://ifdian.net/a/nico2026")
+    }
+
+    @objc private func openWebsite() {
+        open("https://pinshell.looplooptech.com/")
+    }
 
     @objc private func openRepository() {
         open("https://github.com/\(UpdateChecker.repo)")
