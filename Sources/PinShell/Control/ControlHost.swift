@@ -20,8 +20,15 @@ final class ControlHost {
     private let fileQueue = DispatchQueue(label: "PinShell.ControlHost.Files",
                                           qos: .utility)
 
-    /// 当前 `listen` 订阅数；页面据此显示「AI 在线」。
+    /// 当前 `listen` 订阅数；只代表「有 agent 进程连着」，不代表它正在听。
     private var listenerCount = 0
+
+    /// 正在长轮询页面事件的 agent 等待标记（token → 截止时间）。
+    /// 只有落在等待窗口内才算真正「在线」，避免空闲会话被误报成可回复。
+    private var agentWaits: [String: Date] = [:]
+
+    /// 等待窗口过期时刷新一次页面，避免「在线」一直挂着。
+    private var presenceRefresh: DispatchWorkItem?
 
     init(windowController: OverlayWindowController, server: ControlServer) {
         self.windowController = windowController
@@ -65,6 +72,8 @@ final class ControlHost {
             connection.send(.success(id: request.id, result: .object(["subscribed": .bool(true)])))
         case "events":
             handleEvents(request, connection: connection)
+        case "agent-activity":
+            handleAgentActivity(request, connection: connection)
         case "state":
             connection.send(.success(id: request.id, result: stateResult()))
         case "status":
@@ -336,12 +345,60 @@ final class ControlHost {
         connection.send(.success(id: request.id, result: .object(["emitted": .bool(true)])))
     }
 
-    /// 把 agent 订阅状态推给页面（宠物等模板用 agent:presence 显示在线状态）。
+    /// MCP 长轮询开始/结束时上报等待状态。
+    ///
+    /// `online` 只在这个窗口内为真：有 agent 正阻塞在 poll/await，页面事件能被立即消费。
+    /// `connected` 仍表示有 `listen` 订阅，用来区分「没开 agent」和「agent 空闲」。
+    private func handleAgentActivity(_ request: ControlRequest, connection: ControlConnection) {
+        guard let waiting = bool(request, "waiting") else {
+            connection.send(.failure(id: request.id, code: "invalid_args",
+                                     message: "agent-activity requires waiting"))
+            return
+        }
+
+        let token = string(request, "token") ?? "default"
+        if waiting {
+            // ttl 是兜底：MCP 进程若在等待中退出，收不到 end 回调，靠过期自动清掉。
+            let ttlMS = max(int(request, "ttl_ms") ?? 40_000, 1_000)
+            agentWaits[token] = Date().addingTimeInterval(Double(ttlMS) / 1000)
+        } else {
+            agentWaits.removeValue(forKey: token)
+        }
+
+        pushAgentPresence()
+        connection.send(.success(id: request.id, result: .object([
+            "waiting": .bool(waiting),
+            "token": .string(token)
+        ])))
+    }
+
+    /// 把 agent 状态推给页面（宠物等模板用 agent:presence 显示在线状态）。
     private func pushAgentPresence() {
+        let now = Date()
+        agentWaits = agentWaits.filter { $0.value > now }
+        let waiting = agentWaits.count
         windowController?.dispatchEvent(name: "agent:presence", data: .object([
-            "online": .bool(listenerCount > 0),
+            "online": .bool(waiting > 0),
+            "connected": .bool(listenerCount > 0),
+            "waiting": .number(Double(waiting)),
             "count": .number(Double(listenerCount))
         ]))
+        schedulePresenceRefresh()
+    }
+
+    /// 在最早一个等待窗口过期时再推一次状态。
+    private func schedulePresenceRefresh() {
+        presenceRefresh?.cancel()
+        presenceRefresh = nil
+        guard let earliest = agentWaits.values.min() else { return }
+
+        let delay = max(earliest.timeIntervalSinceNow, 0) + 0.2
+        let work = DispatchWorkItem { [weak self] in
+            self?.presenceRefresh = nil
+            self?.pushAgentPresence()
+        }
+        presenceRefresh = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     // MARK: - 结果构造

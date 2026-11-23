@@ -81,7 +81,7 @@ Tools cover window/content (`pinshell_html`, `pinshell_show`), page interaction 
 
 ### Desktop pet
 
-Install `desktop-pet.html` from **Console (⌘K) → Online Template Library** first. It is a two-way example: it keeps itself alive with moods, idle behaviors, petting, and sleep, and an agent can drive it over the event channel.
+Install `desktop-pet.html` from **Console (⌘K) → Online Template Library** first. It keeps itself alive with moods, idle behaviors, petting, and sleep, and an agent can drive it over the event channel. Page events are queued for the next agent poll; the pet cannot start a turn.
 
 ```bash
 PinShell emit pet:hello '{"name":"Claude"}'
@@ -91,7 +91,7 @@ PinShell emit pet:say '{"text":"Two cases left","mood":"working"}'
 PinShell emit pet:celebrate '{"text":"All green 🎉"}'
 ```
 
-Agent events: `pet:hello`, `pet:say`, `pet:mood`, `pet:task`, `pet:animate`, `pet:celebrate`, `pet:alert`, `pet:reply`, `pet:reset`. Page events: `pet:ready`, `pet:tap`, `pet:pet`, `pet:ask`, `pet:sleep`, `pet:wake`. The pet's chat box emits `pet:ask { requestId, text }`; answer within ~10 seconds with `pet:reply { requestId, text }`, otherwise it falls back to a local line. The `pet-companion` MCP prompt wires the whole loop up.
+Agent events: `pet:hello`, `pet:say`, `pet:mood`, `pet:task`, `pet:animate`, `pet:celebrate`, `pet:alert`, `pet:reset`. Page events: `pet:ready`, `pet:tap`, `pet:pet`, `pet:sleep`, `pet:wake`. The pet's AI badge lights only while an agent is blocked in `pinshell_await_event` / `pinshell_poll_events`; it has no chat input, and page events wait in the queue until the agent next polls. The `pet-companion` MCP prompt wires the whole loop up.
 
 ## CLI
 

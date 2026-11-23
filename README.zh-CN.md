@@ -81,7 +81,7 @@ make serve-site # 构建并在 http://127.0.0.1:8000 预览
 
 ### 桌面宠物
 
-请先从 **控制台（⌘K）→ 在线模板库** 安装 `desktop-pet.html`。它是一个双向示例：自己会换情绪、做小动作、被摸头、打瞌睡，agent 还能通过事件通道遥控它。
+请先从 **控制台（⌘K）→ 在线模板库** 安装 `desktop-pet.html`。它自己会换情绪、做小动作、被摸头、打瞌睡，agent 还能通过事件通道遥控它；页面事件是队列式的，不能反向发起会话。
 
 ```bash
 PinShell emit pet:hello '{"name":"Claude"}'
@@ -91,7 +91,7 @@ PinShell emit pet:say '{"text":"还差两个用例","mood":"working"}'
 PinShell emit pet:celebrate '{"text":"全部通过 🎉"}'
 ```
 
-agent → 页面：`pet:hello`、`pet:say`、`pet:mood`、`pet:task`、`pet:animate`、`pet:celebrate`、`pet:alert`、`pet:reply`、`pet:reset`。页面 → agent：`pet:ready`、`pet:tap`、`pet:pet`、`pet:ask`、`pet:sleep`、`pet:wake`。宠物的聊天框会发出 `pet:ask { requestId, text }`；在 ~10 秒内用 `pet:reply { requestId, text }` 回复，否则它会用本地台词兜底。MCP prompt `pet-companion` 会把整套流程串起来。
+agent → 页面：`pet:hello`、`pet:say`、`pet:mood`、`pet:task`、`pet:animate`、`pet:celebrate`、`pet:alert`、`pet:reset`。页面 → agent：`pet:ready`、`pet:tap`、`pet:pet`、`pet:sleep`、`pet:wake`。宠物的 AI 徽标只在 agent 阻塞在 `pinshell_await_event` / `pinshell_poll_events` 时长亮；它没有聊天输入，页面事件会留在队列里，等 agent 下次读取。MCP prompt `pet-companion` 会把整套流程串起来。
 
 ## CLI
 

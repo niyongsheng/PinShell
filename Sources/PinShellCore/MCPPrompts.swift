@@ -441,21 +441,26 @@ public enum MCPPromptCatalog {
         - pet:say { text, mood?, tone?, duration? } — one short line (under ~40 characters); tone: calm|happy|excited|worried|thinking; mood: idle|happy|thinking|working|excited|sleepy|worried|alert.
         - pet:mood { mood, holdMs? } — body language before, during, and after work.
         - pet:task { label, progress?, status? } — status: running|done|failed|waiting; progress 0..1; done and failed auto-dismiss.
-        - pet:animate { name } — jump|spin|shake|dance|wave|nod|dizzy.
+        - pet:animate { name } — jump|spin|shake|dance|wave|nod|dizzy|run|leap|backflip|roll|bounce.
         - pet:celebrate { text? } / pet:alert { text?, level? } — outcome feedback; keep the detail in chat.
-        - pet:reply { requestId, text, mood? } — answer pet:ask.
-        - pet:reset — clear the task, mood, and pending question.
+        - pet:reset — clear the task and mood.
         - agent:message { text } — legacy alias for pet:say.
         - window.PinShellPet exposes say/mood/animate/task/celebrate/alert/reset/state for pinshell_eval.
 
         Page → agent (pinshell_await_event / pinshell_poll_events):
         - pet:ready { version, mood, muted, affection, moods[], features[] } — the pet is live.
-        - pet:tap { area, count, mood, affection }, pet:pet { affection, mood }, pet:ask { requestId, text, mood }, pet:sleep { at }, pet:wake { at }.
+        - pet:tap { area, count, mood, affection }, pet:pet { affection, mood }, pet:sleep { at }, pet:wake { at }.
+
+        The app also dispatches agent:presence { online, connected, waiting, count } to the page;
+        online is true only while an agent is blocked in poll/await, and the pet lights its AI badge
+        from it. You don't emit agent:presence.
 
         Etiquette:
         - Keep it ambient: at most one update every ~10 seconds, and never repeat what chat already says.
         - Use the pet for mood and status; use a normal panel for anything longer than one line.
-        - While the pet is visible and the user is waiting on you, call pinshell_await_event with types ["pet"] and names ["pet:ask", "pet:tap"] (wait_ms 30000) between steps. Answer pet:ask in the same turn, echoing requestId within ~10 seconds.
+        - The pet is one-way. Standard MCP cannot start a turn, so it has no chat input; its page
+          events are queued and read when you next poll or await. While you want live reactions,
+          call pinshell_await_event with types ["pet"] and names ["pet:tap", "pet:pet"] (wait_ms 30000).
         - The pet works without an agent. Never make the task's success depend on it, and never block on a reply.
 
         Workflow:
@@ -463,7 +468,7 @@ public enum MCPPromptCatalog {
         2. Before long work, emit pet:mood "thinking"; for multi-step jobs, emit pet:task with progress updates.
         3. On success, pet:celebrate with a short line; on failure, pet:alert and keep the detail in chat.
         4. While waiting for the user, call pinshell_await_event with types ["pet"] and names
-           ["pet:ask", "pet:tap"] (wait_ms 30000) and react briefly.
+           ["pet:tap", "pet:pet"] (wait_ms 30000) and react briefly.
         5. When done, emit pet:mood "happy" plus pet:say, or pet:reset if the pet should rest.
         """
     }

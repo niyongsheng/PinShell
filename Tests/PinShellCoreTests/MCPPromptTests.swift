@@ -85,9 +85,10 @@ final class MCPPromptTests: XCTestCase {
         XCTAssertTrue(rendered.text.contains("desktop-pet.html"))
         XCTAssertTrue(rendered.text.contains("pet:hello"))
         XCTAssertTrue(rendered.text.contains("pet:task"))
-        XCTAssertTrue(rendered.text.contains("pet:ask"))
-        XCTAssertTrue(rendered.text.contains("pet:reply"))
+        XCTAssertTrue(rendered.text.contains("agent:presence"))
         XCTAssertTrue(rendered.text.contains("pinshell_poll_events"))
+        XCTAssertFalse(rendered.text.contains("pet:ask"))
+        XCTAssertFalse(rendered.text.contains("pet:reply"))
     }
 
     func testPetCompanionWithoutTaskUsesDefault() throws {
@@ -193,13 +194,15 @@ final class MCPPromptTests: XCTestCase {
         XCTAssertTrue(rendered.text.contains("512 KB"))
     }
 
-    func testPetCompanionDocumentsV2Protocol() throws {
+    func testPetCompanionDocumentsPresenceProtocol() throws {
         let rendered = try MCPPromptCatalog.render(name: "pet-companion", arguments: [:])
 
         XCTAssertTrue(rendered.text.contains("pet:ready"))
         XCTAssertTrue(rendered.text.contains("agent:message"))
         XCTAssertTrue(rendered.text.contains("window.PinShellPet"))
-        XCTAssertTrue(rendered.text.contains("within ~10 seconds"))
+        XCTAssertTrue(rendered.text.contains("agent:presence"))
+        XCTAssertTrue(rendered.text.contains("one-way"))
+        XCTAssertFalse(rendered.text.contains("within ~10 seconds"))
     }
 
     func testLanguageNameFallsBackToGenericWording() {

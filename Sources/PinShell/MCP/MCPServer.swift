@@ -494,30 +494,34 @@ struct MCPToolSet {
         case "pinshell_poll_events":
             let waitMS = min(max(intValue(arguments["wait_ms"])
                                  ?? intValue(arguments["timeout_ms"]) ?? 0, 0), 30_000)
-            let batch = eventStream.poll(
-                since: intValue(arguments["since"]),
-                epoch: stringValue(arguments["epoch"]),
-                wait: Double(waitMS) / 1000,
-                types: stringSet(arguments["types"]),
-                names: stringSet(arguments["names"]),
-                limit: min(max(intValue(arguments["limit"]) ?? 100, 1), 500)
-            )
-            return ControlWire.jsonText(batch.jsonValue)
+            return markAgentWaiting(waitMS: waitMS) {
+                let batch = eventStream.poll(
+                    since: intValue(arguments["since"]),
+                    epoch: stringValue(arguments["epoch"]),
+                    wait: Double(waitMS) / 1000,
+                    types: stringSet(arguments["types"]),
+                    names: stringSet(arguments["names"]),
+                    limit: min(max(intValue(arguments["limit"]) ?? 100, 1), 500)
+                )
+                return ControlWire.jsonText(batch.jsonValue)
+            }
 
         case "pinshell_await_event":
             let waitMS = min(max(intValue(arguments["wait_ms"]) ?? 30_000, 0), 30_000)
-            let batch = eventStream.poll(
-                since: intValue(arguments["since"]),
-                epoch: stringValue(arguments["epoch"]),
-                wait: Double(waitMS) / 1000,
-                types: stringSet(arguments["types"]),
-                names: stringSet(arguments["names"]),
-                limit: 1
-            )
-            var object = batch.jsonValue.objectValue ?? [:]
-            object["event"] = batch.events.first?.jsonValue ?? .null
-            object["timed_out"] = .bool(batch.events.isEmpty && !batch.cancelled)
-            return ControlWire.jsonText(.object(object))
+            return markAgentWaiting(waitMS: waitMS) {
+                let batch = eventStream.poll(
+                    since: intValue(arguments["since"]),
+                    epoch: stringValue(arguments["epoch"]),
+                    wait: Double(waitMS) / 1000,
+                    types: stringSet(arguments["types"]),
+                    names: stringSet(arguments["names"]),
+                    limit: 1
+                )
+                var object = batch.jsonValue.objectValue ?? [:]
+                object["event"] = batch.events.first?.jsonValue ?? .null
+                object["timed_out"] = .bool(batch.events.isEmpty && !batch.cancelled)
+                return ControlWire.jsonText(.object(object))
+            }
 
         case "pinshell_state":
             return ControlWire.jsonText(try control("state"))
@@ -588,6 +592,32 @@ struct MCPToolSet {
     }
 
     // MARK: - 控制通道
+
+    /// 长轮询期间向 App 上报等待状态；只有在这个窗口内页面才显示「AI 在线」。
+    ///
+    /// `waitMS == 0` 的即时 poll 不算在线：它在毫秒级就返回，不构成可回复的窗口。
+    private func markAgentWaiting(waitMS: Int, _ body: () -> String) -> String {
+        guard waitMS > 0 else { return body() }
+
+        let token = UUID().uuidString
+        reportAgentActivity(waiting: true, token: token, ttlMS: waitMS + 5_000)
+        defer { reportAgentActivity(waiting: false, token: token) }
+        return body()
+    }
+
+    /// presence 只是提示：App 没运行或客户端不支持时静默跳过，不能影响工具本身。
+    private func reportAgentActivity(waiting: Bool, token: String, ttlMS: Int = 0) {
+        var args: [String: JSONValue] = [
+            "waiting": .bool(waiting),
+            "token": .string(token)
+        ]
+        if waiting {
+            args["ttl_ms"] = .number(Double(ttlMS))
+        }
+        _ = try? ControlClient.request(ControlRequest(cmd: "agent-activity", args: args),
+                                       timeout: 3,
+                                       launchIfNeeded: false)
+    }
 
     private func control(_ cmd: String,
                          args: [String: JSONValue] = [:],
