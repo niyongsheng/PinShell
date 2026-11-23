@@ -23,6 +23,11 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           plutil -replace CFBundleShortVersionString -string "${VERSION}" Resources/Info.plist
 
+      - name: Validate website catalog
+        run: |
+          swift run --package-path website -c release TemplateCatalogBuilder \
+            --check --site-url https://pinshell.looplooptech.com
+
       # PR 构建用 native（快）；发布用 universal（arm64 + x86_64）
       - name: Build app
         run: |
