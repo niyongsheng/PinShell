@@ -1,5 +1,6 @@
 .build/
 build/
 website/public/
+.cloudflare/
 .DS_Store
 *.xcuserstate
