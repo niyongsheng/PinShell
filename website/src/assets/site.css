@@ -280,7 +280,7 @@ ul, ol { padding: 0; list-style: none; }
   border-radius: 50%;
   background: rgba(29, 29, 31, 0.18);
 }
-.hero-window .preview-stage { height: 236px; background: transparent; }
+.hero-window .preview-stage { height: 236px; background: transparent; --preview-pad: 0px; }
 .hero-window-1 { top: 9%; left: 4%; width: 46%; z-index: 3; }
 .hero-window-2 { top: 21%; right: 4%; width: 38%; z-index: 2; }
 .hero-window-3 { bottom: 5%; left: 24%; width: 40%; z-index: 4; }
@@ -477,6 +477,8 @@ ul, ol { padding: 0; list-style: none; }
   position: relative;
   overflow: hidden;
   isolation: isolate;
+  /* 网页窗口与预览区边缘的内边距，site.js 的 fit() 会读它来缩小缩放比 */
+  --preview-pad: 18px;
 }
 .preview-stage iframe {
   position: absolute;

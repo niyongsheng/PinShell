@@ -45,8 +45,10 @@
     if (!iframe) return;
     const width = Number(stage.dataset.w) || 320;
     const height = Number(stage.dataset.h) || 200;
-    const boxWidth = stage.clientWidth;
-    const boxHeight = stage.clientHeight;
+    // 预览与舞台边缘留出内边距，避免网页窗口贴边
+    const pad = parseFloat(getComputedStyle(stage).getPropertyValue('--preview-pad')) || 0;
+    const boxWidth = Math.max(0, stage.clientWidth - pad * 2);
+    const boxHeight = Math.max(0, stage.clientHeight - pad * 2);
     if (!boxWidth || !boxHeight) return;
     const scale = Math.min(boxWidth / width, boxHeight / height, 1.6);
     iframe.style.width = `${width}px`;
