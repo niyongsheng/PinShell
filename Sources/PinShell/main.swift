@@ -15,7 +15,8 @@ if arguments.first == "mcp" {
         MCPServer.printHelp()
         exit(0)
     }
-    exit(MCPServer().run())
+    let server = MCPServer()   // 具名绑定保证 stdio 循环期间 server 存活（队列任务弱引用它）
+    exit(server.run())
 }
 
 if let command = CLICommand.parse(arguments) {
