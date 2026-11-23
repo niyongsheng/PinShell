@@ -1,7 +1,7 @@
 import AppKit
 import PinShellCore
 
-/// 控制台 MCP 2.0 页：stdio 服务配置、可用工具、控制通道。
+/// 控制台 MCP 页：stdio 服务配置、可用工具、控制通道。
 final class ConsoleMCPView: NSView {
     private let configLabel = NSTextField(wrappingLabelWithString: "")
     private let socketLabel = NSTextField(labelWithString: "")
@@ -54,7 +54,8 @@ final class ConsoleMCPView: NSView {
     // MARK: - 装配
 
     private func build() {
-        let page = ConsoleScrollPage()
+        let page = ConsoleScrollPage(horizontalInset: ConsoleTheme.Space.pageInset,
+                                     spacing: ConsoleTheme.Space.md)
         page.translatesAutoresizingMaskIntoConstraints = false
         addSubview(page)
         NSLayoutConstraint.activate([
@@ -79,34 +80,15 @@ final class ConsoleMCPView: NSView {
     }
 
     private func buildHero() -> NSView {
-        let icon = NSImageView(image: NSImage(systemSymbolName: "network",
-                                              accessibilityDescription: nil) ?? NSImage())
-        icon.contentTintColor = .controlAccentColor
-        icon.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            icon.widthAnchor.constraint(equalToConstant: 34),
-            icon.heightAnchor.constraint(equalToConstant: 34),
-        ])
-
-        let title = NSTextField(labelWithString: NSLocalizedString("console.mcp.title", comment: ""))
-        title.font = .systemFont(ofSize: 22, weight: .semibold)
-
-        let chip = StatusChip()
-        chip.update(text: NSLocalizedString("console.mcp.ready", comment: ""),
-                    active: true, activeColor: .systemGreen,
-                    symbol: "checkmark.circle.fill")
-
-        let titleRow = NSStackView(views: [icon, title, NSView(), chip])
-        titleRow.orientation = .horizontal
-        titleRow.spacing = 10
-        titleRow.alignment = .centerY
-
-        let stack = NSStackView(views: [titleRow])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 6
-        titleRow.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-        return stack
+        let readyChip = StatusChip()
+        readyChip.configure(text: NSLocalizedString("console.mcp.ready", comment: ""),
+                            symbol: "checkmark.circle.fill",
+                            style: .positive)
+        return PageHeader(
+            symbol: "network",
+            title: NSLocalizedString("console.mcp.title", comment: ""),
+            subtitle: NSLocalizedString("console.mcp.navSubtitle", comment: ""),
+            accessory: readyChip)
     }
 
     // MARK: - 客户端自动配置
@@ -114,35 +96,44 @@ final class ConsoleMCPView: NSView {
     private func buildClientsCard() -> NSView {
         let refresh = makeSymbolButton(symbol: "arrow.clockwise",
                                        target: self,
-                                       action: #selector(refreshClientsTapped))
+                                       action: #selector(refreshClientsTapped),
+                                       accessibilityLabel:
+                                        NSLocalizedString("console.mcp.clients.refresh", comment: ""))
         refresh.bezelStyle = .rounded
         refresh.controlSize = .small
-        refresh.toolTip = NSLocalizedString("console.mcp.clients.refresh", comment: "")
 
         let card = MCPSectionCard(
             title: NSLocalizedString("console.mcp.clients.title", comment: ""),
             symbol: "person.2",
-            accessories: [refresh])
+            accessories: [refresh],
+            initiallyExpanded: true)
         let stack = card.content
 
         let subtitle = NSTextField(wrappingLabelWithString:
             NSLocalizedString("console.mcp.clients.subtitle", comment: ""))
-        subtitle.font = .systemFont(ofSize: 11.5)
+        subtitle.font = ConsoleTheme.Font.caption
         subtitle.textColor = .secondaryLabelColor
 
         stack.addArrangedSubview(subtitle)
         subtitle.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
 
-        for client in MCPClient.allCases {
+        for (index, client) in MCPClient.allCases.enumerated() {
             let row = buildClientRow(client)
             clientRows.append(row)
             stack.addArrangedSubview(row.view)
             row.view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+            row.view.heightAnchor.constraint(greaterThanOrEqualToConstant: 40).isActive = true
+
+            if index < MCPClient.allCases.count - 1 {
+                let divider = HairlineView()
+                stack.addArrangedSubview(divider)
+                divider.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+            }
         }
 
         let hint = NSTextField(wrappingLabelWithString:
             NSLocalizedString("console.mcp.clients.hint", comment: ""))
-        hint.font = .systemFont(ofSize: 10.5)
+        hint.font = ConsoleTheme.Font.micro
         hint.textColor = .tertiaryLabelColor
         stack.addArrangedSubview(hint)
         hint.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
@@ -234,25 +225,26 @@ final class ConsoleMCPView: NSView {
                     row.popup.menu?.item(at: 2)?.isEnabled = status.configured
 
                     if !status.detected {
-                        row.chip.update(text: statusKeys.detected, active: false,
-                                        symbol: "minus.circle")
-                        row.chip.toolTip = nil
+                        row.chip.configure(text: statusKeys.detected,
+                                           symbol: "minus.circle",
+                                           style: .neutral)
                     } else if status.needsUpdate {
-                        row.chip.update(text: statusKeys.stale, active: true,
-                                        activeColor: .systemOrange,
-                                        symbol: "exclamationmark.triangle.fill")
-                        row.chip.toolTip = String(
-                            format: NSLocalizedString("console.mcp.clients.staleHint", comment: ""),
-                            executable.path)
+                        row.chip.configure(
+                            text: statusKeys.stale,
+                            symbol: "exclamationmark.triangle.fill",
+                            style: .warning,
+                            toolTip: String(
+                                format: NSLocalizedString("console.mcp.clients.staleHint", comment: ""),
+                                executable.path))
                     } else if status.configured {
-                        row.chip.update(text: statusKeys.configured, active: true,
-                                        activeColor: .systemGreen,
-                                        symbol: "checkmark.circle.fill")
-                        row.chip.toolTip = url.path
+                        row.chip.configure(text: statusKeys.configured,
+                                           symbol: "checkmark.circle.fill",
+                                           style: .positive,
+                                           toolTip: url.path)
                     } else {
-                        row.chip.update(text: statusKeys.notConfigured, active: false,
-                                        symbol: "slash.circle")
-                        row.chip.toolTip = nil
+                        row.chip.configure(text: statusKeys.notConfigured,
+                                           symbol: "slash.circle",
+                                           style: .neutral)
                     }
                 }
             }
@@ -334,7 +326,7 @@ final class ConsoleMCPView: NSView {
         } else {
             alert.informativeText = error.localizedDescription
         }
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: NSLocalizedString("console.error.ok", comment: ""))
         alert.runAppModal()
     }
 
@@ -364,26 +356,23 @@ final class ConsoleMCPView: NSView {
         let stack = card.content
 
         configLabel.isSelectable = true
-        configLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        configLabel.font = ConsoleTheme.Font.monoCode
         configLabel.textColor = .labelColor
         configLabel.maximumNumberOfLines = 0
         configLabel.lineBreakMode = .byWordWrapping
 
-        let configBox = NSView()
-        configBox.wantsLayer = true
-        configBox.layer?.cornerRadius = 10
-        configBox.layer?.backgroundColor = NSColor.textBackgroundColor.withAlphaComponent(0.22).cgColor
+        let box = ConsoleInsetView(inset: NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12))
         configLabel.translatesAutoresizingMaskIntoConstraints = false
-        configBox.addSubview(configLabel)
+        box.contentView.addSubview(configLabel)
         NSLayoutConstraint.activate([
-            configLabel.leadingAnchor.constraint(equalTo: configBox.leadingAnchor, constant: 10),
-            configLabel.trailingAnchor.constraint(equalTo: configBox.trailingAnchor, constant: -10),
-            configLabel.topAnchor.constraint(equalTo: configBox.topAnchor, constant: 10),
-            configLabel.bottomAnchor.constraint(equalTo: configBox.bottomAnchor, constant: -10),
+            configLabel.leadingAnchor.constraint(equalTo: box.contentView.leadingAnchor),
+            configLabel.trailingAnchor.constraint(equalTo: box.contentView.trailingAnchor),
+            configLabel.topAnchor.constraint(equalTo: box.contentView.topAnchor),
+            configLabel.bottomAnchor.constraint(equalTo: box.contentView.bottomAnchor),
         ])
 
-        stack.addArrangedSubview(configBox)
-        configBox.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        stack.addArrangedSubview(box)
+        box.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
 
         return card
     }
@@ -391,7 +380,8 @@ final class ConsoleMCPView: NSView {
     private func buildToolsCard() -> NSView {
         let card = MCPSectionCard(
             title: NSLocalizedString("console.mcp.tools", comment: ""),
-            symbol: "wrench.and.screwdriver")
+            symbol: "wrench.and.screwdriver",
+            count: MCPToolSet.all.count)
 
         for tool in MCPToolSet.all {
             card.content.addArrangedSubview(toolRow(
@@ -406,7 +396,8 @@ final class ConsoleMCPView: NSView {
     private func buildPromptsCard() -> NSView {
         let card = MCPSectionCard(
             title: NSLocalizedString("console.mcp.prompts", comment: ""),
-            symbol: "text.bubble")
+            symbol: "text.bubble",
+            count: MCPPromptCatalog.definitions.count)
 
         for prompt in MCPPromptCatalog.definitions {
             card.content.addArrangedSubview(toolRow(name: prompt.name,
@@ -428,11 +419,11 @@ final class ConsoleMCPView: NSView {
         ])
 
         let nameLabel = NSTextField(labelWithString: name)
-        nameLabel.font = .monospacedSystemFont(ofSize: 11, weight: .semibold)
+        nameLabel.font = .monospacedSystemFont(ofSize: 11.5, weight: .semibold)
         nameLabel.textColor = .labelColor
 
         let descLabel = NSTextField(labelWithString: description)
-        descLabel.font = .systemFont(ofSize: 10.5)
+        descLabel.font = ConsoleTheme.Font.micro
         descLabel.textColor = .secondaryLabelColor
         descLabel.lineBreakMode = .byTruncatingTail
 
@@ -476,11 +467,25 @@ final class ConsoleMCPView: NSView {
         examples.font = .monospacedSystemFont(ofSize: 10.5, weight: .regular)
         examples.textColor = .secondaryLabelColor
 
-        stack.addArrangedSubview(socketLabel)
-        stack.addArrangedSubview(examples)
+        let box = ConsoleInsetView(inset: NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12))
+        let content = NSStackView(views: [socketLabel, examples])
+        content.orientation = .vertical
+        content.alignment = .leading
+        content.spacing = 8
+        content.translatesAutoresizingMaskIntoConstraints = false
+        box.contentView.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.leadingAnchor.constraint(equalTo: box.contentView.leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: box.contentView.trailingAnchor),
+            content.topAnchor.constraint(equalTo: box.contentView.topAnchor),
+            content.bottomAnchor.constraint(equalTo: box.contentView.bottomAnchor),
+        ])
         for view in [socketLabel, examples] {
-            view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+            view.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true
         }
+
+        stack.addArrangedSubview(box)
+        box.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
 
         return card
     }
@@ -529,7 +534,11 @@ private final class MCPSectionCard: NSView {
     /// 内容区。调用方把分区内容加到这里，并自行约束宽度。
     var content: NSStackView { body }
 
-    init(title: String, symbol: String, accessories: [NSView] = []) {
+    init(title: String,
+         symbol: String,
+         count: Int? = nil,
+         accessories: [NSView] = [],
+         initiallyExpanded: Bool = false) {
         super.init(frame: .zero)
 
         toggleButton.isBordered = false
@@ -543,11 +552,17 @@ private final class MCPSectionCard: NSView {
             toggleButton.heightAnchor.constraint(equalToConstant: 14),
         ])
 
-        let header = NSStackView(views: [
-            toggleButton,
-            makeSectionLabel(title, symbol: symbol),
-            NSView(),
-        ] + accessories)
+        var headerViews: [NSView] = [toggleButton, makeSectionLabel(title, symbol: symbol)]
+        if let count {
+            let countLabel = NSTextField(labelWithString: "\(count)")
+            countLabel.font = .monospacedDigitSystemFont(ofSize: 10.5, weight: .medium)
+            countLabel.textColor = .tertiaryLabelColor
+            headerViews.append(countLabel)
+        }
+        headerViews.append(NSView())
+        headerViews.append(contentsOf: accessories)
+
+        let header = NSStackView(views: headerViews)
         header.orientation = .horizontal
         header.spacing = 8
         header.alignment = .centerY
@@ -555,7 +570,6 @@ private final class MCPSectionCard: NSView {
         body.orientation = .vertical
         body.alignment = .leading
         body.spacing = 10
-        body.isHidden = true
 
         let stack = NSStackView(views: [header, body])
         stack.orientation = .vertical
@@ -563,11 +577,11 @@ private final class MCPSectionCard: NSView {
         stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let card = GlassCard()
+        let card = ConsoleCard(inset: NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16))
         card.translatesAutoresizingMaskIntoConstraints = false
         addSubview(card)
         card.contentView.addSubview(stack)
-        // 初始折叠，展开时再激活宽度约束；隐藏期间部分系统会把视图移出层级。
+        // 展开时再激活宽度约束；隐藏期间部分系统会把视图移出层级。
         bodyWidthConstraint = body.widthAnchor.constraint(equalTo: stack.widthAnchor)
         NSLayoutConstraint.activate([
             card.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -583,6 +597,11 @@ private final class MCPSectionCard: NSView {
             header.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
 
+        expanded = initiallyExpanded
+        body.isHidden = !expanded
+        if expanded {
+            bodyWidthConstraint?.isActive = true
+        }
         updateToggle()
     }
 

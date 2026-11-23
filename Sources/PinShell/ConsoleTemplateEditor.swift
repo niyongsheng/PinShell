@@ -91,7 +91,7 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
         form.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         errorLabel.font = .systemFont(ofSize: 11)
-        errorLabel.textColor = .systemRed
+        errorLabel.textColor = ConsoleTheme.Color.destructive
         errorLabel.isHidden = true
 
         let restore = NSButton(title: NSLocalizedString("console.editor.restore", comment: ""),
@@ -117,6 +117,10 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
         saveButton.keyEquivalent = "\r"
         saveButton.image = NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil)
         saveButton.imagePosition = .imageLeading
+        configureConsoleButton(saveButton,
+                               title: NSLocalizedString("console.editor.save", comment: ""),
+                               symbol: "checkmark",
+                               style: .primary)
 
         let spacer = NSView()
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -148,17 +152,15 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
     }
 
     private func buildHeader() -> NSView {
-        let icon = NSImageView(image: NSImage(systemSymbolName: "slider.horizontal.3",
-                                              accessibilityDescription: nil) ?? NSImage())
-        icon.contentTintColor = .controlAccentColor
-        icon.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            icon.widthAnchor.constraint(equalToConstant: 28),
-            icon.heightAnchor.constraint(equalToConstant: 28),
-        ])
+        let icon = ConsoleIconTile(symbol: "slider.horizontal.3",
+                                   size: 32,
+                                   symbolPointSize: 15,
+                                   style: .accent)
 
-        let title = NSTextField(labelWithString: NSLocalizedString("console.editor.title", comment: ""))
-        title.font = .systemFont(ofSize: 17, weight: .semibold)
+        let title = NSTextField(labelWithAttributedString: ConsoleTheme.Font.tracked(
+            NSLocalizedString("console.editor.title", comment: ""),
+            font: .systemFont(ofSize: 18, weight: .semibold),
+            tracking: -0.2))
         title.alignment = .left
         title.lineBreakMode = .byTruncatingTail
         title.maximumNumberOfLines = 1

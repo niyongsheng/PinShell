@@ -8,20 +8,64 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
 
     var onOpenInstalled: ((String) -> Void)?
 
-    private let titleLabel = NSTextField(labelWithString: "")
-    private let subtitleLabel = NSTextField(wrappingLabelWithString: "")
-    private let updatedLabel = NSTextField(labelWithString: "")
-    private let refreshButton = NSButton(title: "", target: nil, action: nil)
-    private let bannerLabel = NSTextField(wrappingLabelWithString: "")
+    private lazy var refreshButton: NSButton = {
+        let button = NSButton(title: NSLocalizedString("library.refresh", comment: ""),
+                              target: self, action: #selector(refreshTapped))
+        button.bezelStyle = .rounded
+        button.controlSize = .regular
+        button.font = .systemFont(ofSize: 11.5, weight: .medium)
+        button.imagePosition = .imageLeading
+        button.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: nil)
+        button.setContentHuggingPriority(.required, for: .horizontal)
+        return button
+    }()
+
+    private lazy var header = PageHeader(
+        symbol: "square.grid.2x2",
+        title: NSLocalizedString("library.title", comment: ""),
+        subtitle: NSLocalizedString("library.subtitle", comment: ""),
+        accessory: refreshButton)
+
     private let searchField = NSSearchField()
     private let categoryPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let updatedLabel = NSTextField(labelWithString: "")
+    private let noticeContainer = NSView()
+    private let noticeView = ConsoleNoticeView(tone: .warning)
+    private var noticeHeightConstraint: NSLayoutConstraint?
     private let scrollView = NSScrollView()
     private let rowsStack = FlippedStackView()
     private let loadingIndicator = NSProgressIndicator()
-    private let emptyLabel = NSTextField(wrappingLabelWithString: "")
-    private let errorView = NSStackView()
-    private let errorLabel = NSTextField(wrappingLabelWithString: "")
-    private let progressCard = NSView()
+
+    private lazy var retryButton = makeConsoleButton(
+        NSLocalizedString("library.retry", comment: ""),
+        symbol: "arrow.clockwise",
+        style: .primary,
+        target: self,
+        action: #selector(refreshTapped))
+
+    private lazy var openFolderButton = makeConsoleButton(
+        NSLocalizedString("console.empty.openFolder", comment: ""),
+        symbol: "folder",
+        style: .secondary,
+        target: self,
+        action: #selector(openTemplatesFolder))
+
+    private lazy var emptyStateView = EmptyStateView(
+        symbol: "square.grid.2x2",
+        title: NSLocalizedString("library.empty", comment: ""),
+        message: nil,
+        actions: [])
+
+    private lazy var errorStateView = EmptyStateView(
+        symbol: "wifi.exclamationmark",
+        title: NSLocalizedString("library.error.title", comment: ""),
+        message: nil,
+        actions: [retryButton, openFolderButton])
+
+    private let progressCard = ConsoleCard(
+        cornerRadius: 12,
+        inset: NSEdgeInsets(top: 8, left: 12, bottom: 8, right: 10),
+        fill: ConsoleTheme.Color.cardFillElevated)
     private let progressLabel = NSTextField(labelWithString: "")
     private let progressSpinner = NSProgressIndicator()
     private let cancelButton = NSButton(title: "", target: nil, action: nil)
@@ -49,8 +93,6 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
     }
 
     func refresh() {
-        titleLabel.stringValue = NSLocalizedString("library.title", comment: "")
-        subtitleLabel.stringValue = NSLocalizedString("library.subtitle", comment: "")
         refreshButton.isEnabled = !service.isRefreshing && !service.isInstalling
         if service.isRefreshing {
             refreshButton.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath",
@@ -71,41 +113,10 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
     // MARK: - 装配
 
     private func build() {
-        titleLabel.font = .systemFont(ofSize: 22, weight: .semibold)
-        titleLabel.lineBreakMode = .byTruncatingTail
-
-        subtitleLabel.font = .systemFont(ofSize: 11.5)
-        subtitleLabel.textColor = .secondaryLabelColor
-        subtitleLabel.maximumNumberOfLines = 2
-
-        let titleStack = NSStackView(views: [titleLabel, subtitleLabel])
-        titleStack.orientation = .vertical
-        titleStack.alignment = .leading
-        titleStack.spacing = 3
-
-        refreshButton.target = self
-        refreshButton.action = #selector(refreshTapped)
-        refreshButton.bezelStyle = .rounded
-        refreshButton.controlSize = .regular
-        refreshButton.imagePosition = .imageLeading
-        refreshButton.title = NSLocalizedString("library.refresh", comment: "")
-        refreshButton.font = .systemFont(ofSize: 11.5, weight: .medium)
-        refreshButton.image = NSImage(systemSymbolName: "arrow.clockwise",
-                                      accessibilityDescription: nil)
-        refreshButton.setContentHuggingPriority(.required, for: .horizontal)
-
-        let spacer = NSView()
-        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-
-        let header = NSStackView(views: [titleStack, spacer, refreshButton])
-        header.orientation = .horizontal
-        header.alignment = .top
-        header.spacing = 12
-
         searchField.placeholderString = NSLocalizedString("library.search", comment: "")
         searchField.delegate = self
         searchField.sendsSearchStringImmediately = true
-        searchField.font = .systemFont(ofSize: 11.5)
+        searchField.font = .systemFont(ofSize: 12)
         searchField.widthAnchor.constraint(equalToConstant: 220).isActive = true
 
         categoryPopup.target = self
@@ -114,20 +125,29 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
         categoryPopup.font = .systemFont(ofSize: 11.5)
         categoryPopup.widthAnchor.constraint(equalToConstant: 120).isActive = true
 
-        updatedLabel.font = .systemFont(ofSize: 10.5)
+        updatedLabel.font = ConsoleTheme.Font.micro
         updatedLabel.textColor = .tertiaryLabelColor
         updatedLabel.alignment = .right
+        updatedLabel.lineBreakMode = .byTruncatingTail
         updatedLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let controls = NSStackView(views: [searchField, categoryPopup, updatedLabel])
         controls.orientation = .horizontal
         controls.alignment = .centerY
-        controls.spacing = 10
+        controls.spacing = ConsoleTheme.Space.xs
 
-        bannerLabel.font = .systemFont(ofSize: 10.5, weight: .medium)
-        bannerLabel.textColor = .systemOrange
-        bannerLabel.maximumNumberOfLines = 2
-        bannerLabel.isHidden = true
+        noticeView.translatesAutoresizingMaskIntoConstraints = false
+        noticeContainer.addSubview(noticeView)
+        NSLayoutConstraint.activate([
+            noticeView.leadingAnchor.constraint(equalTo: noticeContainer.leadingAnchor),
+            noticeView.trailingAnchor.constraint(equalTo: noticeContainer.trailingAnchor),
+            noticeView.topAnchor.constraint(equalTo: noticeContainer.topAnchor),
+            noticeView.bottomAnchor.constraint(equalTo: noticeContainer.bottomAnchor),
+        ])
+        let height = noticeContainer.heightAnchor.constraint(equalToConstant: 0)
+        height.isActive = true
+        noticeHeightConstraint = height
+        noticeView.isHidden = true
 
         scrollView.hasVerticalScroller = true
         scrollView.drawsBackground = false
@@ -139,7 +159,7 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
         // 纵向 stack 的 .width 对齐无效（会被忽略，卡片按内容宽度缩着排），
         // 卡片宽度由 rebuildRowsIfNeeded 里显式约束到列表宽度。
         rowsStack.alignment = .leading
-        rowsStack.spacing = 10
+        rowsStack.spacing = ConsoleTheme.Space.xs
         rowsStack.edgeInsets = NSEdgeInsets(top: 2, left: 0, bottom: 18, right: 0)
         rowsStack.translatesAutoresizingMaskIntoConstraints = false
         scrollView.documentView = rowsStack
@@ -150,57 +170,15 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
             rowsStack.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
         ])
 
-        emptyLabel.font = .systemFont(ofSize: 11.5)
-        emptyLabel.textColor = .secondaryLabelColor
-        emptyLabel.alignment = .center
-        emptyLabel.isHidden = true
-
         loadingIndicator.style = .spinning
         loadingIndicator.controlSize = .small
         loadingIndicator.isDisplayedWhenStopped = false
         loadingIndicator.translatesAutoresizingMaskIntoConstraints = false
 
-        errorLabel.font = .systemFont(ofSize: 11.5)
-        errorLabel.textColor = .secondaryLabelColor
-        errorLabel.alignment = .center
-        errorLabel.maximumNumberOfLines = 4
-        errorLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 360).isActive = true
-
-        let errorIcon = NSImageView(image: NSImage(
-            systemSymbolName: "wifi.exclamationmark",
-            accessibilityDescription: nil) ?? NSImage())
-        errorIcon.contentTintColor = .tertiaryLabelColor
-        errorIcon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 26, weight: .regular)
-
-        let retryButton = NSButton(title: NSLocalizedString("library.retry", comment: ""),
-                                   target: self, action: #selector(refreshTapped))
-        retryButton.bezelStyle = .rounded
-        retryButton.controlSize = .large
-        retryButton.font = .systemFont(ofSize: 12, weight: .medium)
-
-        let openFolderButton = NSButton(
-            title: NSLocalizedString("console.empty.openFolder", comment: ""),
-            target: self, action: #selector(openTemplatesFolder))
-        openFolderButton.bezelStyle = .rounded
-        openFolderButton.controlSize = .large
-        openFolderButton.font = .systemFont(ofSize: 12, weight: .medium)
-
-        errorView.orientation = .vertical
-        errorView.alignment = .centerX
-        errorView.spacing = 10
-        errorView.setViews([errorIcon, errorLabel, retryButton, openFolderButton], in: .center)
-        errorView.isHidden = true
-        errorView.translatesAutoresizingMaskIntoConstraints = false
-
-        progressCard.wantsLayer = true
-        progressCard.layer?.cornerRadius = 12
-        progressCard.layer?.cornerCurve = .continuous
-        progressCard.layer?.backgroundColor = NSColor.controlBackgroundColor
-            .withAlphaComponent(0.92).cgColor
-        progressCard.layer?.borderWidth = 0.5
-        progressCard.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.5).cgColor
-        progressCard.isHidden = true
-        progressCard.translatesAutoresizingMaskIntoConstraints = false
+        emptyStateView.translatesAutoresizingMaskIntoConstraints = false
+        emptyStateView.isHidden = true
+        errorStateView.translatesAutoresizingMaskIntoConstraints = false
+        errorStateView.isHidden = true
 
         progressLabel.font = .systemFont(ofSize: 11.5, weight: .medium)
         progressSpinner.style = .spinning
@@ -218,64 +196,81 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
         progressStack.orientation = .horizontal
         progressStack.alignment = .centerY
         progressStack.spacing = 8
-        progressStack.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 8, right: 10)
         progressStack.translatesAutoresizingMaskIntoConstraints = false
-        progressCard.addSubview(progressStack)
+        progressCard.contentView.addSubview(progressStack)
         NSLayoutConstraint.activate([
-            progressStack.leadingAnchor.constraint(equalTo: progressCard.leadingAnchor),
-            progressStack.trailingAnchor.constraint(equalTo: progressCard.trailingAnchor),
-            progressStack.topAnchor.constraint(equalTo: progressCard.topAnchor),
-            progressStack.bottomAnchor.constraint(equalTo: progressCard.bottomAnchor),
+            progressStack.leadingAnchor.constraint(equalTo: progressCard.contentView.leadingAnchor),
+            progressStack.trailingAnchor.constraint(equalTo: progressCard.contentView.trailingAnchor),
+            progressStack.topAnchor.constraint(equalTo: progressCard.contentView.topAnchor),
+            progressStack.bottomAnchor.constraint(equalTo: progressCard.contentView.bottomAnchor),
         ])
-
-        addSubview(header)
-        addSubview(controls)
-        addSubview(bannerLabel)
-        addSubview(scrollView)
-        addSubview(loadingIndicator)
-        addSubview(emptyLabel)
-        addSubview(errorView)
-        addSubview(progressCard)
+        progressCard.isHidden = true
+        progressCard.translatesAutoresizingMaskIntoConstraints = false
 
         header.translatesAutoresizingMaskIntoConstraints = false
         controls.translatesAutoresizingMaskIntoConstraints = false
-        bannerLabel.translatesAutoresizingMaskIntoConstraints = false
-        emptyLabel.translatesAutoresizingMaskIntoConstraints = false
+        noticeContainer.translatesAutoresizingMaskIntoConstraints = false
+        emptyStateView.translatesAutoresizingMaskIntoConstraints = false
+        errorStateView.translatesAutoresizingMaskIntoConstraints = false
+
+        addSubview(header)
+        addSubview(controls)
+        addSubview(noticeContainer)
+        addSubview(scrollView)
+        addSubview(loadingIndicator)
+        addSubview(emptyStateView)
+        addSubview(errorStateView)
+        addSubview(progressCard)
 
         NSLayoutConstraint.activate([
             header.topAnchor.constraint(equalTo: topAnchor),
-            header.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 22),
-            header.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -22),
+            header.leadingAnchor.constraint(equalTo: leadingAnchor,
+                                            constant: ConsoleTheme.Space.pageInset),
+            header.trailingAnchor.constraint(equalTo: trailingAnchor,
+                                             constant: -ConsoleTheme.Space.pageInset),
 
-            controls.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 12),
-            controls.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 22),
-            controls.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -22),
+            controls.topAnchor.constraint(equalTo: header.bottomAnchor,
+                                          constant: ConsoleTheme.Space.md),
+            controls.leadingAnchor.constraint(equalTo: leadingAnchor,
+                                              constant: ConsoleTheme.Space.pageInset),
+            controls.trailingAnchor.constraint(equalTo: trailingAnchor,
+                                               constant: -ConsoleTheme.Space.pageInset),
 
-            bannerLabel.topAnchor.constraint(equalTo: controls.bottomAnchor, constant: 8),
-            bannerLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 22),
-            bannerLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -22),
+            noticeContainer.topAnchor.constraint(equalTo: controls.bottomAnchor,
+                                                 constant: ConsoleTheme.Space.sm),
+            noticeContainer.leadingAnchor.constraint(equalTo: leadingAnchor,
+                                                     constant: ConsoleTheme.Space.pageInset),
+            noticeContainer.trailingAnchor.constraint(equalTo: trailingAnchor,
+                                                      constant: -ConsoleTheme.Space.pageInset),
 
-            scrollView.topAnchor.constraint(equalTo: bannerLabel.bottomAnchor, constant: 10),
-            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 22),
-            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -22),
-            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
+            scrollView.topAnchor.constraint(equalTo: noticeContainer.bottomAnchor,
+                                            constant: ConsoleTheme.Space.sm),
+            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor,
+                                                constant: ConsoleTheme.Space.pageInset),
+            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor,
+                                                 constant: -ConsoleTheme.Space.pageInset),
+            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor,
+                                               constant: -ConsoleTheme.Space.sm),
 
             loadingIndicator.centerXAnchor.constraint(equalTo: scrollView.centerXAnchor),
             loadingIndicator.centerYAnchor.constraint(equalTo: scrollView.centerYAnchor),
 
-            emptyLabel.centerXAnchor.constraint(equalTo: scrollView.centerXAnchor),
-            emptyLabel.centerYAnchor.constraint(equalTo: scrollView.centerYAnchor, constant: -20),
-            emptyLabel.leadingAnchor.constraint(greaterThanOrEqualTo: scrollView.leadingAnchor, constant: 20),
-            emptyLabel.trailingAnchor.constraint(lessThanOrEqualTo: scrollView.trailingAnchor, constant: -20),
+            emptyStateView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
+            emptyStateView.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
+            emptyStateView.topAnchor.constraint(equalTo: scrollView.topAnchor),
+            emptyStateView.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
 
-            errorView.centerXAnchor.constraint(equalTo: scrollView.centerXAnchor),
-            errorView.centerYAnchor.constraint(equalTo: scrollView.centerYAnchor, constant: -10),
-            errorView.leadingAnchor.constraint(greaterThanOrEqualTo: scrollView.leadingAnchor, constant: 20),
-            errorView.trailingAnchor.constraint(lessThanOrEqualTo: scrollView.trailingAnchor, constant: -20),
+            errorStateView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
+            errorStateView.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
+            errorStateView.topAnchor.constraint(equalTo: scrollView.topAnchor),
+            errorStateView.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
 
-            progressCard.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 22),
-            progressCard.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -22),
-            progressCard.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12),
+            progressCard.leadingAnchor.constraint(equalTo: leadingAnchor,
+                                                  constant: ConsoleTheme.Space.pageInset),
+            progressCard.trailingAnchor.constraint(equalTo: trailingAnchor,
+                                                   constant: -ConsoleTheme.Space.pageInset),
+            progressCard.bottomAnchor.constraint(equalTo: bottomAnchor,
+                                                 constant: -ConsoleTheme.Space.sm),
         ])
     }
 
@@ -296,15 +291,22 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
     }
 
     private func updateBanner() {
+        let text: String?
         if service.stateReadOnly {
-            bannerLabel.stringValue = NSLocalizedString("library.banner.readOnly", comment: "")
-            bannerLabel.isHidden = false
+            text = NSLocalizedString("library.banner.readOnly", comment: "")
         } else if service.snapshot?.isReadOnly == true {
-            bannerLabel.stringValue = NSLocalizedString("library.banner.offline", comment: "")
-            bannerLabel.isHidden = false
+            text = NSLocalizedString("library.banner.offline", comment: "")
         } else {
-            bannerLabel.stringValue = ""
-            bannerLabel.isHidden = true
+            text = nil
+        }
+
+        if let text {
+            noticeView.configure(text: text)
+            noticeView.isHidden = false
+            noticeHeightConstraint?.isActive = false
+        } else {
+            noticeView.isHidden = true
+            noticeHeightConstraint?.isActive = true
         }
     }
 
@@ -397,19 +399,27 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
         }
         loadingIndicator.isHidden = !isLoading
         scrollView.isHidden = isLoading || isFailed != nil
-        errorView.isHidden = isFailed == nil
-        errorLabel.stringValue = isFailed ?? ""
+        errorStateView.isHidden = true
+        emptyStateView.isHidden = true
 
-        let filtered = filteredRows()
-        if !isLoading, isFailed == nil, hasRows, filtered.isEmpty {
-            emptyLabel.stringValue = NSLocalizedString("library.empty.filtered", comment: "")
-            emptyLabel.isHidden = false
-        } else if !isLoading, isFailed == nil, !hasRows,
-                  service.loadState == .loaded {
-            emptyLabel.stringValue = NSLocalizedString("library.empty", comment: "")
-            emptyLabel.isHidden = false
-        } else {
-            emptyLabel.isHidden = true
+        if let isFailed {
+            errorStateView.configure(
+                title: NSLocalizedString("library.error.title", comment: ""),
+                message: isFailed)
+            errorStateView.isHidden = false
+        } else if !isLoading {
+            let filtered = filteredRows()
+            if hasRows, filtered.isEmpty {
+                emptyStateView.configure(
+                    title: NSLocalizedString("library.empty.filtered", comment: ""),
+                    message: nil)
+                emptyStateView.isHidden = false
+            } else if !hasRows, service.loadState == .loaded {
+                emptyStateView.configure(
+                    title: NSLocalizedString("library.empty", comment: ""),
+                    message: nil)
+                emptyStateView.isHidden = false
+            }
         }
     }
 

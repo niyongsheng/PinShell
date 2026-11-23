@@ -42,7 +42,7 @@
 
 /* 控制台 */
 "console.title" = "PinShell Console";
-"console.search" = "Search content";
+"console.search" = "Search templates";
 "console.noFile" = "No file loaded";
 "console.chip.frame" = "Window";
 "console.chip.frameTooltip" = "Actual overlay window size";
@@ -72,20 +72,27 @@
 "console.mcp.copy" = "Copy Path";
 
 /* 控制台 · 新布局 */
-"console.sidebar.templates" = "Templates";
+"console.sidebar.templates" = "Local";
 "console.sidebar.online" = "Online";
 "console.sidebar.library" = "Template Library";
-"console.sidebar.librarySubtitle" = "Browse, install, update";
 "console.sidebar.services" = "Services";
 "console.sidebar.apply" = "Enable";
 "console.sidebar.edit" = "Edit";
 "console.sidebar.delete" = "Delete";
+"console.sidebar.noResults" = "No matching templates";
 "console.detail.delete" = "Delete";
+"console.detail.edit" = "Edit";
+"console.detail.more" = "More actions";
+"console.detail.showing" = "Currently showing";
+"console.detail.info" = "Template info";
+"console.detail.file" = "File";
+"console.detail.size" = "Size";
+"console.detail.position" = "Position";
+"console.detail.order" = "Order";
 "console.position.auto" = "Auto";
 "console.toolbar.show" = "Show Overlay";
 "console.toolbar.hide" = "Hide Overlay";
 "console.toolbar.reload" = "Reload HTML";
-"console.toolbar.edit" = "Edit Template";
 "console.toolbar.folder" = "Reveal in Finder";
 "console.toolbar.templates" = "Template Actions";
 "console.toolbar.onlineLibrary" = "Online Template Library…";
@@ -137,7 +144,6 @@
 
 /* 控制台 · 关于 */
 "console.about.title" = "About";
-"console.about.navSubtitle" = "Version info";
 "console.about.subtitle" = "A bright window for AI: code as paper, a corner of the screen as its place — to converse, to present, to echo.";
 "console.about.version" = "Version %@";
 "console.about.afdian" = "Afdian";

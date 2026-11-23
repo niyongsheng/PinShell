@@ -12,9 +12,6 @@ final class TemplateLibraryCardView: NSView {
     private let primaryButton = NSButton(title: "", target: nil, action: nil)
     private let menuButton = NSButton(title: "", target: nil, action: nil)
 
-    private static let actionBlue = NSColor(srgbRed: 0.16, green: 0.43,
-                                            blue: 0.85, alpha: 1)
-
     init(service: TemplateLibraryService, row: TemplateLibraryService.Row) {
         self.service = service
         self.row = row
@@ -26,26 +23,31 @@ final class TemplateLibraryCardView: NSView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     private func build() {
-        wantsLayer = true
-        layer?.cornerRadius = 12
-        layer?.cornerCurve = .continuous
-        layer?.borderWidth = 0.5
-        layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.3).cgColor
-        layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.38).cgColor
+        let card = ConsoleCard(
+            cornerRadius: 14,
+            inset: NSEdgeInsets(top: 14, left: 16, bottom: 14, right: 16))
+        card.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(card)
+
+        let iconTile = ConsoleIconTile(
+            symbol: ConsoleTheme.categorySymbol(for: row.entry.category),
+            size: 38,
+            symbolPointSize: 17,
+            style: .neutral)
 
         let titleLabel = NSTextField(labelWithString: row.localizedName)
-        titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        titleLabel.font = .systemFont(ofSize: 13.5, weight: .semibold)
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.maximumNumberOfLines = 1
 
         let descriptionLabel = NSTextField(wrappingLabelWithString: row.localizedDescription)
-        descriptionLabel.font = .systemFont(ofSize: 11)
+        descriptionLabel.font = .systemFont(ofSize: 11.5)
         descriptionLabel.textColor = .secondaryLabelColor
         descriptionLabel.maximumNumberOfLines = 2
         descriptionLabel.lineBreakMode = .byWordWrapping
 
         let metaLabel = NSTextField(labelWithString: metaText())
-        metaLabel.font = .monospacedDigitSystemFont(ofSize: 10, weight: .regular)
+        metaLabel.font = ConsoleTheme.Font.monoMeta
         metaLabel.textColor = .tertiaryLabelColor
         metaLabel.lineBreakMode = .byTruncatingTail
 
@@ -60,15 +62,16 @@ final class TemplateLibraryCardView: NSView {
         primaryButton.action = #selector(primaryTapped)
         primaryButton.bezelStyle = .rounded
         primaryButton.controlSize = .regular
-        primaryButton.font = .systemFont(ofSize: 12, weight: .medium)
+        primaryButton.font = ConsoleTheme.Font.button
 
         menuButton.image = NSImage(systemSymbolName: "ellipsis.circle",
-                                   accessibilityDescription: "More")
+                                   accessibilityDescription: nil)
         menuButton.bezelStyle = .texturedRounded
         menuButton.isBordered = false
         menuButton.target = self
         menuButton.action = #selector(menuTapped)
         menuButton.toolTip = NSLocalizedString("library.menu.more", comment: "")
+        menuButton.setAccessibilityLabel(NSLocalizedString("library.menu.more", comment: ""))
 
         let buttonRow = NSStackView(views: [primaryButton, menuButton])
         buttonRow.orientation = .horizontal
@@ -86,18 +89,23 @@ final class TemplateLibraryCardView: NSView {
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
         spacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        let stack = NSStackView(views: [textStack, spacer, rightStack])
+        let stack = NSStackView(views: [iconTile, textStack, spacer, rightStack])
         stack.orientation = .horizontal
-        stack.spacing = 14
+        stack.spacing = 12
         stack.alignment = .centerY
-        stack.edgeInsets = NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14)
         stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
+        card.contentView.addSubview(stack)
+
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
-            stack.topAnchor.constraint(equalTo: topAnchor),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+            card.leadingAnchor.constraint(equalTo: leadingAnchor),
+            card.trailingAnchor.constraint(equalTo: trailingAnchor),
+            card.topAnchor.constraint(equalTo: topAnchor),
+            card.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+            stack.leadingAnchor.constraint(equalTo: card.contentView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: card.contentView.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: card.contentView.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: card.contentView.bottomAnchor),
             textStack.widthAnchor.constraint(greaterThanOrEqualToConstant: 160),
         ])
     }
@@ -105,62 +113,64 @@ final class TemplateLibraryCardView: NSView {
     private func configure() {
         let evaluation = row.evaluation
         if evaluation.needsNewerApp {
-            statusChip.update(text: NSLocalizedString("library.state.incompatible", comment: ""),
-                              active: true, activeColor: .systemOrange, symbol: "exclamationmark.triangle.fill")
+            statusChip.configure(text: NSLocalizedString("library.state.incompatible", comment: ""),
+                                 symbol: "exclamationmark.triangle.fill",
+                                 style: .warning)
         } else if evaluation.installState == .notInstalled {
-            statusChip.update(text: NSLocalizedString("library.state.notInstalled", comment: ""),
-                              active: false, symbol: "circle")
+            statusChip.configure(text: NSLocalizedString("library.state.notInstalled", comment: ""),
+                                 symbol: "circle",
+                                 style: .neutral)
         } else if evaluation.installState == .unmanagedLocal {
-            statusChip.update(text: NSLocalizedString("library.state.local", comment: ""),
-                              active: false, symbol: "doc")
+            statusChip.configure(text: NSLocalizedString("library.state.local", comment: ""),
+                                 symbol: "doc",
+                                 style: .neutral)
         } else if evaluation.isIgnored {
-            statusChip.update(text: NSLocalizedString("library.state.ignored", comment: ""),
-                              active: false, symbol: "bell.slash")
+            statusChip.configure(text: NSLocalizedString("library.state.ignored", comment: ""),
+                                 symbol: "bell.slash",
+                                 style: .neutral)
         } else if evaluation.isEdited {
-            statusChip.update(text: NSLocalizedString("library.state.edited", comment: ""),
-                              active: true, activeColor: .systemOrange, symbol: "pencil")
+            statusChip.configure(text: NSLocalizedString("library.state.edited", comment: ""),
+                                 symbol: "pencil",
+                                 style: .warning)
         } else if evaluation.updateAvailable {
-            statusChip.update(
+            statusChip.configure(
                 text: NSLocalizedString(
                     evaluation.isRepair ? "library.state.repair" : "library.state.update",
                     comment: ""),
-                active: true, activeColor: Self.actionBlue,
-                symbol: evaluation.isRepair ? "wrench.and.screwdriver" : "arrow.down.circle.fill")
+                symbol: evaluation.isRepair ? "wrench.and.screwdriver" : "arrow.down.circle.fill",
+                style: .accent)
         } else {
-            statusChip.update(text: NSLocalizedString("library.state.installed", comment: ""),
-                              active: true, activeColor: .systemGreen, symbol: "checkmark.circle.fill")
-        }
-
-        if evaluation.needsNewerApp {
-            primaryButton.title = String(
-                format: NSLocalizedString("library.action.requires", comment: ""),
-                row.entry.minimumAppVersion)
-            primaryButton.isEnabled = false
-            primaryButton.bezelColor = nil
-        } else if evaluation.installState == .installed && !evaluation.updateAvailable {
-            primaryButton.title = NSLocalizedString("library.action.open", comment: "")
-            primaryButton.isEnabled = true
-            primaryButton.bezelColor = nil
-        } else if evaluation.installState == .unmanagedLocal {
-            primaryButton.title = NSLocalizedString("library.action.replace", comment: "")
-            primaryButton.isEnabled = !service.isInstalling
-            stylePrimary()
-        } else if evaluation.installState == .notInstalled {
-            primaryButton.title = NSLocalizedString("library.action.get", comment: "")
-            primaryButton.isEnabled = !service.isInstalling
-            stylePrimary()
-        } else {
-            primaryButton.title = NSLocalizedString(
-                evaluation.isRepair ? "library.action.repair" : "library.action.update",
-                comment: "")
-            primaryButton.isEnabled = !service.isInstalling
-            stylePrimary()
+            statusChip.configure(text: NSLocalizedString("library.state.installed", comment: ""),
+                                 symbol: "checkmark.circle.fill",
+                                 style: .positive)
         }
 
         let readOnly = service.isCatalogReadOnly || service.stateReadOnly
-        if readOnly,
-           evaluation.installState != .installed || evaluation.updateAvailable {
+
+        if evaluation.needsNewerApp {
+            setButtonTitle(String(
+                format: NSLocalizedString("library.action.requires", comment: ""),
+                row.entry.minimumAppVersion))
             primaryButton.isEnabled = false
+            applyStyle(.secondary)
+        } else if evaluation.installState == .installed && !evaluation.updateAvailable {
+            setButtonTitle(NSLocalizedString("library.action.open", comment: ""))
+            primaryButton.isEnabled = true
+            applyStyle(.secondary)
+        } else if evaluation.installState == .unmanagedLocal {
+            setButtonTitle(NSLocalizedString("library.action.replace", comment: ""))
+            primaryButton.isEnabled = !service.isInstalling && !readOnly
+            applyStyle(readOnly ? .secondary : .primary)
+        } else if evaluation.installState == .notInstalled {
+            setButtonTitle(NSLocalizedString("library.action.get", comment: ""))
+            primaryButton.isEnabled = !service.isInstalling && !readOnly
+            applyStyle(readOnly ? .secondary : .primary)
+        } else {
+            setButtonTitle(NSLocalizedString(
+                evaluation.isRepair ? "library.action.repair" : "library.action.update",
+                comment: ""))
+            primaryButton.isEnabled = !service.isInstalling && !readOnly
+            applyStyle(readOnly ? .secondary : .primary)
         }
 
         toolTip = "\(row.localizedName) · \(service.categoryName(for: row.entry.category)) · v\(row.entry.version)"
@@ -174,16 +184,12 @@ final class TemplateLibraryCardView: NSView {
             .joined(separator: " · ")
     }
 
-    private func stylePrimary() {
-        primaryButton.bezelColor = Self.actionBlue
-        primaryButton.contentTintColor = .white
-        primaryButton.attributedTitle = NSAttributedString(
-            string: primaryButton.title,
-            attributes: [
-                .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-                .foregroundColor: NSColor.white,
-            ]
-        )
+    private func setButtonTitle(_ title: String) {
+        configureConsoleButton(primaryButton, title: title, symbol: nil, style: .secondary)
+    }
+
+    private func applyStyle(_ style: ConsoleButtonStyle) {
+        configureConsoleButton(primaryButton, title: primaryButton.title, symbol: nil, style: style)
     }
 
     // MARK: - Actions

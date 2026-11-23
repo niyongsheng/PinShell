@@ -74,7 +74,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
     // MARK: - 装配
 
     private func buildWindow() {
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 560),
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 940, height: 620),
                            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                            backing: .buffered, defer: false)
         win.title = NSLocalizedString("console.title", comment: "")
@@ -140,6 +140,9 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         }
         detail.onDelete = { [weak self] item in
             self?.confirmDelete(item)
+        }
+        detail.onEdit = { [weak self] item in
+            self?.edit(item)
         }
     }
 
@@ -214,10 +217,11 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         templatesWatcher?.start()
         window.contentView?.layoutSubtreeIfNeeded()
         sidebar.reloadTemplates(selecting: windowController.currentURL)
+        sidebar.updateAppliedTemplate(windowController.currentURL)
         syncDetailToSidebar()
         lastStatusFile = windowController.status()["file"]?.stringValue
         if !hasShown {
-            window.setContentSize(NSSize(width: 900, height: 560))
+            window.setContentSize(NSSize(width: 940, height: 620))
             window.center()
             hasShown = true
         } else if !NSScreen.screens.contains(where: { $0.visibleFrame.intersects(window.frame) }) {
@@ -248,6 +252,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
             sidebar.reloadTemplates(selecting: windowController.currentURL)
             syncDetailToSidebar()
         }
+        sidebar.updateAppliedTemplate(windowController.currentURL)
 
         detail.refreshStatus(status)
 
@@ -265,6 +270,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
 
     private func apply(_ item: TemplateItem) {
         windowController.loadHTML(item.url)
+        sidebar.updateAppliedTemplate(item.url)
         refreshStatus()
     }
 
@@ -352,6 +358,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
             try TemplateStore.deleteTemplate(at: item.url)
             if isCurrent { windowController.clearHTML() }
             sidebar.reloadTemplates(selecting: nil)
+            sidebar.updateAppliedTemplate(windowController.currentURL)
             syncDetailToSidebar()
             templatesRefreshWork?.cancel()   // 已直接刷新，跳过通知触发的重复刷新
             refreshStatus()
@@ -371,15 +378,6 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
 
     @objc private func revealTemplatesFolder() {
         NSWorkspace.shared.open(TemplateStore.userTemplatesDirectory())
-    }
-
-    /// 工具栏文件夹图标：定位并选中当前模板的 HTML 文件；未选模板时退回模板目录。
-    @objc private func revealSelected() {
-        if let item = detail.currentTemplate {
-            NSWorkspace.shared.activateFileViewerSelecting([item.url])
-        } else {
-            NSWorkspace.shared.open(TemplateStore.userTemplatesDirectory())
-        }
     }
 
     @objc private func toggleOverlayVisibility() {
@@ -402,8 +400,6 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
     private enum ToolbarID {
         static let showHide = NSToolbarItem.Identifier("PinShell.Console.ShowHide")
         static let reload = NSToolbarItem.Identifier("PinShell.Console.Reload")
-        static let edit = NSToolbarItem.Identifier("PinShell.Console.Edit")
-        static let folder = NSToolbarItem.Identifier("PinShell.Console.Folder")
         static let templates = NSToolbarItem.Identifier("PinShell.Console.Templates")
     }
 
@@ -413,7 +409,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [.toggleSidebar, .flexibleSpace, ToolbarID.showHide, ToolbarID.reload,
-         ToolbarID.edit, ToolbarID.folder, ToolbarID.templates]
+         ToolbarID.templates]
     }
 
     func toolbar(_ toolbar: NSToolbar,
@@ -435,12 +431,6 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
             ToolbarID.reload: Spec(titleKey: "console.toolbar.reload",
                                    symbol: "arrow.clockwise",
                                    action: #selector(reloadCurrent)),
-            ToolbarID.edit: Spec(titleKey: "console.toolbar.edit",
-                                 symbol: "slider.horizontal.3",
-                                 action: #selector(editSelected)),
-            ToolbarID.folder: Spec(titleKey: "console.toolbar.folder",
-                                   symbol: "folder",
-                                   action: #selector(revealSelected)),
         ]
         guard let spec = specs[itemIdentifier] else { return nil }
 
@@ -483,12 +473,5 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
 
         item.menu = menu
         return item
-    }
-
-    func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
-        if item.itemIdentifier == ToolbarID.edit {
-            return detail.currentTemplate != nil
-        }
-        return true
     }
 }

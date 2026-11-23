@@ -2,53 +2,104 @@ import AppKit
 import WebKit
 import PinShellCore
 
-/// 控制台右侧详情：模板预览/应用/编辑，或 MCP 服务说明。
+/// 控制台右侧详情：模板预览/应用/编辑，或 MCP / 模板库 / 关于页。
 @MainActor
 final class ConsoleDetailViewController: NSViewController {
     var onApply: ((TemplateItem) -> Void)?
     var onDelete: ((TemplateItem) -> Void)?
+    var onEdit: ((TemplateItem) -> Void)?
     var onOpenLibrary: (() -> Void)?
     var onOpenInstalled: ((String) -> Void)?
 
     private(set) var currentTemplate: TemplateItem?
 
+    // 全局状态条
     private let fileLabel = NSTextField(labelWithString: "—")
     private let frameChip = StatusChip()
     private let visibleChip = StatusChip()
     private let passthroughChip = StatusChip()
     private let watchChip = StatusChip()
+    private var displayedFile: String?
 
     private let contentContainer = NSView()
-    private let templatePage = NSView()
+    private let templatePage = ConsoleScrollPage(horizontalInset: ConsoleTheme.Space.pageInset,
+                                                 spacing: ConsoleTheme.Space.md)
     private let emptyPage = NSView()
     /// MCP 页在首次打开时才构建，避免打开控制台就创建整套卡片。
     private var mcpView: ConsoleMCPView?
     private var libraryView: ConsoleLibraryView?
     private let aboutView = ConsoleAboutView()
 
+    // 模板详情
+    private let previewCard = ConsoleCard(
+        cornerRadius: 18,
+        inset: NSEdgeInsets(top: ConsoleTheme.Space.previewCardInset,
+                            left: ConsoleTheme.Space.previewCardInset,
+                            bottom: ConsoleTheme.Space.previewCardInset,
+                            right: ConsoleTheme.Space.previewCardInset)
+    )
+    private let previewStage = ConsoleStageView()
     private let previewWebView = WKWebView(frame: .zero)
-    private let previewCard = GlassCard(cornerRadius: 22)
+    /// 承载 WebView 的窗口框：负责整窗圆角裁剪，避免直接给 WKWebView 图层加 mask。
+    private let previewWindowView = NSView()
+    /// 窗口在舞台上的投影（HTML 的 CSS 阴影被 WebView 裁掉，这里补一层原生阴影）。
+    private let previewShadowView = PreviewShadowView()
     private var previewHeightConstraint: NSLayoutConstraint?
-    private let titleLabel = NSTextField(labelWithString: "—")
+    /// 当前预览模板的窗口圆角（与 OverlayWindowController 的整窗裁剪保持一致）。
+    private var previewRadius: CGFloat = 0
+
+    /// 预览窗口与舞台内容边缘之间留给阴影的空隙。
+    private static let previewShadowMargin: CGFloat = 8
+
+    private let titleLabel = NSTextField(labelWithAttributedString:
+        ConsoleTheme.Font.tracked("—",
+                                  font: .systemFont(ofSize: 26, weight: .semibold),
+                                  tracking: -0.4))
     private let subtitleLabel = NSTextField(wrappingLabelWithString: "")
-    private let sizeChip = StatusChip()
-    private let positionChip = StatusChip()
-    private let orderChip = StatusChip()
-    private let applyButton = NSButton(title: NSLocalizedString("console.apply", comment: ""),
-                                       target: nil, action: nil)
-    private let deleteButton = NSButton(title: NSLocalizedString("console.detail.delete", comment: ""),
-                                        target: nil, action: nil)
+    private let showingChip = StatusChip()
 
-    private static let enableBlue = NSColor(srgbRed: 0.16, green: 0.43, blue: 0.85, alpha: 1)
-    private static let deleteRed = NSColor(srgbRed: 0.85, green: 0.23, blue: 0.22, alpha: 1)
+    private lazy var applyButton = makeConsoleButton(
+        NSLocalizedString("console.apply", comment: ""),
+        symbol: "pin.fill",
+        style: .primary,
+        controlSize: .large,
+        target: self,
+        action: #selector(applyTapped))
 
-    /// SF Symbol 默认跟随系统着色；彩色按钮上需要显式的白色版本。
-    private static func whiteSymbol(_ name: String) -> NSImage? {
-        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .medium)
-            .applying(NSImage.SymbolConfiguration(paletteColors: [.white]))
-        return NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-            .withSymbolConfiguration(config)
-    }
+    private lazy var editButton = makeConsoleButton(
+        NSLocalizedString("console.detail.edit", comment: ""),
+        symbol: "slider.horizontal.3",
+        style: .secondary,
+        controlSize: .large,
+        target: self,
+        action: #selector(editTapped))
+
+    private lazy var moreButton = makeIconButton(
+        symbol: "ellipsis.circle",
+        accessibilityLabel: NSLocalizedString("console.detail.more", comment: ""),
+        target: self,
+        action: #selector(moreTapped))
+
+    private lazy var fileInfoRow = ConsoleInfoRow(
+        label: NSLocalizedString("console.detail.file", comment: ""),
+        value: "—",
+        accessory: makeIconButton(
+            symbol: "folder",
+            accessibilityLabel: NSLocalizedString("console.toolbar.folder", comment: ""),
+            target: self,
+            action: #selector(revealTapped)))
+
+    private lazy var sizeInfoRow = ConsoleInfoRow(
+        label: NSLocalizedString("console.detail.size", comment: ""),
+        value: "—")
+
+    private lazy var positionInfoRow = ConsoleInfoRow(
+        label: NSLocalizedString("console.detail.position", comment: ""),
+        value: "—")
+
+    private lazy var orderInfoRow = ConsoleInfoRow(
+        label: NSLocalizedString("console.detail.order", comment: ""),
+        value: "—")
 
     override func loadView() {
         let root = NSVisualEffectView()
@@ -63,21 +114,23 @@ final class ConsoleDetailViewController: NSViewController {
 
     private func build() {
         let statusBar = buildStatusBar()
-
+        statusBar.translatesAutoresizingMaskIntoConstraints = false
         contentContainer.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(statusBar)
         view.addSubview(contentContainer)
 
-        statusBar.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            statusBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
-            statusBar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 22),
-            statusBar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -22),
+            statusBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            statusBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            statusBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            statusBar.heightAnchor.constraint(equalToConstant: 34),
 
-            contentContainer.topAnchor.constraint(equalTo: statusBar.bottomAnchor, constant: 12),
+            contentContainer.topAnchor.constraint(equalTo: statusBar.bottomAnchor,
+                                                  constant: ConsoleTheme.Space.sm),
             contentContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             contentContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            contentContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10),
+            contentContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor,
+                                                     constant: -ConsoleTheme.Space.sm),
         ])
 
         buildTemplatePage()
@@ -98,9 +151,11 @@ final class ConsoleDetailViewController: NSViewController {
     }
 
     private func buildStatusBar() -> NSView {
+        let container = NSView()
+
         let icon = NSImageView(image: NSImage(systemSymbolName: "macwindow",
                                               accessibilityDescription: nil) ?? NSImage())
-        icon.contentTintColor = .secondaryLabelColor
+        icon.contentTintColor = .tertiaryLabelColor
         icon.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             icon.widthAnchor.constraint(equalToConstant: 14),
@@ -130,145 +185,160 @@ final class ConsoleDetailViewController: NSViewController {
         bar.orientation = .horizontal
         bar.spacing = 8
         bar.alignment = .centerY
-        return bar
+        bar.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(bar)
+
+        let divider = HairlineView()
+        container.addSubview(divider)
+
+        NSLayoutConstraint.activate([
+            bar.leadingAnchor.constraint(equalTo: container.leadingAnchor,
+                                         constant: ConsoleTheme.Space.pageInset),
+            bar.trailingAnchor.constraint(equalTo: container.trailingAnchor,
+                                          constant: -ConsoleTheme.Space.pageInset),
+            bar.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            divider.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            divider.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            divider.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+        return container
     }
 
     private func buildTemplatePage() {
         previewWebView.makeTransparent()
-        previewWebView.autoresizingMask = []
-        previewCard.contentView.addSubview(previewWebView)
-        previewCard.translatesAutoresizingMaskIntoConstraints = false
+        previewStage.translatesAutoresizingMaskIntoConstraints = false
+        previewCard.contentView.addSubview(previewStage)
+        NSLayoutConstraint.activate([
+            previewStage.leadingAnchor.constraint(equalTo: previewCard.contentView.leadingAnchor),
+            previewStage.trailingAnchor.constraint(equalTo: previewCard.contentView.trailingAnchor),
+            previewStage.topAnchor.constraint(equalTo: previewCard.contentView.topAnchor),
+            previewStage.bottomAnchor.constraint(equalTo: previewCard.contentView.bottomAnchor),
+        ])
+        previewStage.contentView.addSubview(previewShadowView)
 
-        // 高度跟随模板声明高度，空间不足时（优先级 750）可被压缩，
-        // 保证下方标题与操作按钮始终可见
+        previewWindowView.wantsLayer = true
+        previewWindowView.layer?.cornerCurve = .circular
+        previewStage.contentView.addSubview(previewWindowView)
+        previewWebView.autoresizingMask = [.width, .height]
+        previewWindowView.addSubview(previewWebView)
+
+        // 高度跟随模板声明高度；空间不足时可被压缩，保证标题与操作按钮可见
         let height = previewCard.heightAnchor.constraint(equalToConstant: 236)
         height.priority = .defaultHigh
         height.isActive = true
         previewHeightConstraint = height
 
-        titleLabel.font = .systemFont(ofSize: 22, weight: .semibold)
-        titleLabel.textColor = .labelColor
         titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.maximumNumberOfLines = 1
+        titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         subtitleLabel.font = .systemFont(ofSize: 12.5)
         subtitleLabel.textColor = .secondaryLabelColor
         subtitleLabel.maximumNumberOfLines = 2
         subtitleLabel.lineBreakMode = .byWordWrapping
 
-        let metaRow = NSStackView(views: [sizeChip, positionChip, orderChip, NSView()])
-        metaRow.orientation = .horizontal
-        metaRow.spacing = 6
-        metaRow.alignment = .centerY
-        metaRow.distribution = .fill
+        showingChip.configure(text: NSLocalizedString("console.detail.showing", comment: ""),
+                              symbol: "pin.fill",
+                              style: .positive)
+        showingChip.isHidden = true
 
-        applyButton.target = self
-        applyButton.action = #selector(applyTapped)
-        applyButton.bezelStyle = .rounded
-        applyButton.controlSize = .large
-        applyButton.font = .systemFont(ofSize: 12.5, weight: .semibold)
-        applyButton.bezelColor = Self.enableBlue
-        applyButton.contentTintColor = .white
-        applyButton.image = Self.whiteSymbol("pin.fill")
-        applyButton.imagePosition = .imageLeading
-        applyButton.attributedTitle = NSAttributedString(
-            string: applyButton.title,
-            attributes: [
-                .font: NSFont.systemFont(ofSize: 12.5, weight: .semibold),
-                .foregroundColor: NSColor.white,
-            ]
-        )
+        let headerSpacer = NSView()
+        headerSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let headerRow = NSStackView(views: [titleLabel, showingChip, headerSpacer])
+        headerRow.orientation = .horizontal
+        headerRow.spacing = 10
+        headerRow.alignment = .centerY
+
         applyButton.keyEquivalent = "\r"
 
-        deleteButton.target = self
-        deleteButton.action = #selector(deleteTapped)
-        deleteButton.bezelStyle = .rounded
-        deleteButton.controlSize = .large
-        deleteButton.font = .systemFont(ofSize: 12.5)
-        deleteButton.bezelColor = Self.deleteRed
-        deleteButton.contentTintColor = .white
-        deleteButton.image = Self.whiteSymbol("trash")
-        deleteButton.imagePosition = .imageLeading
-        deleteButton.attributedTitle = NSAttributedString(
-            string: deleteButton.title,
-            attributes: [
-                .font: NSFont.systemFont(ofSize: 12.5, weight: .medium),
-                .foregroundColor: NSColor.white,
-            ]
-        )
-
-        let actions = NSStackView(views: [applyButton, deleteButton, NSView()])
+        let actionSpacer = NSView()
+        actionSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let actions = NSStackView(views: [applyButton, editButton, actionSpacer, moreButton])
         actions.orientation = .horizontal
-        actions.spacing = 8
+        actions.spacing = ConsoleTheme.Space.xs
         actions.alignment = .centerY
 
-        let stack = NSStackView(views: [previewCard, titleLabel, subtitleLabel, metaRow, actions])
+        let infoCard = buildInfoCard()
+
+        let stack = templatePage.stack
+        for view in [previewCard, headerRow, subtitleLabel, actions, infoCard] {
+            stack.addArrangedSubview(view)
+            view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
+        stack.setCustomSpacing(14, after: previewCard)
+        stack.setCustomSpacing(6, after: headerRow)
+        stack.setCustomSpacing(14, after: subtitleLabel)
+        stack.setCustomSpacing(18, after: actions)
+    }
+
+    private func buildInfoCard() -> NSView {
+        let card = ConsoleCard(
+            inset: NSEdgeInsets(top: ConsoleTheme.Space.md,
+                                left: ConsoleTheme.Space.md,
+                                bottom: ConsoleTheme.Space.md,
+                                right: ConsoleTheme.Space.md)
+        )
+        let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 12
+        stack.spacing = 0
         stack.translatesAutoresizingMaskIntoConstraints = false
-        templatePage.addSubview(stack)
+
+        let title = makeSectionLabel(NSLocalizedString("console.detail.info", comment: ""),
+                                     symbol: "info.circle")
+        stack.addArrangedSubview(title)
+        stack.setCustomSpacing(ConsoleTheme.Space.sm, after: title)
+
+        let rows: [NSView] = [fileInfoRow, sizeInfoRow, positionInfoRow, orderInfoRow]
+        for (index, row) in rows.enumerated() {
+            stack.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+            if index < rows.count - 1 {
+                let divider = HairlineView()
+                stack.addArrangedSubview(divider)
+                divider.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+            }
+        }
+
+        card.contentView.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: templatePage.leadingAnchor, constant: 22),
-            stack.trailingAnchor.constraint(equalTo: templatePage.trailingAnchor, constant: -22),
-            stack.topAnchor.constraint(equalTo: templatePage.topAnchor, constant: 4),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: templatePage.bottomAnchor, constant: -8),
-            previewCard.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            titleLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            subtitleLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            metaRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            actions.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            stack.leadingAnchor.constraint(equalTo: card.contentView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: card.contentView.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: card.contentView.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: card.contentView.bottomAnchor),
         ])
+        return card
     }
 
     private func buildEmptyPage() {
-        let icon = NSImageView(image: NSImage(systemSymbolName: "rectangle.on.rectangle.slash",
-                                              accessibilityDescription: nil) ?? NSImage())
-        icon.contentTintColor = .tertiaryLabelColor
-        icon.translatesAutoresizingMaskIntoConstraints = false
+        let browse = makeConsoleButton(
+            NSLocalizedString("console.empty.browseLibrary", comment: ""),
+            symbol: "square.grid.2x2",
+            style: .primary,
+            controlSize: .large,
+            target: self,
+            action: #selector(browseLibraryTapped))
+
+        let openFolder = makeConsoleButton(
+            NSLocalizedString("console.empty.openFolder", comment: ""),
+            symbol: "folder",
+            style: .secondary,
+            controlSize: .large,
+            target: self,
+            action: #selector(openTemplatesFolder))
+
+        let empty = EmptyStateView(
+            symbol: "rectangle.on.rectangle.slash",
+            title: NSLocalizedString("console.empty.title", comment: ""),
+            message: NSLocalizedString("console.empty.subtitle", comment: ""),
+            actions: [browse, openFolder])
+        empty.translatesAutoresizingMaskIntoConstraints = false
+        emptyPage.addSubview(empty)
         NSLayoutConstraint.activate([
-            icon.widthAnchor.constraint(equalToConstant: 38),
-            icon.heightAnchor.constraint(equalToConstant: 38),
-        ])
-
-        let title = NSTextField(labelWithString: NSLocalizedString("console.empty.title", comment: ""))
-        title.font = .systemFont(ofSize: 15, weight: .semibold)
-
-        let subtitle = NSTextField(wrappingLabelWithString:
-            NSLocalizedString("console.empty.subtitle", comment: ""))
-        subtitle.font = .systemFont(ofSize: 11.5)
-        subtitle.textColor = .secondaryLabelColor
-        subtitle.alignment = .center
-        subtitle.widthAnchor.constraint(lessThanOrEqualToConstant: 340).isActive = true
-
-        let browse = NSButton(title: NSLocalizedString("console.empty.browseLibrary", comment: ""),
-                              target: self, action: #selector(browseLibraryTapped))
-        browse.bezelStyle = .rounded
-        browse.controlSize = .large
-        browse.font = .systemFont(ofSize: 12.5, weight: .medium)
-        browse.image = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: nil)
-        browse.imagePosition = .imageLeading
-        browse.bezelColor = NSColor(srgbRed: 0.16, green: 0.43, blue: 0.85, alpha: 1)
-        browse.contentTintColor = .white
-
-        let openFolder = NSButton(title: NSLocalizedString("console.empty.openFolder", comment: ""),
-                                  target: self, action: #selector(openTemplatesFolder))
-        openFolder.bezelStyle = .rounded
-        openFolder.controlSize = .large
-        openFolder.font = .systemFont(ofSize: 12.5, weight: .medium)
-        openFolder.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
-        openFolder.imagePosition = .imageLeading
-
-        let stack = NSStackView(views: [icon, title, subtitle, browse, openFolder])
-        stack.orientation = .vertical
-        stack.alignment = .centerX
-        stack.spacing = 10
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        emptyPage.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.centerXAnchor.constraint(equalTo: emptyPage.centerXAnchor),
-            stack.centerYAnchor.constraint(equalTo: emptyPage.centerYAnchor, constant: -20),
-            stack.leadingAnchor.constraint(greaterThanOrEqualTo: emptyPage.leadingAnchor, constant: 32),
-            stack.trailingAnchor.constraint(lessThanOrEqualTo: emptyPage.trailingAnchor, constant: -32),
+            empty.leadingAnchor.constraint(equalTo: emptyPage.leadingAnchor),
+            empty.trailingAnchor.constraint(equalTo: emptyPage.trailingAnchor),
+            empty.topAnchor.constraint(equalTo: emptyPage.topAnchor),
+            empty.bottomAnchor.constraint(equalTo: emptyPage.bottomAnchor),
         ])
     }
 
@@ -331,25 +401,32 @@ final class ConsoleDetailViewController: NSViewController {
         currentTemplate = item
         show(.template)
 
-        titleLabel.stringValue = item.name
+        titleLabel.attributedStringValue = ConsoleTheme.Font.tracked(
+            item.name,
+            font: .systemFont(ofSize: 26, weight: .semibold),
+            tracking: -0.4)
         subtitleLabel.stringValue = item.description
-        sizeChip.update(text: "\(NumberFormat.text(item.size.width))×\(NumberFormat.text(item.size.height))",
-                        active: true, activeColor: .controlAccentColor, symbol: "aspectratio")
-        positionChip.update(text: positionText(item.spec.position),
-                            active: true, activeColor: .controlAccentColor,
-                            symbol: "rectangle.inset.filled")
-        if item.order == Int.max {
-            orderChip.isHidden = true
-        } else {
-            orderChip.isHidden = false
-            orderChip.update(text: "#\(item.order)", active: true,
-                             activeColor: .controlAccentColor, symbol: "number")
-        }
+        subtitleLabel.isHidden = item.description.isEmpty
 
-        // 卡片上下各有 16pt 内边距：让 HTML 以其声明高度 1:1 展示
-        previewHeightConstraint?.constant = max(96, item.size.height + 32)
-        previewWebView.layer?.setAffineTransform(.identity)
+        fileInfoRow.configure(value: item.file)
+        sizeInfoRow.configure(value: "\(NumberFormat.text(item.size.width))×"
+                                    + "\(NumberFormat.text(item.size.height))")
+        positionInfoRow.configure(value: positionText(item.spec.position))
+        orderInfoRow.configure(value: item.order == Int.max ? "—" : "#\(item.order)")
+
+        // 卡片与舞台各有内边距：让 HTML 以其声明高度 1:1 展示；
+        // 过高的模板在可视区内缩放，避免把标题和操作挤出首屏。
+        let chrome = 2 * (ConsoleTheme.Space.previewCardInset + ConsoleTheme.Space.stageInset)
+        let natural = item.size.height + CGFloat(chrome)
+        previewHeightConstraint?.constant = min(max(120, natural), 300)
+        // 整窗圆角与悬浮窗保持一致。HTML 的窗口阴影会被 WebView 边界裁断，
+        // 只在四角留下一圈灰边；按窗口圆角裁剪后才是悬浮窗真实的边缘。
+        let radius = CGFloat(max(item.spec.radius ?? 0, 0))
+        previewRadius = radius
+        previewWindowView.layer?.masksToBounds = radius > 0
+        previewShadowView.isHidden = radius <= 0
         previewWebView.loadLocalHTMLFile(item.url)
+        updateShowingState()
         view.layoutSubtreeIfNeeded()
         layoutPreview()
     }
@@ -383,44 +460,58 @@ final class ConsoleDetailViewController: NSViewController {
 
     func refreshStatus(_ status: JSONValue) {
         let path = status["file"]?.stringValue
-        fileLabel.stringValue = path.map { ($0 as NSString).lastPathComponent }
-            ?? NSLocalizedString("console.noFile", comment: "")
+        displayedFile = path.map { ($0 as NSString).lastPathComponent }
+        fileLabel.stringValue = displayedFile ?? NSLocalizedString("console.noFile", comment: "")
         fileLabel.toolTip = path
 
         if let frame = status["frame"],
            let width = frame["width"]?.doubleValue,
            let height = frame["height"]?.doubleValue {
             frameChip.isHidden = false
-            frameChip.update(text: "\(NSLocalizedString("console.chip.frame", comment: "")) "
-                                  + "\(NumberFormat.text(width))×\(NumberFormat.text(height))",
-                             active: false, symbol: "aspectratio")
-            frameChip.toolTip = NSLocalizedString("console.chip.frameTooltip", comment: "")
+            frameChip.configure(
+                text: "\(NSLocalizedString("console.chip.frame", comment: "")) "
+                    + "\(NumberFormat.text(width))×\(NumberFormat.text(height))",
+                symbol: "aspectratio",
+                style: .neutral,
+                toolTip: NSLocalizedString("console.chip.frameTooltip", comment: ""))
         } else {
             frameChip.isHidden = true
         }
 
         let visible = status["visible"]?.boolValue ?? false
-        visibleChip.update(text: visible
-            ? NSLocalizedString("console.chip.visible", comment: "")
-            : NSLocalizedString("console.chip.hidden", comment: ""),
-                           active: visible,
-                           symbol: visible ? "eye.fill" : "eye.slash")
+        visibleChip.configure(
+            text: visible
+                ? NSLocalizedString("console.chip.visible", comment: "")
+                : NSLocalizedString("console.chip.hidden", comment: ""),
+            symbol: visible ? "eye.fill" : "eye.slash",
+            style: visible ? .positive : .neutral)
 
         // 用当前模式而不是功能名做标签：关闭穿透时显示「交互」，避免灰色「穿透」
         // 被误读成功能不可用（与状态栏菜单的「窗口状态：交互 / 穿透」保持一致）。
         let passthrough = status["passthrough"]?.boolValue ?? false
-        passthroughChip.update(text: NSLocalizedString(
-                                   passthrough ? "console.chip.passthrough" : "console.chip.interactive",
-                                   comment: ""),
-                               active: true,
-                               activeColor: passthrough ? .systemOrange : .systemGreen,
-                               symbol: passthrough ? "hand.tap" : "cursorarrow")
+        passthroughChip.configure(
+            text: NSLocalizedString(
+                passthrough ? "console.chip.passthrough" : "console.chip.interactive",
+                comment: ""),
+            symbol: passthrough ? "hand.tap" : "cursorarrow",
+            style: passthrough ? .warning : .positive)
 
         let watching = status["watching"]?.boolValue ?? false
         watchChip.isHidden = !watching
-        watchChip.update(text: NSLocalizedString("console.chip.watching", comment: ""),
-                         active: watching, activeColor: .systemBlue,
-                         symbol: "arrow.triangle.2.circlepath")
+        watchChip.configure(
+            text: NSLocalizedString("console.chip.watching", comment: ""),
+            symbol: "arrow.triangle.2.circlepath",
+            style: .accent)
+
+        updateShowingState()
+    }
+
+    private func updateShowingState() {
+        guard let item = currentTemplate, let file = displayedFile else {
+            showingChip.isHidden = true
+            return
+        }
+        showingChip.isHidden = item.url.lastPathComponent != file
     }
 
     override func viewDidLayout() {
@@ -429,18 +520,31 @@ final class ConsoleDetailViewController: NSViewController {
     }
 
     private func layoutPreview() {
-        let box = previewCard.contentView.bounds.size
+        let box = previewStage.contentView.bounds.size
         guard let item = currentTemplate, box.width > 1, box.height > 1 else { return }
         let size = item.frameSize
-        let scale = min(min(1, box.width / max(size.width, 1)),
-                        box.height / max(size.height, 1))
+        // 留出阴影的绘制空隙，避免被舞台的圆角遮罩裁掉。
+        let margin = previewRadius > 0 ? Self.previewShadowMargin : 0
+        let available = NSSize(width: max(box.width - 2 * margin, 1),
+                               height: max(box.height - 2 * margin, 1))
+        let scale = min(min(1, available.width / max(size.width, 1)),
+                        available.height / max(size.height, 1))
 
-        previewWebView.layer?.setAffineTransform(.identity)
-        previewWebView.frame = NSRect(x: (box.width - size.width) / 2,
-                                      y: (box.height - size.height) / 2,
-                                      width: size.width,
-                                      height: size.height)
-        previewWebView.layer?.setAffineTransform(CGAffineTransform(scaleX: scale, y: scale))
+        // 用 pageZoom 而不是图层 transform：WKWebView 只绘制 visibleRect 内的内容，
+        // 图层缩放会把未绘制（负坐标）的部分一起裁掉，预览只剩窗口上半截。
+        let scaled = NSSize(width: size.width * scale, height: size.height * scale)
+        let frame = NSRect(x: (box.width - scaled.width) / 2,
+                           y: (box.height - scaled.height) / 2,
+                           width: scaled.width,
+                           height: scaled.height)
+        previewWindowView.frame = frame
+        previewWebView.frame = previewWindowView.bounds
+        previewWebView.pageZoom = scale
+        let corner = previewRadius * scale
+        previewWindowView.layer?.cornerRadius = corner
+        previewShadowView.frame = frame.insetBy(dx: -PreviewShadowView.bleed,
+                                                dy: -PreviewShadowView.bleed)
+        previewShadowView.cornerRadius = corner
     }
 
     // MARK: - 动作
@@ -450,9 +554,41 @@ final class ConsoleDetailViewController: NSViewController {
         onApply?(item)
     }
 
+    @objc private func editTapped() {
+        guard let item = currentTemplate else { return }
+        onEdit?(item)
+    }
+
     @objc private func deleteTapped() {
         guard let item = currentTemplate else { return }
         onDelete?(item)
+    }
+
+    @objc private func revealTapped() {
+        guard let item = currentTemplate else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([item.url])
+    }
+
+    @objc private func moreTapped() {
+        let menu = NSMenu()
+
+        let reveal = NSMenuItem(title: NSLocalizedString("console.toolbar.folder", comment: ""),
+                                action: #selector(revealTapped), keyEquivalent: "")
+        reveal.target = self
+        reveal.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
+        menu.addItem(reveal)
+
+        menu.addItem(.separator())
+
+        let delete = NSMenuItem(title: NSLocalizedString("console.detail.delete", comment: ""),
+                                action: #selector(deleteTapped), keyEquivalent: "")
+        delete.target = self
+        delete.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
+        menu.addItem(delete)
+
+        menu.popUp(positioning: nil,
+                   at: NSPoint(x: 0, y: moreButton.bounds.height + 4),
+                   in: moreButton)
     }
 
     @objc private func browseLibraryTapped() {
@@ -467,5 +603,46 @@ final class ConsoleDetailViewController: NSViewController {
 
     private func positionText(_ position: WindowPosition?) -> String {
         position?.displayName ?? NSLocalizedString("console.position.auto", comment: "")
+    }
+}
+
+// MARK: - 预览投影
+
+/// 只绘制窗口外侧的柔和投影。
+///
+/// 直接用 CALayer.shadow 会被 AppKit 重置（且父图层裁剪会截断光晕），
+/// 这里用 NSShadow 在窗口形状外侧画一层，用 even-odd 裁掉内部避免透色。
+private final class PreviewShadowView: NSView {
+    /// 四周预留的绘制空间（大于模糊半径 + 偏移，保证光晕不出界）。
+    static let bleed: CGFloat = 16
+
+    var cornerRadius: CGFloat = 0 {
+        didSet { needsDisplay = true }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard cornerRadius > 0, let context = NSGraphicsContext.current else { return }
+        let shapeRect = bounds.insetBy(dx: Self.bleed, dy: Self.bleed)
+        guard shapeRect.width > 2, shapeRect.height > 2 else { return }
+        let shape = NSBezierPath(roundedRect: shapeRect,
+                                 xRadius: cornerRadius,
+                                 yRadius: cornerRadius)
+
+        let outside = NSBezierPath(rect: bounds)
+        outside.append(shape)
+        outside.windingRule = .evenOdd
+
+        context.saveGraphicsState()
+        outside.addClip()
+
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.26)
+        shadow.shadowBlurRadius = 10
+        shadow.shadowOffset = NSSize(width: 0, height: -2)
+        shadow.set()
+
+        NSColor.black.setFill()
+        shape.fill()
+        context.restoreGraphicsState()
     }
 }

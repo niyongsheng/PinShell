@@ -42,7 +42,7 @@
 
 /* 控制台 */
 "console.title" = "PinShell 控制台";
-"console.search" = "搜索内容";
+"console.search" = "搜索模板";
 "console.noFile" = "未加载文件";
 "console.chip.frame" = "窗口";
 "console.chip.frameTooltip" = "当前悬浮窗实际尺寸";
@@ -72,20 +72,27 @@
 "console.mcp.copy" = "复制路径";
 
 /* 控制台 · 新布局 */
-"console.sidebar.templates" = "模板";
+"console.sidebar.templates" = "本地";
 "console.sidebar.online" = "在线";
-"console.sidebar.library" = "在线模板库";
-"console.sidebar.librarySubtitle" = "浏览、安装与更新";
+"console.sidebar.library" = "模板库";
 "console.sidebar.services" = "服务";
 "console.sidebar.apply" = "启用";
 "console.sidebar.edit" = "编辑";
 "console.sidebar.delete" = "删除";
+"console.sidebar.noResults" = "没有匹配的模板";
 "console.detail.delete" = "删除";
+"console.detail.edit" = "编辑";
+"console.detail.more" = "更多操作";
+"console.detail.showing" = "正在显示";
+"console.detail.info" = "模板信息";
+"console.detail.file" = "文件";
+"console.detail.size" = "尺寸";
+"console.detail.position" = "位置";
+"console.detail.order" = "排序";
 "console.position.auto" = "自动";
 "console.toolbar.show" = "显示悬浮窗";
 "console.toolbar.hide" = "隐藏悬浮窗";
 "console.toolbar.reload" = "重载 HTML";
-"console.toolbar.edit" = "编辑模板";
 "console.toolbar.folder" = "在 Finder 中显示";
 "console.toolbar.templates" = "模板操作";
 "console.toolbar.onlineLibrary" = "在线模板库…";
@@ -137,7 +144,6 @@
 
 /* 控制台 · 关于 */
 "console.about.title" = "关于";
-"console.about.navSubtitle" = "版本信息";
 "console.about.subtitle" = "予 AI 一扇明窗，以代码为笺，于屏隅之间，晤谈、呈示、回响。";
 "console.about.version" = "版本 %@";
 "console.about.afdian" = "爱发电";
