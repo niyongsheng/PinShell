@@ -9,6 +9,10 @@
 
 **A real-time desktop window built for AI.** PinShell gives agents an always-on-top HTML interface on the user's screen for real-time communication, presentation, questions, and responses. The interface is built with HTML/CSS/JS; PinShell itself is only a lightweight native shell (NSPanel + WKWebView).
 
+Website & template library: **https://pinshell.looplooptech.com/**
+
+[![爱发电](https://img.shields.io/badge/爱发电-Afdian-946ce6?style=for-the-badge&logo=github&logoColor=white)](https://ifdian.net/a/nico2026)
+
 https://github.com/user-attachments/assets/61bfb0b1-b815-4895-a0f8-fcaf64ad3d0c
 
 ## Features
@@ -16,7 +20,7 @@ https://github.com/user-attachments/assets/61bfb0b1-b815-4895-a0f8-fcaf64ad3d0c
 - Always-on-top HTML overlay across Spaces, with click-through, opacity, radius, and hot reload.
 - MCP server and CLI share one control socket; pages can push events back to the agent.
 - Control console (⌘K): templates, live preview, template editor, MCP info, About.
-- Ten starter templates: badges, goals, todo, system monitor, desktop pet, pomodoro, decision maker, vinyl radio, gomoku, stock board.
+- Online template library: ten first-party templates (badges, goals, todo, system monitor, desktop pet, pomodoro, decision maker, vinyl radio, gomoku, stock board) with per-template versions, checksums, and install/update/ignore actions in the console. Templates are no longer bundled; install them on first run.
 - Menu-bar only, no Dock icon; update check against GitHub Releases, with in-app installer download (SHA-256 verified) handed off to the system Installer.
 
 ## Install
@@ -39,6 +43,8 @@ make run        # build, assemble, launch
 make install    # install to /Applications and launch
 make pkg        # package build/PinShell.pkg (run make app first)
 make universal  # arm64 + x86_64
+make site       # build the website and template catalog into website/public
+make serve-site # build and preview the site at http://127.0.0.1:8000
 ```
 
 ## Usage
@@ -75,7 +81,7 @@ Tools cover window/content (`pinshell_html`, `pinshell_show`), page interaction 
 
 ### Desktop pet
 
-The bundled `desktop-pet.html` is a two-way example: it keeps itself alive with moods, idle behaviors, petting, and sleep, and an agent can drive it over the event channel.
+Install `desktop-pet.html` from **Console (⌘K) → Online Template Library** first. It is a two-way example: it keeps itself alive with moods, idle behaviors, petting, and sleep, and an agent can drive it over the event channel.
 
 ```bash
 PinShell emit pet:hello '{"name":"Claude"}'
@@ -120,7 +126,7 @@ Window metadata (applied before load, re-applied on show/reload):
 
 Position accepts `top-left`, `top`, `top-right`, `left`, `center`, `right`, `bottom-left`, `bottom`, `bottom-right`, or `x,y`. CLI flags override metadata for the session.
 
-Reuse `Resources/templates/design-tokens.css` for the shared design system.
+Templates live in PinShell's templates folder, where `design-tokens.css` and `pinshell-i18n.js` are seeded by the app. Reuse those shared tokens for the design system.
 
 ## License
 

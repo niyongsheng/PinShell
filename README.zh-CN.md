@@ -9,6 +9,10 @@
 
 **为 AI 打造的实时桌面窗口。** PinShell 在用户屏幕上为 Agent（智能体）提供一个始终置顶的 HTML 界面，用于实时沟通、展示、提问和响应。界面由 HTML/CSS/JS 构建，PinShell 本身只是一层轻量的原生外壳（NSPanel + WKWebView）。
 
+官网与在线模板库：**https://pinshell.looplooptech.com/**
+
+[![爱发电](https://img.shields.io/badge/爱发电-Afdian-946ce6?style=for-the-badge&logo=github&logoColor=white)](https://ifdian.net/a/nico2026)
+
 https://github.com/user-attachments/assets/61bfb0b1-b815-4895-a0f8-fcaf64ad3d0c
 
 ## 功能
@@ -16,7 +20,7 @@ https://github.com/user-attachments/assets/61bfb0b1-b815-4895-a0f8-fcaf64ad3d0c
 - 始终置顶的 HTML 悬浮层，可跨所有「空间」（Spaces）显示；支持鼠标穿透、透明度、圆角和热重载。
 - MCP 服务端与 CLI 共用同一个控制 socket；页面可以把事件推回给 Agent。
 - 控制台（⌘K）：模板、实时预览、模板编辑器、MCP 信息与「关于」。
-- 十套内置模板：轮播徽章、目标进度、待办事项、系统状态、桌面宠物、番茄时钟、小决定、黑胶电台、五子棋、股票看板。
+- 在线模板库：十款第一方模板（轮播徽章、目标进度、待办事项、系统状态、桌面宠物、番茄时钟、小决定、黑胶电台、五子棋、股票看板），带独立版本、校验与忽略更新；模板不再随 App 内置，首次使用请在控制台安装。
 - 仅驻留菜单栏，不显示 Dock 图标；支持从 GitHub Releases 检查更新，应用内下载安装包（SHA-256 校验）并交给系统安装器完成升级。
 
 ## 安装
@@ -39,6 +43,8 @@ make run        # 构建、组装并启动
 make install    # 安装到 /Applications 并启动
 make pkg        # 打包 build/PinShell.pkg（请先执行 make app）
 make universal  # 构建 arm64 + x86_64 通用版本
+make site       # 构建官网与模板库到 website/public
+make serve-site # 构建并在 http://127.0.0.1:8000 预览
 ```
 
 ## 使用
@@ -75,7 +81,7 @@ make universal  # 构建 arm64 + x86_64 通用版本
 
 ### 桌面宠物
 
-内置的 `desktop-pet.html` 是一个双向示例：它自己会换情绪、做小动作、被摸头、打瞌睡，agent 还能通过事件通道遥控它。
+请先从 **控制台（⌘K）→ 在线模板库** 安装 `desktop-pet.html`。它是一个双向示例：自己会换情绪、做小动作、被摸头、打瞌睡，agent 还能通过事件通道遥控它。
 
 ```bash
 PinShell emit pet:hello '{"name":"Claude"}'
@@ -120,7 +126,7 @@ PinShell mcp
 
 `position` 支持 `top-left`、`top`、`top-right`、`left`、`center`、`right`、`bottom-left`、`bottom`、`bottom-right`，或 `x,y`。CLI 参数会在当前会话中覆盖元数据。
 
-可复用 `Resources/templates/design-tokens.css` 中的共享设计系统。
+模板位于 PinShell 的模板文件夹，App 会把 `design-tokens.css` 与 `pinshell-i18n.js` 播种到那里。可复用这些共享设计系统。
 
 ## 许可证
 
