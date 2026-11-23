@@ -41,23 +41,20 @@ final class ConsoleAboutView: NSView {
 
         let afdian = makeLinkButton(
             NSLocalizedString("console.about.afdian", comment: ""),
+            symbol: "heart.fill",
+            tint: NSColor(srgbRed: 0.58, green: 0.42, blue: 0.90, alpha: 1),
             action: #selector(openAfdian))
-        afdian.image = NSImage(systemSymbolName: "heart.fill",
-                               accessibilityDescription: nil)
-        afdian.imagePosition = .imageLeading
-        afdian.contentTintColor = NSColor(srgbRed: 0.58, green: 0.42,
-                                          blue: 0.90, alpha: 1)
 
         let links = NSStackView(views: [
             afdian,
             makeLinkButton(NSLocalizedString("console.about.website", comment: ""),
+                           symbol: "globe",
+                           tint: .controlAccentColor,
                            action: #selector(openWebsite)),
             makeLinkButton(NSLocalizedString("console.about.github", comment: ""),
+                           symbol: "chevron.left.forwardslash.chevron.right",
+                           tint: .labelColor,
                            action: #selector(openRepository)),
-            makeLinkButton(NSLocalizedString("console.about.issues", comment: ""),
-                           action: #selector(openIssues)),
-            makeLinkButton(NSLocalizedString("console.about.releases", comment: ""),
-                           action: #selector(openReleases)),
         ])
         links.orientation = .horizontal
         links.spacing = 8
@@ -92,11 +89,18 @@ final class ConsoleAboutView: NSView {
         ])
     }
 
-    private func makeLinkButton(_ title: String, action: Selector) -> NSButton {
+    private func makeLinkButton(_ title: String,
+                                symbol: String,
+                                tint: NSColor,
+                                action: Selector) -> NSButton {
         let button = NSButton(title: title, target: self, action: action)
         button.bezelStyle = .rounded
         button.controlSize = .small
         button.font = .systemFont(ofSize: 11)
+        button.image = NSImage(systemSymbolName: symbol,
+                               accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(paletteColors: [tint]))
+        button.imagePosition = .imageLeading
         return button
     }
 
@@ -112,14 +116,6 @@ final class ConsoleAboutView: NSView {
 
     @objc private func openRepository() {
         open("https://github.com/\(UpdateChecker.repo)")
-    }
-
-    @objc private func openIssues() {
-        open("https://github.com/\(UpdateChecker.repo)/issues")
-    }
-
-    @objc private func openReleases() {
-        NSWorkspace.shared.open(UpdateChecker.releasesPageURL)
     }
 
     private func open(_ urlString: String) {

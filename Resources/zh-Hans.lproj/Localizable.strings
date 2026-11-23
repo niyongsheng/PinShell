@@ -143,8 +143,6 @@
 "console.about.afdian" = "爱发电";
 "console.about.website" = "官网";
 "console.about.github" = "GitHub";
-"console.about.issues" = "问题反馈";
-"console.about.releases" = "更新日志";
 "console.about.copyright" = "Apache License 2.0 · © 2026 niyongsheng";
 
 /* 控制台 · 模板编辑弹窗 */

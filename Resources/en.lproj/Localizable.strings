@@ -143,8 +143,6 @@
 "console.about.afdian" = "Afdian";
 "console.about.website" = "Website";
 "console.about.github" = "GitHub";
-"console.about.issues" = "Report an Issue";
-"console.about.releases" = "Release Notes";
 "console.about.copyright" = "Apache License 2.0 · © 2026 niyongsheng";
 
 /* 控制台 · 模板编辑弹窗 */
