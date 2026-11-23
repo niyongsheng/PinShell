@@ -221,7 +221,6 @@
 "library.menu.ignore" = "忽略版本 %@";
 "library.menu.unignore" = "取消忽略";
 "library.menu.reveal" = "在 Finder 中显示";
-"library.meta.author" = "作者 %@";
 "library.detail.author" = "作者";
 "library.detail.authorPage" = "作者主页";
 "library.detail.highlights" = "亮点";
