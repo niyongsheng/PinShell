@@ -12,6 +12,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = AppState.registerDefaults   // 默认值注册（穿透透明度等）
+        // 自动化截图时可用 PINSHELL_APPEARANCE=dark 强制深色，不需要改系统外观
+        if ProcessInfo.processInfo.environment["PINSHELL_APPEARANCE"] == "dark" {
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
         SharedTemplateAssets.seedOnce()
         windowController = OverlayWindowController()
         statusItemController = StatusItemController(windowController: windowController)
@@ -38,6 +42,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let url = target { windowController.loadHTML(url) }
         windowController.showWindow()
+
+        // PINSHELL_SHOW_CONSOLE=1：启动后直接打开控制台，方便脚本/自动化截图
+        if ProcessInfo.processInfo.environment["PINSHELL_SHOW_CONSOLE"] == "1" {
+            DispatchQueue.main.async { [weak self] in
+                self?.statusItemController.showConsole()
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

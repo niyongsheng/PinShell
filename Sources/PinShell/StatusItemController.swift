@@ -117,6 +117,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         item.isEnabled = visible || windowController.currentURL != nil
     }
 
+    /// 供 `--console` 启动参数直接打开控制台（也用于自动化截图）。
+    func showConsole() {
+        openConsole(nil)
+    }
+
     @objc private func openConsole(_ sender: Any?) {
         consoleController.show()
     }
@@ -262,7 +267,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: NSLocalizedString("console.error.ok", comment: ""))
         alert.runAppModal()
     }
 }
