@@ -271,7 +271,7 @@ struct MCPToolSet {
         ),
         MCPTool(
             name: "pinshell_templates",
-            description: "List auto-discovered templates with title, subtitle, size and path.",
+            description: "List installed templates with title, subtitle, size and path.",
             properties: [:],
             required: []
         ),
@@ -294,7 +294,7 @@ struct MCPToolSet {
         ),
         MCPTool(
             name: "pinshell_template_delete",
-            description: "Delete a template by file name. Built-in templates are remembered as removed so they are not re-seeded; restore them from the console toolbar.",
+            description: "Delete an installed template by file name. Library templates can be reinstalled from the Online Template Library; local files cannot be restored.",
             properties: [
                 "name": ["type": "string", "description": "Template file name, e.g. todo.html."]
             ],

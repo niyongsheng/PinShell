@@ -96,6 +96,13 @@ final class MCPPromptTests: XCTestCase {
         XCTAssertTrue(rendered.text.contains("pet:reset"))
     }
 
+    func testPetCompanionRequiresOnlineLibraryInstall() throws {
+        let rendered = try MCPPromptCatalog.render(name: "pet-companion", arguments: [:])
+        XCTAssertTrue(rendered.text.contains("Online Template Library"))
+        XCTAssertTrue(rendered.text.contains("desktop-pet.html"))
+        XCTAssertTrue(rendered.text.contains("Do not"))
+    }
+
     func testAuthoringGuideNeedsNoArguments() throws {
         let rendered = try MCPPromptCatalog.render(name: "authoring-guide", arguments: [:])
         XCTAssertTrue(rendered.text.contains("window.pinshell"))

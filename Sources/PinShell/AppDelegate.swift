@@ -1,6 +1,7 @@
 import AppKit
 import Darwin
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItemController: StatusItemController!
     private var windowController: OverlayWindowController!
@@ -11,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = AppState.registerDefaults   // 默认值注册（穿透透明度等）
+        SharedTemplateAssets.seedOnce()
         windowController = OverlayWindowController()
         statusItemController = StatusItemController(windowController: windowController)
 

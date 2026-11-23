@@ -75,7 +75,7 @@ public enum MCPPromptCatalog {
         """
         User interaction:
         - Reply to the user in \(userLanguageName), the operating system language, and switch when the user writes in another language or asks. On-screen copy should follow window.pinshell.templateLanguage, then window.pinshell.languages, then window.pinshell.language (all BCP-47); if unavailable, use the same language as your reply.
-        - Use PinShell proactively when a visual, interactive, or live response is clearer than text (progress, status, choices, confirmations, alerts); show the panel without asking first. Reuse a bundled template when it fits, keep the panel small, dismiss it when done, and never duplicate chat text.
+        - Use PinShell proactively when a visual, interactive, or live response is clearer than text (progress, status, choices, confirmations, alerts); show the panel without asking first. Reuse an installed template when it fits, keep the panel small, dismiss it when done, and never duplicate chat text.
         - Rich media is welcome: inline SVG or https images, CSS/SVG/Canvas animation, emoji, short <audio>/<video> clips, and synthesized sound. Keep it light; make sound brief, quiet, and non-repeating; never block first paint.
         - Accessibility: use real buttons and controls, show a visible keyboard focus state, and honor prefers-reduced-motion for animation and sound-driven flourishes.
         """
@@ -89,9 +89,11 @@ public enum MCPPromptCatalog {
     - pinshell_html writes a complete document into PinShell's agent folder and shows it.
       Only that folder is readable: inline CSS/JS and use data: URLs for assets.
       design-tokens.css and pinshell-i18n.js are NOT available there.
-    - Templates live in PinShell's templates folder, where design-tokens.css and
-      pinshell-i18n.js are bundled next to every template. Use pinshell_template_write and
-      pinshell_template_show for reusable panels, localized copy, and anything worth keeping.
+    - Templates live in PinShell's templates folder. PinShell installs design-tokens.css and
+      pinshell-i18n.js next to templates; the app can also install first-party templates from
+      the Online Template Library. Use pinshell_template_write and pinshell_template_show for
+      reusable panels, localized copy, and anything worth keeping. If pinshell_templates is
+      empty or has no fitting template, use pinshell_html with inline assets instead.
 
     Window metadata (put in <head>):
       <title>Panel title</title>
@@ -164,7 +166,7 @@ public enum MCPPromptCatalog {
     (ui, state, lifecycle, log, or a template namespace such as pet/system/todo).
 
     Delivery rules:
-    - Call pinshell_templates first and reuse a bundled template when it fits;
+    - Call pinshell_templates first and reuse an installed template when it fits;
       pinshell_template_show accepts a file name or title and applies the template's metadata.
     - pinshell_html writes a complete document, shows it, and waits for load by default.
     - pinshell_eval updates the live DOM and returns the JSON result; prefer it over reloading.
@@ -179,18 +181,22 @@ public enum MCPPromptCatalog {
     """
     }
 
-    /// 内置模板与事件协议清单；供需要“先复用再新建”的 prompt 共用。
+    /// 第一方模板与事件协议清单；供需要“先复用再新建”的 prompt 共用。
+    /// 模板不再随 App 内置，必须先由用户在在线模板库安装。
     public static var templateLibraryGuide: String {
     """
-    Bundled templates (list with pinshell_templates; prefer reusing one over new HTML):
+    Library templates (list installed ones with pinshell_templates; prefer reusing one over new HTML):
       badge-carousel, goal-progress (in: bilibili:stats), decision-maker,
       todo (out: todo:changed), system-monitor (in: system:stats),
       desktop-pet (pet:* both ways),
       pomodoro (in: pomodoro:command; out: pomodoro:changed/complete/skip),
       ai-radio, gomoku, stock-board.
-      pinshell_template_show accepts a file name or title and applies the template's metadata.
-      pinshell_template_read returns the HTML, including any AGENT PROTOCOL or data-protocol
-      comment — read it before pushing events.
+      These are commonly available from Console → Online Template Library; the user installs
+      them manually. If pinshell_templates is empty or has no fitting template, build the panel
+      with pinshell_html and inline its assets. Do not try to download or install templates
+      yourself. pinshell_template_show accepts a file name or title and applies the template's
+      metadata. pinshell_template_read returns the HTML, including any AGENT PROTOCOL or
+      data-protocol comment — read it before pushing events.
     """
     }
 
@@ -202,7 +208,7 @@ public enum MCPPromptCatalog {
         progress, status, comparisons, choices, confirmations, alerts — show a compact panel \
         without asking first; prefer buttons + pinshell_await_event over typed questions. \
         Keep panels small, close them when done, and never repeat what chat already says. \
-        Call pinshell_templates first and reuse a bundled template when it fits; read its \
+        Call pinshell_templates first and reuse an installed template when it fits; read its \
         protocol comment before pushing events. pinshell_html renders HTML in an isolated \
         agent folder (inline its assets); pinshell_eval updates the live DOM; pinshell_emit and \
         pinshell_await_event / pinshell_poll_events exchange events (cursor + type/name filters); \
@@ -213,7 +219,7 @@ public enum MCPPromptCatalog {
         window.pinshell: setSize, setPosition, setPassthrough, setOpacity, setRadius, \
         getState, setState, patchState, ready/input/submit/cancel, emit, on, log, and an \
         https-only fetch. \
-        The bundled desktop pet can be driven with pet:* events; use the pet-companion \
+        If the desktop pet is installed, it can be driven with pet:* events; use the pet-companion \
         prompt to connect it to your work. \
         Reply in \(userLanguageName) (the OS language) and write on-screen copy in the app \
         language; panels may use images, animation, sound, and video.
@@ -224,7 +230,7 @@ public enum MCPPromptCatalog {
         MCPPromptDefinition(
             name: "create-panel",
             title: "Create a panel",
-            description: "Author a PinShell overlay panel, reusing a bundled template when it fits, and display it.",
+            description: "Author a PinShell overlay panel, reusing an installed template when it fits, and display it.",
             arguments: [
                 MCPPromptArgument(name: "task",
                                   description: "What the panel should show or do."),
@@ -340,7 +346,7 @@ public enum MCPPromptCatalog {
         \(templateLibraryGuide)
 
         Workflow:
-        1. Call pinshell_templates. If a bundled template already covers the task, call
+        1. Call pinshell_templates. If an installed template already covers the task, call
            pinshell_template_show with its file name and pass size/position only to override the
            hints; do not rewrite it. Otherwise write one complete HTML document.
         2. Call pinshell_html with html and wait: true; pass size/position only when they should
@@ -409,8 +415,8 @@ public enum MCPPromptCatalog {
         - Render meaningful content immediately; do not block first paint on network I/O.
         - Slow or pause polling while the page is hidden (document.hidden) and resume on visibility.
 
-        Workflow: call pinshell_html with the complete document (or pinshell_template_show for a
-        bundled template), then confirm what is visible. For agent-pushed updates, keep the panel
+        Workflow: call pinshell_html with the complete document (or pinshell_template_show for an
+        installed template), then confirm what is visible. For agent-pushed updates, keep the panel
         open and update it as data arrives; close it when the user asks or the task ends.
         """
     }
@@ -424,11 +430,12 @@ public enum MCPPromptCatalog {
         \(task)
 
         Setup:
-        1. Call pinshell_template_show with name "desktop-pet.html" and wait: true.
-           If it is missing, ask the user to restore built-ins from the console toolbar;
-           do not recreate the pet unless asked.
-        2. Announce yourself: pinshell_emit { event: "pet:hello", data: { name: "<your name>" } }.
-        3. Read the template's AGENT PROTOCOL comment with pinshell_template_read when you need the full contract.
+        1. Call pinshell_templates first. If desktop-pet.html is not listed, tell the user to open
+           the console (⌘K) → Online Template Library and install Desktop Pet, then stop. Do not
+           recreate the pet with pinshell_html.
+        2. Call pinshell_template_show with name "desktop-pet.html" and wait: true.
+        3. Announce yourself: pinshell_emit { event: "pet:hello", data: { name: "<your name>" } }.
+        4. Read the template's AGENT PROTOCOL comment with pinshell_template_read when you need the full contract.
 
         Agent → page (pinshell_emit):
         - pet:say { text, mood?, tone?, duration? } — one short line (under ~40 characters); tone: calm|happy|excited|worried|thinking; mood: idle|happy|thinking|working|excited|sleepy|worried|alert.

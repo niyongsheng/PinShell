@@ -22,9 +22,11 @@ if let command = CLICommand.parse(arguments) {
     exit(CLICommand.run(command))
 }
 
-let app = NSApplication.shared
-app.setActivationPolicy(.accessory)   // LSUIElement 冗余但无害；裸二进制开发模式下必需
+MainActor.assumeIsolated {
+    let app = NSApplication.shared
+    app.setActivationPolicy(.accessory)   // LSUIElement 冗余但无害；裸二进制开发模式下必需
 
-let delegate = AppDelegate()
-app.delegate = delegate
-app.run()
+    let delegate = AppDelegate()
+    app.delegate = delegate
+    app.run()
+}

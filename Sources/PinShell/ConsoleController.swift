@@ -3,9 +3,11 @@ import PinShellCore
 
 /// PinShell 控制台：原生侧边栏 + 详情布局。
 /// 模板预览/应用/编辑、MCP 2.0 接入信息；窗口页与事件页已移除。
+@MainActor
 final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
     private let windowController: OverlayWindowController
     private(set) var window: NSWindow!
+    private lazy var libraryService = TemplateLibraryService(windowController: windowController)
 
     private let splitController = NSSplitViewController()
     private let sidebar = ConsoleSidebarViewController()
@@ -28,6 +30,9 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         installObservers()
         installKeyMonitor()
         installTemplatesWatcher()
+        libraryService.onChange = { [weak self] in
+            self?.libraryChanged()
+        }
     }
 
     deinit {
@@ -36,7 +41,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         templatesWatcher?.stop()
     }
 
-    /// 控制台快捷键：⌘1 模板、⌘2 MCP、⌘3 关于、⌘E 编辑当前模板。
+    /// 控制台快捷键：⌘1 模板、⌘2 MCP、⌘3 关于、⌘4 在线模板库、⌘E 编辑当前模板。
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, self.window.isKeyWindow,
@@ -53,6 +58,9 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
                 return nil
             case "3":
                 self.sidebar.selectAbout()
+                return nil
+            case "4":
+                self.sidebar.selectLibrary()
                 return nil
             case "e":
                 self.editSelected()
@@ -101,6 +109,15 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
             self?.detail.showTemplate(item)
             self?.window.toolbar?.validateVisibleItems()
         }
+        sidebar.onSelectLibrary = { [weak self] in
+            self?.showLibrary()
+        }
+        detail.onOpenLibrary = { [weak self] in
+            self?.sidebar.selectLibrary()
+        }
+        detail.onOpenInstalled = { [weak self] file in
+            self?.openInstalledTemplate(file)
+        }
         sidebar.onSelectMCP = { [weak self] in
             self?.detail.showMCP()
             self?.window.toolbar?.validateVisibleItems()
@@ -134,6 +151,13 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
                            name: .pinshellPassthroughChanged, object: nil)
         center.addObserver(self, selector: #selector(templatesChanged(_:)),
                            name: .pinshellTemplatesChanged, object: nil)
+        center.addObserver(self, selector: #selector(templateInstalled(_:)),
+                           name: .pinshellTemplateInstalled, object: nil)
+    }
+
+    @objc private func templateInstalled(_ notification: Notification) {
+        // Installing from the library must not navigate away; keep the user in the library.
+        sidebar.selectLibrary()
     }
 
     private func installTemplatesWatcher() {
@@ -151,6 +175,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
     /// 目录轮询比直接通知晚约 0.6s：刚处理过直接通知时跳过本次重复刷新。
     private func templatesDirectoryChanged() {
         guard Date().timeIntervalSince(lastDirectTemplatesChange) >= 1 else { return }
+        libraryService.revalidateLocalFiles()
         scheduleTemplatesRefresh()
     }
 
@@ -168,7 +193,11 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         guard window.isVisible else { return }
         let templates = sidebar.refreshTemplatesKeepingSelection()
         if templates.isEmpty {
-            detail.showEmpty()
+            syncDetailToSidebar()
+            return
+        }
+        if sidebar.isLibrarySelected {
+            syncDetailToSidebar()
             return
         }
         if let current = detail.currentTemplate,
@@ -185,7 +214,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         templatesWatcher?.start()
         window.contentView?.layoutSubtreeIfNeeded()
         sidebar.reloadTemplates(selecting: windowController.currentURL)
-        if !sidebar.hasTemplates { detail.showEmpty() }
+        syncDetailToSidebar()
         lastStatusFile = windowController.status()["file"]?.stringValue
         if !hasShown {
             window.setContentSize(NSSize(width: 900, height: 560))
@@ -217,6 +246,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         if file != lastStatusFile {
             lastStatusFile = file
             sidebar.reloadTemplates(selecting: windowController.currentURL)
+            syncDetailToSidebar()
         }
 
         detail.refreshStatus(status)
@@ -238,8 +268,40 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         refreshStatus()
     }
 
+    private func showLibrary() {
+        detail.showLibrary(service: libraryService)
+        window.toolbar?.validateVisibleItems()
+    }
+
+    private func libraryChanged() {
+        sidebar.updateLibraryBadge(libraryService.updateCount)
+        detail.refreshLibrary()
+    }
+
+    private func syncDetailToSidebar() {
+        if sidebar.isLibrarySelected {
+            if !detail.isShowingLibrary {
+                detail.showLibrary(service: libraryService)
+            }
+        } else if !sidebar.hasTemplates,
+                  !detail.isShowingLibrary,
+                  !detail.isShowingServicePage {
+            detail.showEmpty()
+        }
+    }
+
+    private func openInstalledTemplate(_ file: String) {
+        guard let item = TemplateStore.load().first(where: { $0.file == file }) else {
+            return
+        }
+        sidebar.reloadTemplates(selecting: item.url)
+        apply(item)
+    }
+
     private func edit(_ item: TemplateItem) {
-        let sheet = TemplateEditorSheetController(item: item)
+        let sheet = TemplateEditorSheetController(
+            item: item,
+            libraryVersion: libraryService.installedVersion(forFile: item.file))
         sheet.onDismiss = { [weak self] in self?.editorSheet = nil }
         sheet.onSave = { [weak self] edit in
             do {
@@ -262,14 +324,14 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         sheet.present(in: window)
     }
 
-    /// 删除前确认：内置模板会说明可恢复，普通模板提示不可撤销。
+    /// 删除前确认：模板库安装的模板说明可重新下载，本地模板提示不可撤销。
     private func confirmDelete(_ item: TemplateItem) {
         let alert = NSAlert()
         alert.messageText = String(format: NSLocalizedString("console.delete.title", comment: ""),
                                    item.name)
-        let isBuiltin = TemplateStore.isBuiltinTemplate(named: item.file)
-        alert.informativeText = isBuiltin
-            ? NSLocalizedString("console.delete.builtinInfo", comment: "")
+        let isLibrary = libraryService.installedVersion(forFile: item.file) != nil
+        alert.informativeText = isLibrary
+            ? NSLocalizedString("console.delete.libraryInfo", comment: "")
             : NSLocalizedString("console.delete.info", comment: "")
         alert.alertStyle = .warning
         let confirm = alert.addButton(withTitle: NSLocalizedString("console.delete.confirm", comment: ""))
@@ -290,7 +352,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
             try TemplateStore.deleteTemplate(at: item.url)
             if isCurrent { windowController.clearHTML() }
             sidebar.reloadTemplates(selecting: nil)
-            if !sidebar.hasTemplates { detail.showEmpty() }
+            syncDetailToSidebar()
             templatesRefreshWork?.cancel()   // 已直接刷新，跳过通知触发的重复刷新
             refreshStatus()
         } catch {
@@ -303,11 +365,8 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         }
     }
 
-    @objc private func restoreBuiltins() {
-        TemplateStore.restoreBuiltins()
-        sidebar.reloadTemplates(selecting: nil)
-        templatesRefreshWork?.cancel()   // 已直接刷新，跳过通知触发的重复刷新
-        refreshStatus()
+    @objc private func openLibraryFromToolbar() {
+        sidebar.selectLibrary()
     }
 
     @objc private func revealTemplatesFolder() {
@@ -399,7 +458,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         return item
     }
 
-    /// 模板操作菜单：恢复被删除的内置模板 / 打开模板目录。
+    /// 模板操作菜单：在线模板库 / 打开模板目录。
     private func makeTemplatesMenuToolbarItem(_ identifier: NSToolbarItem.Identifier) -> NSToolbarItem {
         let item = NSMenuToolbarItem(itemIdentifier: identifier)
         item.label = NSLocalizedString("console.toolbar.templates", comment: "")
@@ -410,11 +469,11 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         item.showsIndicator = true
 
         let menu = NSMenu()
-        let restore = NSMenuItem(title: NSLocalizedString("console.toolbar.restoreBuiltins", comment: ""),
-                                 action: #selector(restoreBuiltins), keyEquivalent: "")
-        restore.target = self
-        restore.image = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: nil)
-        menu.addItem(restore)
+        let library = NSMenuItem(title: NSLocalizedString("console.toolbar.onlineLibrary", comment: ""),
+                                 action: #selector(openLibraryFromToolbar), keyEquivalent: "")
+        library.target = self
+        library.image = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: nil)
+        menu.addItem(library)
 
         let openFolder = NSMenuItem(title: NSLocalizedString("console.toolbar.revealFolder", comment: ""),
                                     action: #selector(revealTemplatesFolder), keyEquivalent: "")

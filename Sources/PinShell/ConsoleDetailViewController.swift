@@ -3,9 +3,12 @@ import WebKit
 import PinShellCore
 
 /// 控制台右侧详情：模板预览/应用/编辑，或 MCP 服务说明。
+@MainActor
 final class ConsoleDetailViewController: NSViewController {
     var onApply: ((TemplateItem) -> Void)?
     var onDelete: ((TemplateItem) -> Void)?
+    var onOpenLibrary: (() -> Void)?
+    var onOpenInstalled: ((String) -> Void)?
 
     private(set) var currentTemplate: TemplateItem?
 
@@ -20,6 +23,7 @@ final class ConsoleDetailViewController: NSViewController {
     private let emptyPage = NSView()
     /// MCP 页在首次打开时才构建，避免打开控制台就创建整套卡片。
     private var mcpView: ConsoleMCPView?
+    private var libraryView: ConsoleLibraryView?
     private let aboutView = ConsoleAboutView()
 
     private let previewWebView = WKWebView(frame: .zero)
@@ -88,7 +92,8 @@ final class ConsoleDetailViewController: NSViewController {
                 page.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
             ])
         }
-        emptyPage.isHidden = true
+        templatePage.isHidden = true
+        emptyPage.isHidden = false
         aboutView.isHidden = true
     }
 
@@ -235,6 +240,16 @@ final class ConsoleDetailViewController: NSViewController {
         subtitle.alignment = .center
         subtitle.widthAnchor.constraint(lessThanOrEqualToConstant: 340).isActive = true
 
+        let browse = NSButton(title: NSLocalizedString("console.empty.browseLibrary", comment: ""),
+                              target: self, action: #selector(browseLibraryTapped))
+        browse.bezelStyle = .rounded
+        browse.controlSize = .large
+        browse.font = .systemFont(ofSize: 12.5, weight: .medium)
+        browse.image = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: nil)
+        browse.imagePosition = .imageLeading
+        browse.bezelColor = NSColor(srgbRed: 0.16, green: 0.43, blue: 0.85, alpha: 1)
+        browse.contentTintColor = .white
+
         let openFolder = NSButton(title: NSLocalizedString("console.empty.openFolder", comment: ""),
                                   target: self, action: #selector(openTemplatesFolder))
         openFolder.bezelStyle = .rounded
@@ -243,7 +258,7 @@ final class ConsoleDetailViewController: NSViewController {
         openFolder.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
         openFolder.imagePosition = .imageLeading
 
-        let stack = NSStackView(views: [icon, title, subtitle, openFolder])
+        let stack = NSStackView(views: [icon, title, subtitle, browse, openFolder])
         stack.orientation = .vertical
         stack.alignment = .centerX
         stack.spacing = 10
@@ -260,14 +275,22 @@ final class ConsoleDetailViewController: NSViewController {
     // MARK: - 页面切换
 
     private enum Page {
-        case template, empty, mcp, about
+        case template, empty, mcp, library, about
     }
 
+    private var currentPage: Page = .empty
+
+    var isShowingLibrary: Bool { currentPage == .library }
+
+    var isShowingServicePage: Bool { currentPage == .mcp || currentPage == .about }
+
     private func show(_ page: Page) {
+        currentPage = page
         if page == .mcp { ensureMCPView() }
         templatePage.isHidden = page != .template
         emptyPage.isHidden = page != .empty
         mcpView?.isHidden = page != .mcp
+        libraryView?.isHidden = page != .library
         aboutView.isHidden = page != .about
     }
 
@@ -284,6 +307,24 @@ final class ConsoleDetailViewController: NSViewController {
         ])
         view.isHidden = true
         mcpView = view
+    }
+
+    private func ensureLibraryView(service: TemplateLibraryService) {
+        guard libraryView == nil else { return }
+        let view = ConsoleLibraryView(service: service)
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.onOpenInstalled = { [weak self] file in
+            self?.onOpenInstalled?(file)
+        }
+        contentContainer.addSubview(view)
+        NSLayoutConstraint.activate([
+            view.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
+            view.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+            view.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            view.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
+        ])
+        view.isHidden = true
+        libraryView = view
     }
 
     func showTemplate(_ item: TemplateItem) {
@@ -316,6 +357,17 @@ final class ConsoleDetailViewController: NSViewController {
     func showEmpty() {
         currentTemplate = nil
         show(.empty)
+    }
+
+    func showLibrary(service: TemplateLibraryService) {
+        currentTemplate = nil
+        ensureLibraryView(service: service)
+        show(.library)
+        libraryView?.activate()
+    }
+
+    func refreshLibrary() {
+        libraryView?.refresh()
     }
 
     func showMCP() {
@@ -401,6 +453,10 @@ final class ConsoleDetailViewController: NSViewController {
     @objc private func deleteTapped() {
         guard let item = currentTemplate else { return }
         onDelete?(item)
+    }
+
+    @objc private func browseLibraryTapped() {
+        onOpenLibrary?()
     }
 
     @objc private func openTemplatesFolder() {

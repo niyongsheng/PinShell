@@ -197,7 +197,7 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
     /// HTML meta 的窗口属性（不含 CLI override）。
     @discardableResult
     private func applyDeclaredSpec(for url: URL) -> HTMLTemplateMetadata {
-        // 与模板库同一套有效元数据：HTML meta > 同名内置模板 > 默认尺寸
+        // 与模板库同一套有效元数据：HTML meta > 模板目录默认尺寸
         let metadata = TemplateStore.effectiveMetadata(for: url)
         applyWindowSpec(metadata.windowSpec.merging(overrides: sessionSpecOverrides))
         return metadata

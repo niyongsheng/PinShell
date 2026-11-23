@@ -3,6 +3,7 @@ import PinShellCore
 
 /// 状态栏菜单（spec 2.4）：程序唯一入口，无主应用窗口。
 /// 保持 macOS 原生样式：logo 生成的 template 图标 + 原生 NSMenu。
+@MainActor
 final class StatusItemController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let windowController: OverlayWindowController

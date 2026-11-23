@@ -73,6 +73,9 @@
 
 /* 控制台 · 新布局 */
 "console.sidebar.templates" = "模板";
+"console.sidebar.online" = "在线";
+"console.sidebar.library" = "在线模板库";
+"console.sidebar.librarySubtitle" = "浏览、安装与更新";
 "console.sidebar.services" = "服务";
 "console.sidebar.apply" = "启用";
 "console.sidebar.edit" = "编辑";
@@ -85,13 +88,13 @@
 "console.toolbar.edit" = "编辑模板";
 "console.toolbar.folder" = "在 Finder 中显示";
 "console.toolbar.templates" = "模板操作";
-"console.toolbar.restoreBuiltins" = "恢复内置模板";
+"console.toolbar.onlineLibrary" = "在线模板库…";
 "console.toolbar.revealFolder" = "打开模板文件夹";
 
 /* 控制台 · 删除模板 */
 "console.delete.title" = "删除“%@”？";
 "console.delete.info" = "模板文件会从模板库中移除，此操作无法撤销。";
-"console.delete.builtinInfo" = "这是内置模板。删除后可在工具栏「模板操作」中恢复。";
+"console.delete.libraryInfo" = "该模板可从「在线模板库」重新安装。";
 "console.delete.confirm" = "删除";
 "console.delete.cancel" = "取消";
 "console.delete.errorTitle" = "无法删除模板";
@@ -99,7 +102,8 @@
 
 /* 控制台 · 空模板库 */
 "console.empty.title" = "没有模板";
-"console.empty.subtitle" = "可在工具栏「模板操作」中恢复内置模板，或把 HTML 文件放进模板文件夹。";
+"console.empty.subtitle" = "从「在线模板库」安装模板，或把 HTML 文件放进模板文件夹。";
+"console.empty.browseLibrary" = "浏览在线模板库";
 "console.empty.openFolder" = "打开模板文件夹";
 
 /* 控制台 · MCP */
@@ -136,6 +140,8 @@
 "console.about.navSubtitle" = "版本信息";
 "console.about.subtitle" = "予 AI 一扇明窗，以代码为笺，于屏隅之间，晤谈、呈示、回响。";
 "console.about.version" = "版本 %@";
+"console.about.afdian" = "爱发电";
+"console.about.website" = "官网";
 "console.about.github" = "GitHub";
 "console.about.issues" = "问题反馈";
 "console.about.releases" = "更新日志";
@@ -163,11 +169,70 @@
 "console.editor.preview" = "窗口预览";
 "console.editor.restore" = "还原";
 "console.editor.restoreHint" = "恢复为模板当前已保存的值";
-"console.editor.builtin" = "内置模板";
-"console.editor.user" = "用户模板";
+"console.editor.library" = "模板库模板 · v%@";
+"console.editor.local" = "本地模板";
 "console.editor.save" = "保存";
 "console.editor.cancel" = "取消";
 "console.editor.invalidSize" = "宽高至少为 80×40。";
 "console.editor.invalidPosition" = "请输入有效的 X、Y 坐标。";
 "console.editor.invalidOrder" = "排序必须是整数。";
 "console.editor.invalidTitle" = "标题不能为空。";
+
+/* 在线模板库 */
+"library.title" = "在线模板库";
+"library.subtitle" = "从官网获取模板；下载与更新始终由你手动触发。";
+"library.refresh" = "刷新";
+"library.search" = "搜索模板";
+"library.retry" = "重试";
+"library.cancel" = "取消";
+"library.filter.all" = "全部";
+"library.updated" = "更新于 %@";
+"library.updated.cached" = "离线缓存 · %@";
+"library.updated.none" = "尚未加载";
+"library.banner.offline" = "离线：正在显示上次缓存的目录，安装与更新已禁用。";
+"library.banner.readOnly" = "模板库状态由更新版本的 PinShell 创建，本次会话为只读。";
+"library.empty" = "模板库为空。";
+"library.empty.filtered" = "没有匹配的模板。";
+"library.phase.downloading" = "下载中";
+"library.phase.verifying" = "校验中";
+"library.phase.installing" = "安装中";
+"library.phase.done" = "已安装";
+"library.state.installed" = "已安装";
+"library.state.update" = "可更新";
+"library.state.repair" = "可修复";
+"library.state.edited" = "已修改";
+"library.state.local" = "本地版本";
+"library.state.ignored" = "已忽略更新";
+"library.state.incompatible" = "需要新版本";
+"library.state.notInstalled" = "未安装";
+"library.action.get" = "获取";
+"library.action.update" = "更新";
+"library.action.repair" = "修复";
+"library.action.replace" = "替换…";
+"library.action.open" = "打开";
+"library.action.requires" = "需要 %@";
+"library.menu.more" = "更多";
+"library.menu.details" = "查看详情";
+"library.menu.website" = "在官网查看";
+"library.menu.ignore" = "忽略版本 %@";
+"library.menu.unignore" = "取消忽略";
+"library.menu.reveal" = "在 Finder 中显示";
+"library.detail.highlights" = "亮点";
+"library.detail.changelog" = "更新内容";
+"library.detail.close" = "关闭";
+"library.conflict.editedTitle" = "这个模板已被修改";
+"library.conflict.editedInfo" = "更新会覆盖本地修改。你可以先备份当前文件。";
+"library.conflict.unmanagedTitle" = "已存在同名本地模板";
+"library.conflict.unmanagedInfo" = "安装会替换模板文件夹中的现有文件。你可以先备份当前文件。";
+"library.conflict.backup" = "备份并更新";
+"library.conflict.replace" = "直接替换";
+"library.conflict.cancel" = "取消";
+"library.error.title" = "模板库出错";
+"library.error.catalogUnavailable" = "目录不可用或为只读，请刷新后重试。";
+"library.error.busy" = "另一个模板正在安装。";
+"library.error.requiresNewerApp" = "这个模板需要 PinShell %@。";
+"library.error.invalidUTF8" = "下载的模板不是有效的 UTF-8 文本。";
+"library.error.localChanged" = "安装期间本地模板发生了变化，请重试。";
+"library.error.stateReadOnly" = "模板库状态为只读。";
+"library.error.backupFailed" = "无法备份现有模板。";
+"library.error.payload" = "下载的模板未通过校验：%@";

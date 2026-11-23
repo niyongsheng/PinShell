@@ -4,6 +4,7 @@ import PinShellCore
 /// 控制台左侧栏：搜索 + 模板 source list + MCP 服务入口。
 final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate, NSMenuDelegate {
     var onSelectTemplate: ((TemplateItem) -> Void)?
+    var onSelectLibrary: (() -> Void)?
     var onSelectMCP: (() -> Void)?
     var onSelectAbout: (() -> Void)?
     var onApplyTemplate: ((TemplateItem) -> Void)?
@@ -16,6 +17,7 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
     private var rows: [Row] = []
     private var allTemplates: [TemplateItem] = []
     private var selectedTemplateURL: URL?
+    private var libraryUpdateCount = 0
     private var contextTemplate: TemplateItem?
     private var suppressSelectionCallback = false
 
@@ -25,6 +27,7 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
     private enum Row {
         case section(String)
         case template(TemplateItem)
+        case library
         case mcp
         case about
 
@@ -115,14 +118,19 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
     @discardableResult
     func refreshTemplatesKeepingSelection() -> [TemplateItem] {
         let selected = selectionKind()
+        let wasSuppressed = suppressSelectionCallback
+        // reloadData 会临时自动选中第一行并回调；期间必须屏蔽，否则详情页会被切走。
+        suppressSelectionCallback = true
         allTemplates = TemplateStore.load()
         rebuildRows()
         restoreSelection(selected)
+        suppressSelectionCallback = wasSuppressed
         return allTemplates
     }
 
     private enum SelectionKind {
         case template(URL)
+        case library
         case mcp
         case about
         case none
@@ -133,6 +141,7 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         guard rows.indices.contains(row) else { return .none }
         switch rows[row] {
         case .template(let item): return .template(item.url)
+        case .library: return .library
         case .mcp: return .mcp
         case .about: return .about
         case .section: return .none
@@ -151,6 +160,8 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
                 guard case .template(let item) = row else { return false }
                 return item.url.standardizedFileURL == url.standardizedFileURL
             }
+        case .library:
+            return rows.firstIndex { if case .library = $0 { return true }; return false }
         case .mcp:
             return rows.firstIndex { if case .mcp = $0 { return true }; return false }
         case .about:
@@ -190,6 +201,8 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         case .template(let item):
             selectedTemplateURL = item.url
             onSelectTemplate?(item)
+        case .library:
+            onSelectLibrary?()
         case .mcp:
             onSelectMCP?()
         case .about:
@@ -204,8 +217,26 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         select(row: index, notify: true)
     }
 
+    func selectLibrary() {
+        select(kind: .library)
+    }
+
     func selectMCP() {
         select(kind: .mcp)
+    }
+
+    func updateLibraryBadge(_ count: Int) {
+        guard count != libraryUpdateCount else { return }
+        let kind = selectionKind()
+        let wasSuppressed = suppressSelectionCallback
+        suppressSelectionCallback = true
+        libraryUpdateCount = count
+        if let index = rowIndex(for: .library) {
+            tableView.reloadData(forRowIndexes: IndexSet(integer: index),
+                                 columnIndexes: IndexSet(integer: 0))
+            restoreSelection(kind)
+        }
+        suppressSelectionCallback = wasSuppressed
     }
 
     func selectAbout() {
@@ -213,6 +244,11 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
     }
 
     var hasTemplates: Bool { !allTemplates.isEmpty }
+
+    var isLibrarySelected: Bool {
+        if case .library = selectionKind() { return true }
+        return false
+    }
 
     private var query: String {
         searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -232,6 +268,8 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         let templates = filteredTemplates()
         rows = [.section(NSLocalizedString("console.sidebar.templates", comment: ""))]
         rows.append(contentsOf: templates.map(Row.template))
+        rows.append(.section(NSLocalizedString("console.sidebar.online", comment: "")))
+        rows.append(.library)
         rows.append(.section(NSLocalizedString("console.sidebar.services", comment: "")))
         rows.append(.mcp)
         rows.append(.about)
@@ -357,6 +395,14 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
                            subtitle: item.description.isEmpty ? item.file : item.description,
                            trailing: "\(NumberFormat.text(item.size.width, fractionDigits: 0))×"
                                      + "\(NumberFormat.text(item.size.height, fractionDigits: 0))")
+            return cell
+
+        case .library:
+            let cell = rowCell()
+            cell.configure(symbol: "square.grid.2x2",
+                           title: NSLocalizedString("console.sidebar.library", comment: ""),
+                           subtitle: NSLocalizedString("console.sidebar.librarySubtitle", comment: ""),
+                           trailing: libraryUpdateCount > 0 ? "\(libraryUpdateCount)" : nil)
             return cell
 
         case .mcp:

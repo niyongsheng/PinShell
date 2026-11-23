@@ -10,6 +10,7 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
     var onDismiss: (() -> Void)?
 
     private let item: TemplateItem
+    private let libraryVersion: String?
 
     private let titleField = NSTextField(string: "")
     private let subtitleField = NSTextField(string: "")
@@ -46,8 +47,9 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
         WindowSize(width: 420, height: 480),
     ]
 
-    init(item: TemplateItem) {
+    init(item: TemplateItem, libraryVersion: String? = nil) {
         self.item = item
+        self.libraryVersion = libraryVersion
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 540),
                               styleMask: [.titled],
                               backing: .buffered, defer: false)
@@ -161,10 +163,9 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
         title.lineBreakMode = .byTruncatingTail
         title.maximumNumberOfLines = 1
 
-        let isBuiltin = TemplateStore.isBuiltinTemplate(named: item.file)
-        let kind = isBuiltin
-            ? NSLocalizedString("console.editor.builtin", comment: "")
-            : NSLocalizedString("console.editor.user", comment: "")
+        let kind = libraryVersion.map {
+            String(format: NSLocalizedString("console.editor.library", comment: ""), $0)
+        } ?? NSLocalizedString("console.editor.local", comment: "")
         let fileLabel = NSTextField(labelWithString: "\(item.file)  ·  \(kind)")
         fileLabel.font = .monospacedSystemFont(ofSize: 10.5, weight: .regular)
         fileLabel.textColor = .secondaryLabelColor

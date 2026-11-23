@@ -73,6 +73,9 @@
 
 /* 控制台 · 新布局 */
 "console.sidebar.templates" = "Templates";
+"console.sidebar.online" = "Online";
+"console.sidebar.library" = "Template Library";
+"console.sidebar.librarySubtitle" = "Browse, install, update";
 "console.sidebar.services" = "Services";
 "console.sidebar.apply" = "Enable";
 "console.sidebar.edit" = "Edit";
@@ -85,13 +88,13 @@
 "console.toolbar.edit" = "Edit Template";
 "console.toolbar.folder" = "Reveal in Finder";
 "console.toolbar.templates" = "Template Actions";
-"console.toolbar.restoreBuiltins" = "Restore Built-in Templates";
+"console.toolbar.onlineLibrary" = "Online Template Library…";
 "console.toolbar.revealFolder" = "Open Templates Folder";
 
 /* 控制台 · 删除模板 */
 "console.delete.title" = "Delete “%@”?";
 "console.delete.info" = "The template file will be removed from your library. This cannot be undone.";
-"console.delete.builtinInfo" = "This is a built-in template. You can restore it later from Template Actions in the toolbar.";
+"console.delete.libraryInfo" = "This template can be reinstalled from the Online Template Library.";
 "console.delete.confirm" = "Delete";
 "console.delete.cancel" = "Cancel";
 "console.delete.errorTitle" = "Couldn’t Delete Template";
@@ -99,7 +102,8 @@
 
 /* 控制台 · 空模板库 */
 "console.empty.title" = "No Templates";
-"console.empty.subtitle" = "Restore built-in templates from Template Actions in the toolbar, or drop an HTML file into the templates folder.";
+"console.empty.subtitle" = "Install a template from the Online Template Library, or drop an HTML file into the templates folder.";
+"console.empty.browseLibrary" = "Browse Online Library";
 "console.empty.openFolder" = "Open Templates Folder";
 
 /* 控制台 · MCP */
@@ -136,6 +140,8 @@
 "console.about.navSubtitle" = "Version info";
 "console.about.subtitle" = "A bright window for AI: code as paper, a corner of the screen as its place — to converse, to present, to echo.";
 "console.about.version" = "Version %@";
+"console.about.afdian" = "Afdian";
+"console.about.website" = "Website";
 "console.about.github" = "GitHub";
 "console.about.issues" = "Report an Issue";
 "console.about.releases" = "Release Notes";
@@ -163,11 +169,70 @@
 "console.editor.preview" = "Window Preview";
 "console.editor.restore" = "Revert";
 "console.editor.restoreHint" = "Restore the values currently saved in this template";
-"console.editor.builtin" = "Built-in";
-"console.editor.user" = "User Template";
+"console.editor.library" = "Library Template · v%@";
+"console.editor.local" = "Local Template";
 "console.editor.save" = "Save";
 "console.editor.cancel" = "Cancel";
 "console.editor.invalidSize" = "Width and height must be at least 80×40.";
 "console.editor.invalidPosition" = "Enter valid X and Y coordinates.";
 "console.editor.invalidOrder" = "Order must be an integer.";
 "console.editor.invalidTitle" = "Title cannot be empty.";
+
+/* Online template library */
+"library.title" = "Online Template Library";
+"library.subtitle" = "Fetched from the official site. Downloads and updates are always manual.";
+"library.refresh" = "Refresh";
+"library.search" = "Search templates";
+"library.retry" = "Try Again";
+"library.cancel" = "Cancel";
+"library.filter.all" = "All";
+"library.updated" = "Updated %@";
+"library.updated.cached" = "Offline cache · %@";
+"library.updated.none" = "Not loaded yet";
+"library.banner.offline" = "Offline: showing the cached catalog. Installs and updates are disabled.";
+"library.banner.readOnly" = "The library state was written by a newer PinShell. This session is read-only.";
+"library.empty" = "The template library is empty.";
+"library.empty.filtered" = "No matching templates.";
+"library.phase.downloading" = "Downloading";
+"library.phase.verifying" = "Verifying";
+"library.phase.installing" = "Installing";
+"library.phase.done" = "Installed";
+"library.state.installed" = "Installed";
+"library.state.update" = "Update available";
+"library.state.repair" = "Repair available";
+"library.state.edited" = "Edited";
+"library.state.local" = "Local file";
+"library.state.ignored" = "Update ignored";
+"library.state.incompatible" = "Requires newer PinShell";
+"library.state.notInstalled" = "Not installed";
+"library.action.get" = "Get";
+"library.action.update" = "Update";
+"library.action.repair" = "Repair";
+"library.action.replace" = "Replace…";
+"library.action.open" = "Open";
+"library.action.requires" = "Requires %@";
+"library.menu.more" = "More";
+"library.menu.details" = "Details";
+"library.menu.website" = "View on Website";
+"library.menu.ignore" = "Ignore Version %@";
+"library.menu.unignore" = "Unignore Updates";
+"library.menu.reveal" = "Show in Finder";
+"library.detail.highlights" = "Highlights";
+"library.detail.changelog" = "What's New";
+"library.detail.close" = "Close";
+"library.conflict.editedTitle" = "This template was edited";
+"library.conflict.editedInfo" = "Updating replaces your local changes. You can back up the current file first.";
+"library.conflict.unmanagedTitle" = "A local file already exists";
+"library.conflict.unmanagedInfo" = "Installing replaces the existing file in the templates folder. You can back up the current file first.";
+"library.conflict.backup" = "Back Up and Update";
+"library.conflict.replace" = "Replace Without Backup";
+"library.conflict.cancel" = "Cancel";
+"library.error.title" = "Template Library Error";
+"library.error.catalogUnavailable" = "The catalog is unavailable or read-only. Refresh and try again.";
+"library.error.busy" = "Another template is installing.";
+"library.error.requiresNewerApp" = "This template requires PinShell %@.";
+"library.error.invalidUTF8" = "The downloaded template is not valid UTF-8.";
+"library.error.localChanged" = "The local template changed while installing. Try again.";
+"library.error.stateReadOnly" = "The template library state is read-only.";
+"library.error.backupFailed" = "Could not back up the existing template.";
+"library.error.payload" = "The downloaded template failed verification: %@";
