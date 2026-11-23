@@ -2,7 +2,7 @@ import AppKit
 
 // 菜单栏图标生成：SVG logo → 黑色 template PNG（menu bar 自动适配深浅色）
 // 用法: swift make_menubar_icon.swift <logo.svg> <out_dir>
-// 输出: MenuBarIcon.png (18pt) / MenuBarIcon@2x.png (36pt)，需放入 Resources/ 并打进 bundle
+// 输出: MenuBarIcon.png (20pt) / MenuBarIcon@2x.png (40pt)，需放入 Resources/ 并打进 bundle
 
 let args = CommandLine.arguments
 guard args.count >= 3,
@@ -20,7 +20,7 @@ let sizes: [(String, Int)] = [
 ]
 
 // 先渲染 256px master，再两级缩放到目标尺寸：
-// 细针尖直接光栅化到 18px 会因 coverage 不足而消失
+// 细针尖直接光栅化到 20px 会因 coverage 不足而消失
 let masterPx = 256
 let masterRep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: masterPx, pixelsHigh: masterPx,
                                  bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
@@ -52,7 +52,6 @@ for (name, px) in sizes {
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
     NSGraphicsContext.current?.imageInterpolation = .high
 
-    // 从 master 绘制到目标尺寸
     masterImage.draw(in: NSRect(x: 0, y: 0, width: px, height: px))
 
     NSGraphicsContext.restoreGraphicsState()

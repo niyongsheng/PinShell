@@ -1,6 +1,6 @@
 import AppKit
 
-/// 右下角缩放手柄：仅编辑模式可见（穿透开启时由控制器隐藏）。
+/// 右下角缩放手柄：穿透开启时由控制器隐藏。
 /// 平时完全不可见（不打扰画面），鼠标悬停时浮现斜线标记；
 /// 拖动调整窗口大小，最小 80×40。
 final class ResizeGripView: NSView {
@@ -9,7 +9,7 @@ final class ResizeGripView: NSView {
 
     private var startFrame: NSRect = .zero
     private var startPoint: NSPoint = .zero
-    private var hovered = false   // 悬停时显示标记
+    private var hovered = false
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()

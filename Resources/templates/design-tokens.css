@@ -1,5 +1,5 @@
 /* ============================================================
-   PinShell Design Tokens — 来自仓库 DESIGN.md（Apple 设计语言）
+   PinShell Design Tokens — Apple 设计语言
    供业务 HTML 作者复用：<link rel="stylesheet" href="design-tokens.css">
    ============================================================ */
 :root {
@@ -81,7 +81,7 @@ html, body {
 
 /* 穿透模式（PinShell 给 <html> 加 passthrough class，见 DraggableWebView）：
    表面元素挂 .ps-dim-surface，穿透时只淡背景、文字保持实。
-   透明度数值来自菜单滑块（--ps-passthrough-opacity），默认值与 AppState.registerDefaults 同步 */
+   模板可覆盖 --ps-passthrough-opacity 调整淡出程度（默认 0.65） */
 :root {
   --ps-passthrough-opacity: 0.65;
 }

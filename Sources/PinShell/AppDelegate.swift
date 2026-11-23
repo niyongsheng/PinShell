@@ -11,7 +11,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var queuedFile: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        _ = AppState.registerDefaults   // 默认值注册（穿透透明度等）
         // 自动化截图时可用 PINSHELL_APPEARANCE=dark 强制深色，不需要改系统外观
         if ProcessInfo.processInfo.environment["PINSHELL_APPEARANCE"] == "dark" {
             NSApp.appearance = NSAppearance(named: .darkAqua)

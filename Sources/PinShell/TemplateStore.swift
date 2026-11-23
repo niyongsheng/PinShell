@@ -61,7 +61,6 @@ enum TemplateStore {
             == userTemplatesDirectory().standardizedFileURL
     }
 
-    /// 删除模板文件。
     @discardableResult
     static func deleteTemplate(at url: URL) throws -> Bool {
         _ = try TemplateStorage.delete(name: url.lastPathComponent,

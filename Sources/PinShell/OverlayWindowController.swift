@@ -129,15 +129,12 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         notifyStatusChanged()
     }
 
-    /// 显示/隐藏悬浮层；返回切换后的可见状态。
-    @discardableResult
-    func toggleVisibility() -> Bool {
+    func toggleVisibility() {
         if panel.isVisible {
             hideWindow()
         } else {
             showWindow()
         }
-        return panel.isVisible
     }
 
     /// 加载 HTML：
@@ -453,7 +450,7 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
 
     func setPassthrough(_ enabled: Bool) {
         AppState.passthroughEnabled = enabled
-        // 通知只作变化信号，观察者（菜单项/模板库开关/WebView）从 AppState 读状态
+        // 通知只作变化信号，观察者（菜单项/控制台/WebView）从 AppState 读状态
         NotificationCenter.default.post(name: .pinshellPassthroughChanged, object: nil)
         syncPassthroughUI()
         notifyStatusChanged()
@@ -466,22 +463,8 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         grip.isHidden = enabled
     }
 
-    @discardableResult
-    func togglePassthrough() -> Bool {
-        let next = !AppState.passthroughEnabled
-        setPassthrough(next)
-        return next
-    }
-
-    /// 菜单滑块：实时注入 CSS 变量（穿透开关状态不受影响），落盘沿用拖动防抖惯例
-    private var opacityPersistWork: DispatchWorkItem?
-
-    func setPassthroughOpacity(_ opacity: Double) {
-        webView.setPassthroughOpacity(opacity)
-        opacityPersistWork?.cancel()
-        let work = DispatchWorkItem { AppState.passthroughOpacity = opacity }
-        opacityPersistWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+    func togglePassthrough() {
+        setPassthrough(!AppState.passthroughEnabled)
     }
 
     /// 预设四角：保持当前尺寸，贴到所在屏幕可见区域角落（默认 24pt 边距）
@@ -508,7 +491,7 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
 
     // MARK: - 状态
 
-    /// 状态变化广播：控制台据此刷新状态胶囊与「窗口」页
+    /// 状态变化广播：控制台据此刷新状态胶囊与详情。
     private func notifyStatusChanged() {
         NotificationCenter.default.post(name: .pinshellStatusChanged, object: nil)
     }

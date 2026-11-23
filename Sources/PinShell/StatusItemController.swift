@@ -117,7 +117,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         item.isEnabled = visible || windowController.currentURL != nil
     }
 
-    /// 供 `--console` 启动参数直接打开控制台（也用于自动化截图）。
+    /// 供 PINSHELL_SHOW_CONSOLE=1 启动时直接打开控制台（也用于自动化截图）。
     func showConsole() {
         openConsole(nil)
     }

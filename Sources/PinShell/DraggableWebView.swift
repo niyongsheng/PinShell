@@ -37,29 +37,22 @@ final class DraggableWebView: WKWebView {
 
     // MARK: - 穿透状态注入（透明度全权交给 HTML）
 
-    /// 穿透时给 <html> 加 passthrough class，并把滑块透明度写入 CSS 变量
-    /// --ps-passthrough-opacity；模板用 var() 引用它（token 默认值见 design-tokens.css）。
+    /// 穿透时给 <html> 加 passthrough class，并注入默认淡化样式；
+    /// 模板可用 --ps-passthrough-opacity 覆盖淡出程度（token 默认值见 design-tokens.css）。
     /// 默认回退（自定义 HTML 未引用 token 时）：html 整体按该变量淡化。
     private static let defaultPassthroughCSS = "html.passthrough{opacity:var(--ps-passthrough-opacity,0.65)}"
 
-    private static func setOpacityVarJS(_ opacity: Double) -> String {
-        "document.documentElement.style.setProperty('--ps-passthrough-opacity', \(opacity));"
-    }
-
-    private static func passthroughOnJS(_ opacity: Double) -> String {
-        """
-        (function(){
-          \(setOpacityVarJS(opacity))
-          if (!document.getElementById('ps-passthrough-default')) {
-            var s = document.createElement('style');
-            s.id = 'ps-passthrough-default';
-            s.textContent = '\(defaultPassthroughCSS)';
-            document.documentElement.appendChild(s);
-          }
-          document.documentElement.classList.add('passthrough');
-        })();
-        """
-    }
+    private static let passthroughOnJS = """
+    (function(){
+      if (!document.getElementById('ps-passthrough-default')) {
+        var s = document.createElement('style');
+        s.id = 'ps-passthrough-default';
+        s.textContent = '\(defaultPassthroughCSS)';
+        document.documentElement.appendChild(s);
+      }
+      document.documentElement.classList.add('passthrough');
+    })();
+    """
 
     private static let passthroughOffJS = """
     document.documentElement.classList.remove('passthrough');
@@ -70,31 +63,10 @@ final class DraggableWebView: WKWebView {
     }
 
     func applyPassthrough(_ enabled: Bool) {
-        let opacity = AppState.passthroughOpacity
-        evaluateJavaScript(enabled ? Self.passthroughOnJS(opacity) : Self.passthroughOffJS,
+        evaluateJavaScript(enabled ? Self.passthroughOnJS : Self.passthroughOffJS,
                            completionHandler: nil)
     }
 
-    // MARK: - 滑块：同帧合并 + 值相同跳过（拖动 ~60Hz 时避免逐 tick 跨进程 IPC）
-
-    private var pendingOpacity: Double?
-    private var flushScheduled = false
-
-    func setPassthroughOpacity(_ opacity: Double) {
-        pendingOpacity = opacity
-        guard !flushScheduled else { return }
-        flushScheduled = true
-        DispatchQueue.main.async { [weak self] in
-            self?.flushScheduled = false
-            self?.flushPendingOpacity()
-        }
-    }
-
-    private func flushPendingOpacity() {
-        guard let opacity = pendingOpacity else { return }
-        pendingOpacity = nil
-        evaluateJavaScript(Self.setOpacityVarJS(opacity), completionHandler: nil)
-    }
 }
 
 extension DraggableWebView: WKNavigationDelegate {

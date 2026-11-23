@@ -237,7 +237,6 @@ final class ConsoleStageView: NSView {
     }
 }
 
-/// 1px 发丝线。
 final class HairlineView: NSView {
     init() {
         super.init(frame: .zero)
@@ -263,7 +262,6 @@ final class HairlineView: NSView {
 
 // MARK: - 图标块 / 页头 / 空态
 
-/// 圆角图标底块。
 final class ConsoleIconTile: NSView {
     enum Style { case neutral, accent }
 

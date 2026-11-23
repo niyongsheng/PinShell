@@ -191,9 +191,9 @@ final class ConsoleMCPView: NSView {
                          chip: chip, pathLabel: pathLabel)
     }
 
-    /// 客户端状态需要读取并解析可能很大的配置文件，放到后台计算，回主线程更新。
     private var clientsRefreshGeneration = 0
 
+    /// 客户端状态需要读取并解析可能很大的配置文件，放到后台计算，回主线程更新。
     private func refreshClients() {
         let context = MCPClientContext.current
         let executable = Self.executableURL
@@ -206,9 +206,9 @@ final class ConsoleMCPView: NSView {
             row.pathLabel.toolTip = url.path
         }
 
-        DispatchQueue.global(qos: .userInitiated).async {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let statuses = entries.map { $0.0.client.status(executable: executable, in: context) }
-            DispatchQueue.main.async { [weak self] in
+            DispatchQueue.main.async {
                 guard let self, generation == self.clientsRefreshGeneration else { return }
                 let statusKeys = (
                     detected: NSLocalizedString("console.mcp.clients.notDetected", comment: ""),

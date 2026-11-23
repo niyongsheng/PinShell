@@ -34,7 +34,6 @@ enum ConsoleTheme {
             dark: NSColor.white.withAlphaComponent(0.06)
         )
 
-        /// 图标底块。
         static let iconTileFill = dynamic(
             light: NSColor(calibratedWhite: 0.0, alpha: 0.045),
             dark: NSColor.white.withAlphaComponent(0.07)

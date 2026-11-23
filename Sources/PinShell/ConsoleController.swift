@@ -2,7 +2,7 @@ import AppKit
 import PinShellCore
 
 /// PinShell 控制台：原生侧边栏 + 详情布局。
-/// 模板预览/应用/编辑、MCP 2.0 接入信息；窗口页与事件页已移除。
+/// 模板预览/应用/编辑、MCP 2.0 接入信息。
 @MainActor
 final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
     private let windowController: OverlayWindowController
