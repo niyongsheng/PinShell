@@ -187,7 +187,7 @@ public enum MCPPromptCatalog {
     """
     Library templates (list installed ones with pinshell_templates; prefer reusing one over new HTML):
       badge-carousel, goal-progress (in: bilibili:stats), decision-maker,
-      todo (out: todo:changed), system-monitor (in: system:stats),
+      todo-list (out: todo-list:changed), system-monitor (in: system:stats),
       desktop-pet (pet:* both ways),
       pomodoro (in: pomodoro:command; out: pomodoro:changed/complete/skip),
       ai-radio, gomoku, stock-board.
@@ -285,7 +285,7 @@ public enum MCPPromptCatalog {
             description: "Read, modify, and write a PinShell template while preserving metadata, localization, and agent protocols.",
             arguments: [
                 MCPPromptArgument(name: "name",
-                                  description: "Template file name, e.g. todo.html."),
+                                  description: "Template file name, e.g. todo-list.html."),
                 MCPPromptArgument(name: "changes",
                                   description: "What to change in the template.")
             ]
@@ -431,7 +431,7 @@ public enum MCPPromptCatalog {
 
         Setup:
         1. Call pinshell_templates first. If desktop-pet.html is not listed, tell the user to open
-           the console (⌘K) → Online Template Library and install Desktop Pet, then stop. Do not
+           the console (⌃⌥C) → Online Template Library and install Desktop Pet, then stop. Do not
            recreate the pet with pinshell_html.
         2. Call pinshell_template_show with name "desktop-pet.html" and wait: true.
         3. Announce yourself: pinshell_emit { event: "pet:hello", data: { name: "<your name>" } }.

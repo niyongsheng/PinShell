@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "todo",
-  "version": "1.1.0",
+  "id": "todo-list",
+  "version": "1.1.1",
   "releaseDate": "2026-11-24",
   "minAppVersion": "1.4.0",
   "category": "productivity",
@@ -45,6 +45,13 @@
       "notes": {
         "zh-Hans": "支持浅色与深色外观自适应。",
         "en": "Adds light and dark appearance support."
+      }
+    },
+    "1.1.1": {
+      "date": "2026-11-24",
+      "notes": {
+        "zh-Hans": "更名为 todo-list；面板不透明度与文字对比度提高，阅读更清晰。",
+        "en": "Renamed to todo-list; higher panel opacity and text contrast for clearer reading."
       }
     }
   }

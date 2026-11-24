@@ -279,7 +279,7 @@ struct MCPToolSet {
             name: "pinshell_template_read",
             description: "Read a template HTML file from PinShell's templates folder. Use pinshell_templates to see available names.",
             properties: [
-                "name": ["type": "string", "description": "Template file name, e.g. todo.html."]
+                "name": ["type": "string", "description": "Template file name, e.g. todo-list.html."]
             ],
             required: ["name"]
         ),
@@ -287,7 +287,7 @@ struct MCPToolSet {
             name: "pinshell_template_write",
             description: "Create or overwrite a template HTML file in PinShell's templates folder. The console refreshes automatically, and the overlay reloads if this template is currently shown.",
             properties: [
-                "name": ["type": "string", "description": "Template file name, e.g. todo.html."],
+                "name": ["type": "string", "description": "Template file name, e.g. todo-list.html."],
                 "html": ["type": "string", "description": "Complete HTML document."]
             ],
             required: ["name", "html"]
@@ -296,13 +296,13 @@ struct MCPToolSet {
             name: "pinshell_template_delete",
             description: "Delete an installed template by file name. Library templates can be reinstalled from the Online Template Library; local files cannot be restored.",
             properties: [
-                "name": ["type": "string", "description": "Template file name, e.g. todo.html."]
+                "name": ["type": "string", "description": "Template file name, e.g. todo-list.html."]
             ],
             required: ["name"]
         ),
         MCPTool(
             name: "pinshell_template_show",
-            description: "Show a template in the overlay. Accepts a template file name (e.g. todo.html) or its title. Optionally override size/position/passthrough/opacity/radius.",
+            description: "Show a template in the overlay. Accepts a template file name (e.g. todo-list.html) or its title. Optionally override size/position/passthrough/opacity/radius.",
             properties: [
                 "name": ["type": "string", "description": "Template file name or title."],
                 "size": ["type": "string", "description": "Optional window size, e.g. 320x120."],

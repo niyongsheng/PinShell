@@ -66,8 +66,8 @@
       "bytes": 27810
     },
     {
-      "id": "todo",
-      "file": "todo.html",
+      "id": "todo-list",
+      "file": "todo-list.html",
       "version": "1.0.0",
       "sha256": "74832daa38c5e89f41b7ac6195b0503c188eb26a3db83e1a82fc309bfba9b243",
       "bytes": 31656

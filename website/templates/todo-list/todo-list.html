@@ -81,17 +81,17 @@
   :root {
     color-scheme: light dark;
 
-    /* 深色（默认）：石墨玻璃面板 */
-    --panel-bg: rgba(28, 28, 30, 0.88);
+    /* 深色（默认）：石墨玻璃面板，不透明度以可读性优先 */
+    --panel-bg: rgba(28, 28, 30, 0.95);
     --panel-border: rgba(255, 255, 255, 0.09);
     --panel-shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
     --ink: #f5f5f7;
-    --ink-muted: rgba(255, 255, 255, 0.45);
+    --ink-muted: rgba(255, 255, 255, 0.58);
     --ink-soft: rgba(255, 255, 255, 0.72);
-    --ink-faint: rgba(255, 255, 255, 0.35);
-    --ink-weak: rgba(255, 255, 255, 0.3);
-    --ink-ghost: rgba(255, 255, 255, 0.26);
-    --placeholder: rgba(255, 255, 255, 0.32);
+    --ink-faint: rgba(255, 255, 255, 0.48);
+    --ink-weak: rgba(255, 255, 255, 0.42);
+    --ink-ghost: rgba(255, 255, 255, 0.38);
+    --placeholder: rgba(255, 255, 255, 0.42);
     --hairline: rgba(255, 255, 255, 0.055);
     --field-bg: rgba(255, 255, 255, 0.06);
     --field-border: rgba(255, 255, 255, 0.10);
@@ -122,16 +122,16 @@
   /* 浅色：珍珠白玻璃 + Action Blue；象限色加深以保对比度 */
   @media (prefers-color-scheme: light) {
     :root {
-      --panel-bg: rgba(250, 250, 252, 0.94);
+      --panel-bg: rgba(250, 250, 252, 0.97);
       --panel-border: rgba(0, 0, 0, 0.09);
       --panel-shadow: 0 18px 40px rgba(0, 0, 0, 0.12);
       --ink: var(--ps-ink);
-      --ink-muted: rgba(29, 29, 31, 0.5);
+      --ink-muted: rgba(29, 29, 31, 0.6);
       --ink-soft: rgba(29, 29, 31, 0.72);
-      --ink-faint: rgba(29, 29, 31, 0.4);
-      --ink-weak: rgba(29, 29, 31, 0.35);
-      --ink-ghost: rgba(29, 29, 31, 0.3);
-      --placeholder: rgba(29, 29, 31, 0.35);
+      --ink-faint: rgba(29, 29, 31, 0.52);
+      --ink-weak: rgba(29, 29, 31, 0.46);
+      --ink-ghost: rgba(29, 29, 31, 0.42);
+      --placeholder: rgba(29, 29, 31, 0.46);
       --hairline: rgba(0, 0, 0, 0.07);
       --field-bg: rgba(255, 255, 255, 0.8);
       --field-border: rgba(0, 0, 0, 0.12);
@@ -449,6 +449,7 @@
 <script>window.PS = window.PS || { lang: 'zh-Hans', locale: 'zh-Hans', languages: [], get: function (k, f) { return f; }, t: function (k, f) { return f; }, list: function (k, f) { return f || []; }, apply: function () {} };</script>
 <script>
   const bridge = window.pinshell || { emit() {}, log() {} };
+  // 存储键沿用旧名，重命名模板后已安装用户的数据不丢失
   const itemsKey = 'pinshell.todo.v1';
   const targetKey = 'pinshell.todo.target.v1';
   const viewKey = 'pinshell.todo.view.v1';
@@ -545,7 +546,7 @@
     const done = items.filter(item => item.done).length;
     const quadrants = { 1: 0, 2: 0, 3: 0, 4: 0 };
     for (const item of items) quadrants[item.q] += 1;
-    bridge.emit('todo:changed', { total: items.length, done, quadrants, target, view });
+    bridge.emit('todo-list:changed', { total: items.length, done, quadrants, target, view });
   }
 
   // ── 构建象限与菜单 ─────────────────────────────────

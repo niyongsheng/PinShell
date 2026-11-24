@@ -281,7 +281,7 @@ public struct ControlEvent: Codable, Equatable, Sendable {
         ControlEvent(event: "session", name: "session:ended", type: "lifecycle")
     }
 
-    /// `todo:changed` → `todo`，`submit` → `ui`。
+    /// `todo-list:changed` → `todo-list`，`submit` → `ui`。
     public static func category(for name: String) -> String {
         guard let colon = name.firstIndex(of: ":") else { return "ui" }
         let prefix = String(name[..<colon])
