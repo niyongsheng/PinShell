@@ -18,9 +18,10 @@ https://github.com/user-attachments/assets/e41163ae-ab77-47e9-a174-7bc201597627
 ## Features
 
 - Always-on-top HTML overlay across Spaces, with click-through, opacity, radius, and hot reload.
+- Two display modes: a **Desktop Overlay** pinned to the screen, or a **Menu Bar Popover** anchored below the menu-bar icon (left-click to show, right-click for the menu).
 - MCP server and CLI share one control socket; pages can push events back to the agent.
 - Control console (⌘K): templates, live preview, template editor, MCP info, About.
-- Online template library: ten first-party templates (badges, goals, todo, system monitor, desktop pet, pomodoro, decision maker, vinyl radio, gomoku, stock board) with per-template versions, checksums, and install/update/ignore actions in the console. Templates are no longer bundled; install them on first run.
+- Online template library: eleven first-party templates (badges, goals, todo, system monitor, desktop pet, pomodoro, decision maker, vinyl radio, gomoku, stock board, workday calendar) with per-template versions, checksums, and install/update/ignore actions in the console. The workday calendar is bundled on first install so the app stays usable without the online library; install the others from the console.
 - Menu-bar only, no Dock icon; update check against GitHub Releases, with in-app installer download (SHA-256 verified) handed off to the system Installer.
 
 ## Install
@@ -54,13 +55,16 @@ Launch PinShell, then use the menu-bar icon:
 | Menu item | Shortcut | Action |
 |---|---|---|
 | Console | ⌘K | Open the console |
+| Display Mode ▸ | | Choose Desktop Overlay or Menu Bar Popover |
 | Window Position ▸ | ⌘0 | Place the overlay in a screen corner (⌘0 = bottom-right) |
 | Window State: Interactive / Passthrough | ⌘T | Toggle click-through |
-| Show Window | ⌘H | Toggle the overlay (checked = shown) |
+| Window Shown / Window Hidden | ⌘H | Toggle the overlay (checked = shown) |
 | Check for Updates… | ⌘U | Check GitHub Releases; download and install updates |
 | Quit PinShell | ⌘Q | Quit |
 
-Click and type inside the overlay; hold **⌘** and drag to move it; resize from the bottom-right grip (min 80×40). Passthrough sends mouse events to the app below.
+In **Desktop Overlay** mode, click and type inside the overlay; hold **⌘** and drag to move it; resize from the bottom-right grip (min 80×40). Passthrough sends mouse events to the app below.
+
+In **Menu Bar Popover** mode, left-click the icon to show or hide the template below it, and right-click (or Control-click) for this menu. The template stays anchored to the icon: window position, click-through, ⌘-drag and resizing are disabled. Launching PinShell or switching back from another app does not open the panel until you click the icon; applying a template or an explicit CLI/MCP `show` opens it.
 
 ## MCP
 
