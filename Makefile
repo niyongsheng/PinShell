@@ -18,11 +18,10 @@ BIN_PATH := $(shell swift build -c $(CONFIG) $(SWIFT_ARCH) --show-bin-path)
 # SwiftPM 链接时会把部署目标写进 LC_BUILD_VERSION 的 sdk 字段（例如 13.0），
 # 而 AppKit 依据该字段判断是否启用 macOS 26 的 Liquid Glass 新设计：sdk < 26
 # 时 NSSwitch / NSSearchField / NSSlider 等标准控件退回旧版兼容外观。
-# 在链接时显式传入 -platform_version，让 Mach-O 从生成时就带真实 SDK 版本。
+# 不在 swift build 上传 -Xlinker（旧版 SwiftPM 会把它原样交给 clang 导致链接失败），
+# 改为链接完成后用 vtool 把 sdk 字段改写为真实 SDK 版本。
 SDK_VERSION := $(shell xcrun --show-sdk-version)
 MIN_MACOS   := $(shell /usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" Resources/Info.plist)
-LINK_PLATFORM := -Xlinker -platform_version -Xlinker macos \
-                 -Xlinker $(MIN_MACOS) -Xlinker $(SDK_VERSION)
 
 .PHONY: build app icon menubar-icon run install pkg universal clean site serve-site check-user
 
@@ -36,7 +35,10 @@ check-user:
 	}
 
 build: check-user ## 编译 release 二进制
-	swift build -c $(CONFIG) $(SWIFT_ARCH) $(LINK_PLATFORM)
+	swift build -c $(CONFIG) $(SWIFT_ARCH)
+	@BIN="$(BIN_PATH)/PinShell"; \
+	xcrun vtool -set-build-version macos $(MIN_MACOS) $(SDK_VERSION) -replace \
+		-output "$$BIN.vtool" "$$BIN" && mv "$$BIN.vtool" "$$BIN"
 
 app: check-user build ## 组装 PinShell.app（二进制/Info.plist/资源，ad-hoc 签名最后做）
 	@rm -rf "$(APP)" 2>/dev/null || { \
