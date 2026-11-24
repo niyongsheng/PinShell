@@ -679,14 +679,20 @@ func makeConsoleButton(_ title: String,
                        style: ConsoleButtonStyle = .secondary,
                        controlSize: NSControl.ControlSize = .regular,
                        target: AnyObject?,
-                       action: Selector) -> NSButton {
+                       action: Selector,
+                       tint: NSColor? = nil) -> NSButton {
     let button = NSButton(title: title, target: target, action: action)
     button.bezelStyle = .rounded
     button.controlSize = controlSize
     button.font = ConsoleTheme.Font.button
     if let symbol {
+        var configuration = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
+        if let tint {
+            configuration = configuration.applying(
+                NSImage.SymbolConfiguration(paletteColors: [tint]))
+        }
         button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 11, weight: .medium))
+            .withSymbolConfiguration(configuration)
         button.imagePosition = .imageLeading
     }
     configureConsoleButton(button, title: title, symbol: symbol, style: style)
@@ -812,6 +818,27 @@ final class ConsoleScrollPage: NSView {
 }
 
 /// 小标题：SF Symbol + 文案，用于卡片内分区。
+/// 控制台错误弹窗：模板库卡片与深链安装共用同一套文案与 sheet 行为。
+func presentConsoleErrorAlert(_ error: Error, in window: NSWindow?) {
+    let alert = NSAlert()
+    alert.messageText = NSLocalizedString("library.error.title", comment: "")
+    alert.informativeText = error.localizedDescription
+    alert.alertStyle = .warning
+    alert.addButton(withTitle: NSLocalizedString("console.error.ok", comment: ""))
+    if let window {
+        alert.beginSheetModal(for: window)
+    } else {
+        alert.runModal()
+    }
+}
+
+/// 复制文本到剪贴板；反馈动画由调用方决定。
+@discardableResult
+func copyStringToPasteboard(_ text: String) -> Bool {
+    NSPasteboard.general.clearContents()
+    return NSPasteboard.general.setString(text, forType: .string)
+}
+
 func makeSectionLabel(_ text: String, symbol: String? = nil) -> NSView {
     let label = NSTextField(labelWithString: text)
     label.font = ConsoleTheme.Font.sectionTitle
