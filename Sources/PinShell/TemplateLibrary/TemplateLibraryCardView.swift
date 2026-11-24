@@ -8,8 +8,12 @@ final class TemplateLibraryCardView: NSView {
 
     var onOpenInstalled: (() -> Void)?
 
-    private let primaryButton = LibraryInstallButton()
-    private let menuButton = NSButton(title: "", target: nil, action: nil)
+    private let primaryButton = NSButton(title: "", target: nil, action: nil)
+    private lazy var menuButton = makeIconButton(
+        symbol: "ellipsis.circle",
+        accessibilityLabel: NSLocalizedString("library.menu.more", comment: ""),
+        target: self,
+        action: #selector(menuTapped))
 
     init(service: TemplateLibraryService, row: TemplateLibraryService.Row) {
         self.service = service
@@ -22,57 +26,50 @@ final class TemplateLibraryCardView: NSView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     private func build() {
-        let card = ConsoleCard(
-            cornerRadius: 14,
-            inset: NSEdgeInsets(top: 14, left: 16, bottom: 14, right: 16))
-        card.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(card)
-
-        let iconTile = ConsoleIconTile(
-            symbol: ConsoleTheme.categorySymbol(for: row.entry.category),
-            size: 38,
-            symbolPointSize: 17,
-            style: .neutral)
+        let categoryStyle = ConsoleTheme.categoryStyle(for: row.entry.category)
+        let iconTile = SettingsIconTile(
+            symbol: categoryStyle.symbol,
+            tint: categoryStyle.tint,
+            size: 30)
 
         let titleLabel = NSTextField(labelWithString: row.localizedName)
-        titleLabel.font = .systemFont(ofSize: 13.5, weight: .semibold)
+        titleLabel.font = ConsoleTheme.Font.rowTitle
+        titleLabel.textColor = .labelColor
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.maximumNumberOfLines = 1
+        titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let descriptionLabel = NSTextField(wrappingLabelWithString: row.localizedDescription)
-        descriptionLabel.font = .systemFont(ofSize: 11.5)
+        descriptionLabel.font = ConsoleTheme.Font.caption
         descriptionLabel.textColor = .secondaryLabelColor
         descriptionLabel.maximumNumberOfLines = 2
         descriptionLabel.lineBreakMode = .byWordWrapping
+        descriptionLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let metaRow = buildMetaRow()
 
         let textStack = NSStackView(views: [titleLabel, descriptionLabel, metaRow])
+        textStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         textStack.orientation = .vertical
         textStack.alignment = .leading
         textStack.spacing = 3
         textStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         descriptionLabel.widthAnchor.constraint(lessThanOrEqualTo: textStack.widthAnchor).isActive = true
 
+        primaryButton.bezelStyle = .rounded
+        primaryButton.controlSize = .small
         primaryButton.target = self
         primaryButton.action = #selector(primaryTapped)
-
-        menuButton.image = NSImage(systemSymbolName: "ellipsis.circle",
-                                   accessibilityDescription: nil)
-        menuButton.bezelStyle = .texturedRounded
-        menuButton.isBordered = false
-        menuButton.target = self
-        menuButton.action = #selector(menuTapped)
-        menuButton.toolTip = NSLocalizedString("library.menu.more", comment: "")
-        menuButton.setAccessibilityLabel(NSLocalizedString("library.menu.more", comment: ""))
+        primaryButton.setContentHuggingPriority(.required, for: .horizontal)
+        primaryButton.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         let buttonRow = NSStackView(views: [primaryButton, menuButton])
         buttonRow.orientation = .horizontal
-        buttonRow.spacing = 4
+        buttonRow.spacing = 6
         buttonRow.alignment = .centerY
         buttonRow.setContentHuggingPriority(.required, for: .horizontal)
 
-        // 弹性占位把右侧操作推到卡片右缘
+        // 弹性占位把右侧操作推到行右缘
         let spacer = NSView()
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
         spacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -81,26 +78,24 @@ final class TemplateLibraryCardView: NSView {
         stack.orientation = .horizontal
         stack.spacing = 12
         stack.alignment = .centerY
+        stack.edgeInsets = NSEdgeInsets(top: 10, left: ConsoleTheme.Space.rowInset,
+                                        bottom: 10, right: ConsoleTheme.Space.rowInset)
         stack.translatesAutoresizingMaskIntoConstraints = false
-        card.contentView.addSubview(stack)
+        addSubview(stack)
 
         NSLayoutConstraint.activate([
-            card.leadingAnchor.constraint(equalTo: leadingAnchor),
-            card.trailingAnchor.constraint(equalTo: trailingAnchor),
-            card.topAnchor.constraint(equalTo: topAnchor),
-            card.bottomAnchor.constraint(equalTo: bottomAnchor),
-
-            stack.leadingAnchor.constraint(equalTo: card.contentView.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: card.contentView.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: card.contentView.topAnchor),
-            stack.bottomAnchor.constraint(equalTo: card.contentView.bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            stack.topAnchor.constraint(equalTo: topAnchor),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+            heightAnchor.constraint(greaterThanOrEqualToConstant: 64),
             textStack.widthAnchor.constraint(greaterThanOrEqualToConstant: 160),
         ])
     }
 
     private func configure() {
         let evaluation = row.evaluation
-        let readOnly = service.isCatalogReadOnly || service.stateReadOnly
+        let readOnly = row.sourceIsReadOnly || service.stateReadOnly
 
         if evaluation.needsNewerApp {
             setButtonTitle(String(
@@ -132,7 +127,8 @@ final class TemplateLibraryCardView: NSView {
         primaryButton.toolTip = statusText(for: evaluation)
 
         let category = service.categoryName(for: row.entry.category)
-        toolTip = [row.localizedName, category, "v\(row.entry.version)"]
+        toolTip = [row.localizedName, category, "v\(row.entry.version)",
+                   row.isOfficialSource ? "" : row.sourceDisplayName]
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
     }
@@ -158,31 +154,39 @@ final class TemplateLibraryCardView: NSView {
     }
 
     private func buildMetaRow() -> NSView {
-        let version = makeMetaLabel("v\(row.entry.version)")
+        let version = makeMetaLabel("v\(row.entry.version)", mono: true)
         let categoryName = service.categoryName(for: row.entry.category)
-        let categoryTag = LibraryCategoryTag()
-        categoryTag.configure(text: categoryName)
-        categoryTag.isHidden = categoryName.isEmpty
+        let category = makeMetaLabel(categoryName, mono: false)
+        category.isHidden = categoryName.isEmpty
 
         let categoryDot = makeMetaSeparator()
         categoryDot.isHidden = categoryName.isEmpty
 
         let sizeText = row.entry.preview.map { "\($0.width ?? 0)×\($0.height ?? 0)" } ?? ""
-        let size = makeMetaLabel(sizeText)
+        let size = makeMetaLabel(sizeText, mono: true)
         let sizeDot = makeMetaSeparator()
         size.isHidden = sizeText.isEmpty
         sizeDot.isHidden = sizeText.isEmpty
 
-        let row = NSStackView(views: [version, categoryDot, categoryTag, sizeDot, size])
+        // 附加来源的模板标注来源，避免和官方库同名模板混淆。
+        let sourceName = row.isOfficialSource ? "" : row.sourceDisplayName
+        let source = makeMetaLabel(sourceName, mono: false)
+        let sourceDot = makeMetaSeparator()
+        source.isHidden = sourceName.isEmpty
+        sourceDot.isHidden = sourceName.isEmpty
+        source.toolTip = row.source.url.absoluteString
+
+        let row = NSStackView(views: [version, categoryDot, category, sizeDot, size,
+                                     sourceDot, source])
         row.orientation = .horizontal
         row.spacing = 5
         row.alignment = .centerY
         return row
     }
 
-    private func makeMetaLabel(_ text: String) -> NSTextField {
+    private func makeMetaLabel(_ text: String, mono: Bool) -> NSTextField {
         let label = NSTextField(labelWithString: text)
-        label.font = ConsoleTheme.Font.monoMeta
+        label.font = mono ? ConsoleTheme.Font.monoMeta : ConsoleTheme.Font.caption
         label.textColor = .tertiaryLabelColor
         label.lineBreakMode = .byTruncatingTail
         return label
@@ -190,13 +194,28 @@ final class TemplateLibraryCardView: NSView {
 
     private func makeMetaSeparator() -> NSTextField {
         let label = NSTextField(labelWithString: "·")
-        label.font = ConsoleTheme.Font.monoMeta
+        label.font = ConsoleTheme.Font.caption
         label.textColor = .tertiaryLabelColor
         return label
     }
 
-    private func setButtonTitle(_ title: String, tone: LibraryInstallButton.Tone) {
-        primaryButton.setInstallTitle(title, tone: tone)
+    private enum InstallTone {
+        case action
+        case success
+        case warning
+    }
+
+    private func setButtonTitle(_ title: String, tone: InstallTone) {
+        primaryButton.title = title
+        primaryButton.setAccessibilityLabel(title)
+        switch tone {
+        case .action:
+            primaryButton.bezelColor = ConsoleTheme.Color.accent
+        case .success:
+            primaryButton.bezelColor = nil
+        case .warning:
+            primaryButton.bezelColor = ConsoleTheme.Color.warning
+        }
     }
 
     // MARK: - Actions
@@ -367,140 +386,5 @@ final class TemplateLibraryCardView: NSView {
 
     private func showErrorAlert(_ error: Error) {
         presentConsoleErrorAlert(error, in: window)
-    }
-}
-
-/// App Store 风格的安装/打开胶囊按钮：浅色底 + 强调色文字，状态直接体现在标题上。
-private final class LibraryInstallButton: NSButton {
-    enum Tone {
-        case action
-        case success
-        case warning
-
-        var color: NSColor {
-            switch self {
-            case .action: return ConsoleTheme.Color.accent
-            case .success: return ConsoleTheme.Color.positive
-            case .warning: return ConsoleTheme.Color.warning
-            }
-        }
-    }
-
-    private static let fill = ConsoleTheme.Color.insetFill
-    private static let height: CGFloat = 26
-
-    private var tone: Tone = .action
-
-    init() {
-        super.init(frame: .zero)
-        isBordered = false
-        bezelStyle = .regularSquare
-        font = .systemFont(ofSize: 12, weight: .medium)
-        wantsLayer = true
-        layer?.cornerCurve = .continuous
-        layer?.cornerRadius = Self.height / 2
-        layer?.masksToBounds = true
-        setContentHuggingPriority(.required, for: .horizontal)
-        setContentCompressionResistancePriority(.required, for: .horizontal)
-        heightAnchor.constraint(equalToConstant: Self.height).isActive = true
-        updateFill()
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    override var intrinsicContentSize: NSSize {
-        let titleSize = attributedTitle.size()
-        return NSSize(width: max(ceil(titleSize.width) + 22, 52), height: Self.height)
-    }
-
-    override var isEnabled: Bool {
-        didSet { updateTitleColor() }
-    }
-
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        performWithEffectiveAppearance { [weak self] in
-            self?.updateFill()
-        }
-    }
-
-    override func highlight(_ flag: Bool) {
-        super.highlight(flag)
-        updateFill(pressed: flag)
-    }
-
-    func setInstallTitle(_ title: String, tone: Tone) {
-        self.title = title
-        self.tone = tone
-        setAccessibilityLabel(title)
-        updateTitleColor()
-        invalidateIntrinsicContentSize()
-    }
-
-    private func updateTitleColor() {
-        let color: NSColor = isEnabled ? tone.color : .tertiaryLabelColor
-        contentTintColor = color
-        attributedTitle = NSAttributedString(string: title, attributes: [
-            .font: font ?? .systemFont(ofSize: 12, weight: .medium),
-            .foregroundColor: color,
-        ])
-    }
-
-    private func updateFill(pressed: Bool = false) {
-        performWithEffectiveAppearance { [weak self] in
-            guard let self else { return }
-            let color = pressed && isEnabled
-                ? tone.color.withAlphaComponent(0.16)
-                : Self.fill
-            layer?.backgroundColor = color.cgColor
-        }
-    }
-}
-
-/// 分类标签：低对比度胶囊标签，避免抢占模板名称与安装操作的视觉层级。
-private final class LibraryCategoryTag: NSView {
-    private static let height: CGFloat = 18
-    private let label = NSTextField(labelWithString: "")
-
-    init() {
-        super.init(frame: .zero)
-        wantsLayer = true
-        layer?.cornerCurve = .continuous
-        layer?.cornerRadius = 4.5
-        label.font = .systemFont(ofSize: 10, weight: .medium)
-        label.textColor = .secondaryLabelColor
-        label.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(label)
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
-            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
-            label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            heightAnchor.constraint(equalToConstant: Self.height),
-        ])
-        setContentHuggingPriority(.required, for: .horizontal)
-        setContentCompressionResistancePriority(.required, for: .horizontal)
-        updateFill()
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    override var intrinsicContentSize: NSSize {
-        NSSize(width: ceil(label.intrinsicContentSize.width) + 12, height: Self.height)
-    }
-
-    func configure(text: String) {
-        label.stringValue = text
-        invalidateIntrinsicContentSize()
-    }
-
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        performWithEffectiveAppearance { [weak self] in
-            self?.updateFill()
-        }
-    }
-
-    private func updateFill() {
-        layer?.backgroundColor = ConsoleTheme.Color.insetFill.cgColor
     }
 }

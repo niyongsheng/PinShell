@@ -2,52 +2,42 @@ import AppKit
 
 /// 控制台视觉 token：颜色、圆角、间距、字体。
 ///
-/// 设计基调是原生 macOS 精致风：页面内用「珍珠白卡片 + 发丝线」分层，
-/// 窗口保留系统 vibrancy；玻璃材质只留给 sheet / 浮层（GlassCard）。
-/// 交互强调色跟随系统 `controlAccentColor`，状态用系统语义色。
+/// 设计基调对齐 macOS 系统设置：侧边栏保留系统 source list 与 vibrancy，
+/// 详情页用不透明页面底色 + 分组卡片 + 发丝分隔线；交互强调色跟随系统
+/// `controlAccentColor`，状态用系统语义色。
 enum ConsoleTheme {
 
     // MARK: - 颜色
 
     enum Color {
-        /// 页面内卡片底色：浅色近白，深色用一层低透明度白叠在 vibrancy 上。
+        /// 详情页 / 编辑器的不透明页面底色（浅灰 / 石墨）。
+        /// 不用 `underPageBackgroundColor`：在 vibrancy 窗口里它会解析成半透明灰。
+        static let pageBackground = dynamic(
+            light: NSColor(srgbRed: 0.965, green: 0.965, blue: 0.965, alpha: 1),
+            dark: NSColor(srgbRed: 0.157, green: 0.157, blue: 0.157, alpha: 1)
+        )
+
+        /// 分组卡片底色：浅色纯白，深色比页面底色深一层。
         static let cardFill = dynamic(
-            light: NSColor.white.withAlphaComponent(0.82),
-            dark: NSColor.white.withAlphaComponent(0.055)
+            light: .white,
+            dark: NSColor(srgbRed: 0.118, green: 0.118, blue: 0.118, alpha: 1)
         )
 
-        /// 浮起表面（进度条、浮层卡片）。
-        static let cardFillElevated = dynamic(
-            light: NSColor.white.withAlphaComponent(0.94),
-            dark: NSColor(calibratedWhite: 0.16, alpha: 0.94)
-        )
-
-        /// 卡片 / 输入框描边。
+        /// 卡片描边与分隔线。
         static let cardStroke = dynamic(
             light: NSColor.black.withAlphaComponent(0.10),
             dark: NSColor.white.withAlphaComponent(0.12)
         )
 
-        /// 代码块、路径块的内嵌表面。
+        /// 代码块、路径块、可点击行 hover 的内嵌表面。
         static let insetFill = dynamic(
             light: NSColor(calibratedWhite: 0.0, alpha: 0.04),
             dark: NSColor.white.withAlphaComponent(0.06)
         )
 
-        static let iconTileFill = dynamic(
-            light: NSColor(calibratedWhite: 0.0, alpha: 0.045),
-            dark: NSColor.white.withAlphaComponent(0.07)
-        )
-
-        /// 预览舞台渐变（浅色像摄影棚背景，深色收进石墨色）。
-        static let stageTop = dynamic(
-            light: NSColor(srgbRed: 0.969, green: 0.973, blue: 0.980, alpha: 1),
-            dark: NSColor(srgbRed: 0.149, green: 0.149, blue: 0.165, alpha: 1)
-        )
-        static let stageBottom = dynamic(
-            light: NSColor(srgbRed: 0.875, green: 0.894, blue: 0.925, alpha: 1),
-            dark: NSColor(srgbRed: 0.106, green: 0.106, blue: 0.118, alpha: 1)
-        )
+        /// 预览舞台渐变：页面底色 → 卡片底色，保持低对比的原生观感。
+        static let stageTop = pageBackground
+        static let stageBottom = cardFill
 
         static let accent = NSColor.controlAccentColor
         static let positive = NSColor.systemGreen
@@ -55,14 +45,11 @@ enum ConsoleTheme {
         static let destructive = NSColor.systemRed
         static let info = NSColor.systemBlue
 
-        /// 品牌红只用于 Logo / 爱心图标等点缀，不用于交互强调。
-        static let brandRed = NSColor(srgbRed: 0.992, green: 0.208, blue: 0.196, alpha: 1)
-
-        /// 发丝线（1px 分隔）。
-        static let hairline = dynamic(
-            light: NSColor.black.withAlphaComponent(0.08),
-            dark: NSColor.white.withAlphaComponent(0.10)
-        )
+        /// macOS 窗口交通灯圆点色：关闭红 / 最小化黄 / 缩放绿。
+        /// 关于页「赞助 / 收藏 / 分享」沿用这套色值，按红黄绿从左到右排列。
+        static let trafficRed = NSColor(srgbRed: 1, green: 0.373, blue: 0.341, alpha: 1)
+        static let trafficYellow = NSColor(srgbRed: 0.996, green: 0.737, blue: 0.180, alpha: 1)
+        static let trafficGreen = NSColor(srgbRed: 0.157, green: 0.784, blue: 0.251, alpha: 1)
 
         /// 彩色按钮上的文字颜色：按底色亮度选黑/白，避免黄色强调色下白字看不清。
         static func contrastingLabel(on background: NSColor) -> NSColor {
@@ -73,7 +60,6 @@ enum ConsoleTheme {
             return luminance > 0.6 ? .black : .white
         }
 
-        /// 根据外观生成动态颜色。
         static func dynamic(light: NSColor, dark: NSColor) -> NSColor {
             NSColor(name: nil) { appearance in
                 let match = appearance.bestMatch(from: [.darkAqua, .aqua])
@@ -85,17 +71,14 @@ enum ConsoleTheme {
     // MARK: - 圆角
 
     enum Radius {
-        static let card: CGFloat = 16
-        static let stage: CGFloat = 12
-        static let control: CGFloat = 10
-        static let iconTile: CGFloat = 10
-        static let pill: CGFloat = 999
+        static let card: CGFloat = 10
+        static let stage: CGFloat = 8
+        static let control: CGFloat = 6
     }
 
     // MARK: - 间距
 
     enum Space {
-        static let xxs: CGFloat = 4
         static let xs: CGFloat = 8
         static let sm: CGFloat = 12
         static let md: CGFloat = 16
@@ -103,32 +86,43 @@ enum ConsoleTheme {
         static let xl: CGFloat = 24
         static let xxl: CGFloat = 32
 
-        static let pageInset: CGFloat = 24
-        static let cardInset: CGFloat = 18
-        static let stageInset: CGFloat = 12
-        static let previewCardInset: CGFloat = 10
+        static let pageInset: CGFloat = 20
+        static let cardInset: CGFloat = 16
+        static let stageInset: CGFloat = 8
+
+        /// 系统设置式分组行节奏。
+        static let rowHeight: CGFloat = 44
+        static let rowInset: CGFloat = 16
+        static let groupSpacing: CGFloat = 24
+        static let groupHeaderGap: CGFloat = 8
+        static let sidebarRowHeight: CGFloat = 28
+        static let sidebarSectionHeight: CGFloat = 26
+        static let formRowHeight: CGFloat = 36
     }
 
     // MARK: - 字体
 
     enum Font {
-        static let pageTitle = NSFont.systemFont(ofSize: 26, weight: .semibold)
-        static let pageSubtitle = NSFont.systemFont(ofSize: 12.5, weight: .regular)
+        static let pageTitle = NSFont.systemFont(ofSize: 22, weight: .semibold)
+        static let pageSubtitle = NSFont.systemFont(ofSize: 13, weight: .regular)
         static let sectionTitle = NSFont.systemFont(ofSize: 13, weight: .semibold)
-        static let rowTitle = NSFont.systemFont(ofSize: 13, weight: .semibold)
-        static let body = NSFont.systemFont(ofSize: 12.5, weight: .regular)
+        static let rowTitle = NSFont.systemFont(ofSize: 13, weight: .regular)
+        static let body = NSFont.systemFont(ofSize: 13, weight: .regular)
         static let caption = NSFont.systemFont(ofSize: 11, weight: .regular)
-        static let micro = NSFont.systemFont(ofSize: 10.5, weight: .regular)
         static let chip = NSFont.systemFont(ofSize: 11, weight: .medium)
-        static let button = NSFont.systemFont(ofSize: 12.5, weight: .medium)
-        static let monoCode = NSFont.monospacedSystemFont(ofSize: 11.5, weight: .regular)
-        static let monoMeta = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .regular)
+        static let monoCode = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        static let monoMeta = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        static let sidebarItem = NSFont.systemFont(ofSize: 13, weight: .regular)
+        static let sidebarSection = NSFont.systemFont(ofSize: 11, weight: .semibold)
+        static let sidebarBadge = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        static let editorTitle = NSFont.systemFont(ofSize: 17, weight: .semibold)
+        static let emptyTitle = NSFont.systemFont(ofSize: 15, weight: .semibold)
 
         /// 大标题用的轻微负字距（中文同样适用，视觉更紧凑）。
         static func tracked(_ text: String,
                             font: NSFont,
                             color: NSColor = .labelColor,
-                            tracking: CGFloat = -0.3) -> NSAttributedString {
+                            tracking: CGFloat = -0.2) -> NSAttributedString {
             NSAttributedString(string: text, attributes: [
                 .font: font,
                 .foregroundColor: color,
@@ -137,19 +131,33 @@ enum ConsoleTheme {
         }
     }
 
-    // MARK: - 分类符号
+    // MARK: - 分类样式
 
-    /// 在线模板库分类 → SF Symbol（全部为 macOS 13 可用的稳定符号）。
-    static func categorySymbol(for id: String?) -> String {
+    /// 分类图标块：SF Symbol + 系统色，同一张表避免符号与颜色各自漂移。
+    struct CategoryStyle {
+        let symbol: String
+        let tint: NSColor
+    }
+
+    /// 在线模板库分类 → 图标样式（全部为 macOS 13 可用的稳定符号）。
+    static func categoryStyle(for id: String?) -> CategoryStyle {
         switch id {
-        case "productivity": return "checklist"
-        case "focus": return "timer"
-        case "monitoring": return "gauge"
-        case "companion": return "person.2"
-        case "media": return "play.rectangle"
-        case "play": return "gamecontroller"
-        case "social": return "bubble.left.and.bubble.right"
-        default: return "square.grid.2x2"
+        case "productivity":
+            return CategoryStyle(symbol: "checklist", tint: .systemBlue)
+        case "focus":
+            return CategoryStyle(symbol: "timer", tint: .systemOrange)
+        case "monitoring":
+            return CategoryStyle(symbol: "gauge", tint: .systemGreen)
+        case "companion":
+            return CategoryStyle(symbol: "person.2", tint: .systemPink)
+        case "media":
+            return CategoryStyle(symbol: "play.rectangle", tint: .systemPurple)
+        case "play":
+            return CategoryStyle(symbol: "gamecontroller", tint: .systemRed)
+        case "social":
+            return CategoryStyle(symbol: "bubble.left.and.bubble.right", tint: .systemTeal)
+        default:
+            return CategoryStyle(symbol: "square.grid.2x2", tint: .systemGray)
         }
     }
 }

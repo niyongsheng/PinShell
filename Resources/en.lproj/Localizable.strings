@@ -81,6 +81,9 @@
 "console.sidebar.templates" = "Local";
 "console.sidebar.online" = "Online";
 "console.sidebar.library" = "Template Library";
+"console.sidebar.settings" = "Settings";
+"console.sidebar.general" = "General";
+"console.sidebar.shortcuts" = "Shortcuts";
 "console.sidebar.services" = "Services";
 "console.sidebar.apply" = "Enable";
 "console.sidebar.edit" = "Edit";
@@ -102,8 +105,8 @@
 "console.toolbar.reload" = "Reload HTML";
 "console.toolbar.folder" = "Reveal in Finder";
 "console.toolbar.templates" = "Template Actions";
-"console.toolbar.onlineLibrary" = "Online Template Library…";
-"console.toolbar.revealFolder" = "Open Templates Folder";
+"console.toolbar.onlineLibrary" = "Online Template Library";
+"console.toolbar.revealFolder" = "Templates Folder";
 
 /* 控制台 · 删除模板 */
 "console.delete.title" = "Delete “%@”?";
@@ -167,10 +170,75 @@
 "console.about.sponsor" = "Sponsor";
 "console.about.feedback" = "Send Feedback…";
 "console.about.feedbackHint" = "Open an issue on GitHub";
-"console.about.privacy" = "Privacy";
-"console.about.analytics" = "Anonymous Analytics";
-"console.about.privacyText" = "Sends anonymous launch analytics via Aptabase, with no personal information.";
 "console.about.copyright" = "Apache License 2.0 · © 2026 niyongsheng";
+
+/* 控制台 · 通用 */
+"console.general.title" = "General";
+"console.general.appearance.title" = "Appearance";
+"console.general.appearance.theme" = "Theme";
+"console.general.appearance.subtitle" = "Auto follows the system appearance. Choose Light or Dark to override it.";
+"console.general.appearance.auto" = "Auto";
+"console.general.appearance.light" = "Light";
+"console.general.appearance.dark" = "Dark";
+"console.general.library.title" = "Template Libraries";
+"console.general.library.official" = "Official Library";
+"console.general.library.footer" = "Templates from all sources are merged in the Template Library page. If two sources share a template ID, the first one wins, and the official library comes first.";
+"console.general.library.add" = "Add Template Library…";
+"console.general.library.addSubtitle" = "Any HTTPS address that serves library.json";
+"console.general.library.addTitle" = "Add Template Library";
+"console.general.library.addInfo" = "Enter the address of a template library (library.json). A site root is automatically completed with /library.json.";
+"console.general.library.urlPlaceholder" = "https://example.com/library.json";
+"console.general.library.addConfirm" = "Add";
+"console.general.library.cancel" = "Cancel";
+"console.general.library.remove" = "Remove Template Library";
+"console.general.library.removeHint" = "Remove this source. Installed templates are kept.";
+"console.general.library.status.loading" = "Loading…";
+"console.general.library.status.count" = "%ld templates";
+"console.general.library.status.offline" = "Offline cache · %ld templates";
+"console.general.library.status.offlineHint" = "Showing the cached catalog. Templates from this source can’t be installed right now.";
+"console.general.library.status.failed" = "Couldn’t load";
+"console.general.library.status.skipped" = "%ld duplicate templates skipped";
+"console.general.library.status.skippedHint" = "Skipped IDs: %@";
+"console.general.library.checking" = "Checking the library…";
+"console.general.library.addAnyway" = "Add Anyway";
+"console.general.library.conflict.title" = "%ld templates will be skipped";
+"console.general.library.conflict.intro" = "These template IDs are already provided by an earlier source, so they won’t appear in the Template Library:";
+"console.general.library.conflict.item" = "• %@ (%@) — provided by %@";
+"console.general.library.conflict.unreadableTitle" = "Couldn’t check template IDs";
+"console.general.library.conflict.unreadableDetail" = "The library couldn’t be read: %@\nYou can still add it; its status will show the load error and conflicts will be detected after it loads.";
+"console.general.library.error.empty" = "Enter a template library address.";
+"console.general.library.error.invalid" = "Enter a valid HTTPS address.";
+"console.general.library.error.insecure" = "Only HTTPS addresses are supported. HTTP is allowed for localhost.";
+"console.general.library.error.duplicate" = "This template library has already been added.";
+"console.general.privacy.title" = "Privacy";
+"console.general.privacy.analytics" = "Anonymous Analytics";
+"console.general.privacy.text" = "Sends anonymous launch analytics via Aptabase, with no personal information.";
+
+/* 控制台 · 快捷键 */
+"console.shortcuts.title" = "Shortcuts";
+"console.shortcuts.global.title" = "Global";
+"console.shortcuts.global.footer" = "Active in any app. Combinations must include ⌘, ⌥, or ⌃.";
+"console.shortcuts.action.toggleOverlay" = "Show / Hide Overlay";
+"console.shortcuts.action.toggleOverlay.subtitle" = "Toggle the overlay from any app.";
+"console.shortcuts.action.togglePassthrough" = "Toggle Interactive / Passthrough";
+"console.shortcuts.action.togglePassthrough.subtitle" = "Let mouse events pass through the overlay, or restore interaction.";
+"console.shortcuts.action.openConsole" = "Open Console";
+"console.shortcuts.action.openConsole.subtitle" = "Open the window with templates, MCP, and settings.";
+"console.shortcuts.action.showTemplates" = "Local Templates";
+"console.shortcuts.action.showMCP" = "MCP";
+"console.shortcuts.action.showAbout" = "About";
+"console.shortcuts.action.showLibrary" = "Template Library";
+"console.shortcuts.action.showGeneral" = "General";
+"console.shortcuts.action.editTemplate" = "Edit Current Template";
+"console.shortcuts.recording" = "Press shortcut…";
+"console.shortcuts.unset" = "Not Set";
+"console.shortcuts.recorderLabel" = "%@ shortcut";
+"console.shortcuts.reset" = "Restore Default Shortcuts";
+"console.shortcuts.resetSubtitle" = "Reset every shortcut to its default.";
+"console.shortcuts.error.needsModifier" = "Shortcuts must include ⌘, ⌥, or ⌃.";
+"console.shortcuts.error.conflict" = "That combination is already used by “%@”.";
+"console.shortcuts.error.unavailable" = "That combination is already used by the system or another app, so it can’t be registered as a global shortcut.";
+"console.shortcuts.notice.unavailable" = "“%@” is already used by the system or another app, so it can’t be registered as a global shortcut.";
 
 /* 控制台 · 模板编辑弹窗 */
 "console.editor.title" = "Edit Template";
@@ -214,6 +282,7 @@
 "library.updated.cached" = "Offline cache · %@";
 "library.updated.none" = "Not loaded yet";
 "library.banner.offline" = "Offline: showing the cached catalog. Installs and updates are disabled.";
+"library.banner.offlinePartial" = "Some template libraries are offline: showing cached catalogs. Templates from those sources can’t be installed right now.";
 "library.banner.readOnly" = "The library state was written by a newer PinShell. This session is read-only.";
 "library.empty" = "The template library is empty.";
 "library.empty.filtered" = "No matching templates.";

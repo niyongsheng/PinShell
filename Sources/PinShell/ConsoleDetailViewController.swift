@@ -2,7 +2,7 @@ import AppKit
 import WebKit
 import PinShellCore
 
-/// 控制台右侧详情：模板预览/应用/编辑，或 MCP / 模板库 / 关于页。
+/// 控制台右侧详情：模板预览/应用/编辑，或模板库 / MCP / 通用 / 快捷键 / 关于页。
 @MainActor
 final class ConsoleDetailViewController: NSViewController {
     var onApply: ((TemplateItem) -> Void)?
@@ -17,8 +17,7 @@ final class ConsoleDetailViewController: NSViewController {
 
     private(set) var currentTemplate: TemplateItem?
 
-    // 全局状态条
-    private let fileLabel = NSTextField(labelWithString: "—")
+    // 模板状态：只在本页显示，不再占用全局状态条。
     private let frameChip = StatusChip()
     private let visibleChip = StatusChip()
     private let passthroughChip = StatusChip()
@@ -27,23 +26,20 @@ final class ConsoleDetailViewController: NSViewController {
 
     private let contentContainer = NSView()
     private let templatePage = ConsoleScrollPage(horizontalInset: ConsoleTheme.Space.pageInset,
-                                                 spacing: ConsoleTheme.Space.md)
+                                                 spacing: ConsoleTheme.Space.lg)
     private let emptyPage = NSView()
-    /// MCP 页在首次打开时才构建，避免打开控制台就创建整套卡片。
-    private var mcpView: ConsoleMCPView?
-    private var libraryView: ConsoleLibraryView?
-    /// 关于页在首次打开时才构建，与 MCP 页一致。
-    private var aboutView: ConsoleAboutView?
+    /// 服务页在首次打开时才构建，避免打开控制台就创建整套卡片。
+    private var pageViews: [ConsolePage: NSView] = [:]
 
-    // 模板详情
+    // MARK: - 模板详情
+
+    /// 预览舞台直接铺满卡片：卡片描边就是唯一边框，中间不再露出一圈白色卡片底。
     private let previewCard = ConsoleCard(
-        cornerRadius: 18,
-        inset: NSEdgeInsets(top: ConsoleTheme.Space.previewCardInset,
-                            left: ConsoleTheme.Space.previewCardInset,
-                            bottom: ConsoleTheme.Space.previewCardInset,
-                            right: ConsoleTheme.Space.previewCardInset)
+        cornerRadius: ConsoleTheme.Radius.card,
+        inset: NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
     )
-    private let previewStage = ConsoleStageView()
+    private let previewStage = ConsoleStageView(cornerRadius: ConsoleTheme.Radius.card,
+                                                showsBorder: false)
     private let previewWebView = WKWebView(frame: .zero)
     /// 承载 WebView 的窗口框：负责整窗圆角裁剪，避免直接给 WKWebView 图层加 mask。
     private let previewWindowView = NSView()
@@ -57,9 +53,7 @@ final class ConsoleDetailViewController: NSViewController {
     private static let previewShadowMargin: CGFloat = 8
 
     private let titleLabel = NSTextField(labelWithAttributedString:
-        ConsoleTheme.Font.tracked("—",
-                                  font: .systemFont(ofSize: 26, weight: .semibold),
-                                  tracking: -0.4))
+        ConsoleTheme.Font.tracked("—", font: ConsoleTheme.Font.pageTitle))
     private let subtitleLabel = NSTextField(wrappingLabelWithString: "")
     /// 副标题行：说明文字靠左，模板库版本号右对齐。
     private let subtitleRow = NSStackView()
@@ -70,7 +64,6 @@ final class ConsoleDetailViewController: NSViewController {
         NSLocalizedString("console.apply", comment: ""),
         symbol: "pin.fill",
         style: .primary,
-        controlSize: .large,
         target: self,
         action: #selector(applyTapped))
 
@@ -78,7 +71,6 @@ final class ConsoleDetailViewController: NSViewController {
         NSLocalizedString("console.detail.edit", comment: ""),
         symbol: "slider.horizontal.3",
         style: .secondary,
-        controlSize: .large,
         target: self,
         action: #selector(editTapped))
 
@@ -88,8 +80,8 @@ final class ConsoleDetailViewController: NSViewController {
         target: self,
         action: #selector(moreTapped))
 
-    private lazy var fileInfoRow = ConsoleInfoRow(
-        label: NSLocalizedString("console.detail.file", comment: ""),
+    private lazy var fileInfoRow = SettingsRowView(
+        title: NSLocalizedString("console.detail.file", comment: ""),
         value: "—",
         accessory: makeIconButton(
             symbol: "folder",
@@ -103,32 +95,31 @@ final class ConsoleDetailViewController: NSViewController {
         target: self,
         action: #selector(openAuthorPage))
 
-    private lazy var authorInfoRow = ConsoleInfoRow(
-        label: NSLocalizedString("library.detail.author", comment: ""),
+    private lazy var authorInfoRow = SettingsRowView(
+        title: NSLocalizedString("library.detail.author", comment: ""),
         value: "—",
         accessory: authorButton)
 
-    /// 作者行与紧随其后的分隔线一起隐藏，避免本地模板出现空行或双分隔线。
-    private let authorDivider = HairlineView()
     private var currentAuthor: TemplateLibraryAuthor?
 
-    private lazy var sizeInfoRow = ConsoleInfoRow(
-        label: NSLocalizedString("console.detail.size", comment: ""),
+    private lazy var sizeInfoRow = SettingsRowView(
+        title: NSLocalizedString("console.detail.size", comment: ""),
         value: "—")
 
-    private lazy var positionInfoRow = ConsoleInfoRow(
-        label: NSLocalizedString("console.detail.position", comment: ""),
+    private lazy var positionInfoRow = SettingsRowView(
+        title: NSLocalizedString("console.detail.position", comment: ""),
         value: "—")
 
-    private lazy var orderInfoRow = ConsoleInfoRow(
-        label: NSLocalizedString("console.detail.order", comment: ""),
+    private lazy var orderInfoRow = SettingsRowView(
+        title: NSLocalizedString("console.detail.order", comment: ""),
         value: "—")
+
+    private let infoGroup = SettingsGroupView(
+        title: NSLocalizedString("console.detail.info", comment: ""))
+    private var authorSlot: SettingsRowsView.RowSlot?
 
     override func loadView() {
-        let root = NSVisualEffectView()
-        root.material = .underWindowBackground
-        root.blendingMode = .behindWindow
-        root.state = .active
+        let root = ConsoleBackgroundView()
         view = root
         build()
     }
@@ -136,94 +127,22 @@ final class ConsoleDetailViewController: NSViewController {
     // MARK: - 装配
 
     private func build() {
-        let statusBar = buildStatusBar()
-        statusBar.translatesAutoresizingMaskIntoConstraints = false
         contentContainer.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(statusBar)
         view.addSubview(contentContainer)
 
         NSLayoutConstraint.activate([
-            statusBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            statusBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            statusBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            statusBar.heightAnchor.constraint(equalToConstant: 34),
-
-            contentContainer.topAnchor.constraint(equalTo: statusBar.bottomAnchor,
-                                                  constant: ConsoleTheme.Space.sm),
+            contentContainer.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             contentContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             contentContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            contentContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor,
-                                                     constant: -ConsoleTheme.Space.sm),
+            contentContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
         buildTemplatePage()
         buildEmptyPage()
-        for page in [templatePage, emptyPage] {
-            page.translatesAutoresizingMaskIntoConstraints = false
-            contentContainer.addSubview(page)
-            NSLayoutConstraint.activate([
-                page.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-                page.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-                page.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-                page.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
-            ])
-        }
+        templatePage.pinEdges(to: contentContainer)
+        emptyPage.pinEdges(to: contentContainer)
         templatePage.isHidden = true
         emptyPage.isHidden = false
-    }
-
-    private func buildStatusBar() -> NSView {
-        let container = NSView()
-
-        let icon = NSImageView(image: NSImage(systemSymbolName: "macwindow",
-                                              accessibilityDescription: nil) ?? NSImage())
-        icon.contentTintColor = .tertiaryLabelColor
-        icon.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            icon.widthAnchor.constraint(equalToConstant: 14),
-            icon.heightAnchor.constraint(equalToConstant: 14),
-        ])
-
-        fileLabel.font = .systemFont(ofSize: 12, weight: .medium)
-        fileLabel.textColor = .labelColor
-        fileLabel.lineBreakMode = .byTruncatingMiddle
-        fileLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
-        let left = NSStackView(views: [icon, fileLabel])
-        left.orientation = .horizontal
-        left.spacing = 6
-        left.alignment = .centerY
-
-        let spacer = NSView()
-        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-
-        let right = NSStackView(views: [frameChip, visibleChip, passthroughChip, watchChip])
-        right.orientation = .horizontal
-        right.spacing = 6
-        right.alignment = .centerY
-        right.setContentHuggingPriority(.required, for: .horizontal)
-
-        let bar = NSStackView(views: [left, spacer, right])
-        bar.orientation = .horizontal
-        bar.spacing = 8
-        bar.alignment = .centerY
-        bar.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(bar)
-
-        let divider = HairlineView()
-        container.addSubview(divider)
-
-        NSLayoutConstraint.activate([
-            bar.leadingAnchor.constraint(equalTo: container.leadingAnchor,
-                                         constant: ConsoleTheme.Space.pageInset),
-            bar.trailingAnchor.constraint(equalTo: container.trailingAnchor,
-                                          constant: -ConsoleTheme.Space.pageInset),
-            bar.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            divider.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            divider.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            divider.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-        ])
-        return container
     }
 
     private func buildTemplatePage() {
@@ -254,13 +173,13 @@ final class ConsoleDetailViewController: NSViewController {
         titleLabel.maximumNumberOfLines = 1
         titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        subtitleLabel.font = .systemFont(ofSize: 12.5)
+        subtitleLabel.font = ConsoleTheme.Font.pageSubtitle
         subtitleLabel.textColor = .secondaryLabelColor
         subtitleLabel.maximumNumberOfLines = 2
         subtitleLabel.lineBreakMode = .byWordWrapping
         subtitleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        versionLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        versionLabel.font = ConsoleTheme.Font.monoMeta
         versionLabel.textColor = .tertiaryLabelColor
         versionLabel.alignment = .right
         versionLabel.setContentHuggingPriority(.required, for: .horizontal)
@@ -300,59 +219,29 @@ final class ConsoleDetailViewController: NSViewController {
         actions.spacing = ConsoleTheme.Space.xs
         actions.alignment = .centerY
 
-        let infoCard = buildInfoCard()
+        let statusSpacer = NSView()
+        statusSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let statusRow = NSStackView(views: [frameChip, visibleChip, passthroughChip,
+                                            watchChip, statusSpacer])
+        statusRow.orientation = .horizontal
+        statusRow.spacing = 6
+        statusRow.alignment = .centerY
+
+        infoGroup.addRow(fileInfoRow)
+        authorSlot = infoGroup.addRow(authorInfoRow)
+        authorSlot?.setHidden(true)
+        infoGroup.addRow(sizeInfoRow)
+        infoGroup.addRow(positionInfoRow)
+        infoGroup.addRow(orderInfoRow)
 
         let stack = templatePage.stack
-        for view in [previewCard, headerRow, subtitleRow, actions, infoCard] {
+        for view in [headerRow, subtitleRow, statusRow, actions, previewCard, infoGroup] {
             stack.addArrangedSubview(view)
             view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
-        stack.setCustomSpacing(14, after: previewCard)
         stack.setCustomSpacing(6, after: headerRow)
-        stack.setCustomSpacing(14, after: subtitleRow)
-        stack.setCustomSpacing(18, after: actions)
-    }
-
-    private func buildInfoCard() -> NSView {
-        let card = ConsoleCard(
-            inset: NSEdgeInsets(top: ConsoleTheme.Space.md,
-                                left: ConsoleTheme.Space.md,
-                                bottom: ConsoleTheme.Space.md,
-                                right: ConsoleTheme.Space.md)
-        )
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 0
-        stack.translatesAutoresizingMaskIntoConstraints = false
-
-        let title = makeSectionLabel(NSLocalizedString("console.detail.info", comment: ""),
-                                     symbol: "info.circle")
-        stack.addArrangedSubview(title)
-        stack.setCustomSpacing(ConsoleTheme.Space.sm, after: title)
-
-        let rows: [NSView] = [fileInfoRow, authorInfoRow, sizeInfoRow,
-                              positionInfoRow, orderInfoRow]
-        for (index, row) in rows.enumerated() {
-            stack.addArrangedSubview(row)
-            row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-            if index < rows.count - 1 {
-                let divider = row === authorInfoRow ? authorDivider : HairlineView()
-                stack.addArrangedSubview(divider)
-                divider.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-            }
-        }
-        authorInfoRow.isHidden = true
-        authorDivider.isHidden = true
-
-        card.contentView.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: card.contentView.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: card.contentView.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: card.contentView.topAnchor),
-            stack.bottomAnchor.constraint(equalTo: card.contentView.bottomAnchor),
-        ])
-        return card
+        stack.setCustomSpacing(10, after: subtitleRow)
+        stack.setCustomSpacing(16, after: statusRow)
     }
 
     private func buildEmptyPage() {
@@ -360,7 +249,6 @@ final class ConsoleDetailViewController: NSViewController {
             NSLocalizedString("console.empty.browseLibrary", comment: ""),
             symbol: "square.grid.2x2",
             style: .primary,
-            controlSize: .large,
             target: self,
             action: #selector(browseLibraryTapped))
 
@@ -368,7 +256,6 @@ final class ConsoleDetailViewController: NSViewController {
             NSLocalizedString("console.empty.openFolder", comment: ""),
             symbol: "folder",
             style: .secondary,
-            controlSize: .large,
             target: self,
             action: #selector(openTemplatesFolder))
 
@@ -389,73 +276,65 @@ final class ConsoleDetailViewController: NSViewController {
 
     // MARK: - 页面切换
 
-    private enum Page {
-        case template, empty, mcp, library, about
+    private enum Page: Equatable {
+        case template
+        case empty
+        case service(ConsolePage)
     }
 
     private var currentPage: Page = .empty
 
-    var isShowingLibrary: Bool { currentPage == .library }
+    var isShowingLibrary: Bool { currentPage == .service(.library) }
 
-    var isShowingServicePage: Bool { currentPage == .mcp || currentPage == .about }
+    var isShowingServicePage: Bool {
+        if case .service = currentPage { return true }
+        return false
+    }
 
     private func show(_ page: Page) {
         currentPage = page
-        if page == .mcp { ensureMCPView() }
-        if page == .about { ensureAboutView() }
-        templatePage.isHidden = page != .template
-        emptyPage.isHidden = page != .empty
-        mcpView?.isHidden = page != .mcp
-        libraryView?.isHidden = page != .library
-        aboutView?.isHidden = page != .about
-    }
-
-    private func ensureAboutView() {
-        guard aboutView == nil else { return }
-        let view = ConsoleAboutView()
-        view.translatesAutoresizingMaskIntoConstraints = false
-        contentContainer.addSubview(view)
-        NSLayoutConstraint.activate([
-            view.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            view.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-            view.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            view.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
-        ])
-        view.isHidden = true
-        aboutView = view
-    }
-
-    private func ensureMCPView() {
-        guard mcpView == nil else { return }
-        let view = ConsoleMCPView()
-        view.translatesAutoresizingMaskIntoConstraints = false
-        contentContainer.addSubview(view)
-        NSLayoutConstraint.activate([
-            view.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            view.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-            view.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            view.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
-        ])
-        view.isHidden = true
-        mcpView = view
-    }
-
-    private func ensureLibraryView(service: TemplateLibraryService) {
-        guard libraryView == nil else { return }
-        let view = ConsoleLibraryView(service: service)
-        view.translatesAutoresizingMaskIntoConstraints = false
-        view.onOpenInstalled = { [weak self] file in
-            self?.onOpenInstalled?(file)
+        if case .service(let servicePage) = page {
+            templatePage.isHidden = true
+            emptyPage.isHidden = true
+            hideServicePages(except: servicePage)
+            pageViews[servicePage]?.isHidden = false
+        } else {
+            templatePage.isHidden = page != .template
+            emptyPage.isHidden = page != .empty
+            hideServicePages()
         }
-        contentContainer.addSubview(view)
-        NSLayoutConstraint.activate([
-            view.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            view.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-            view.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            view.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
-        ])
+    }
+
+    private func hideServicePages(except visible: ConsolePage? = nil) {
+        for (page, view) in pageViews where page != visible {
+            view.isHidden = true
+        }
+    }
+
+    private func pageView(for page: ConsolePage,
+                          service: TemplateLibraryService) -> NSView {
+        if let view = pageViews[page] { return view }
+        let view: NSView
+        switch page {
+        case .library:
+            let library = ConsoleLibraryView(service: service)
+            library.onOpenInstalled = { [weak self] file in
+                self?.onOpenInstalled?(file)
+            }
+            view = library
+        case .general:
+            view = ConsoleGeneralView(service: service)
+        case .shortcuts:
+            view = ConsoleShortcutsView()
+        case .mcp:
+            view = ConsoleMCPView()
+        case .about:
+            view = ConsoleAboutView()
+        }
+        view.pinEdges(to: contentContainer)
         view.isHidden = true
-        libraryView = view
+        pageViews[page] = view
+        return view
     }
 
     func showTemplate(_ item: TemplateItem) {
@@ -464,8 +343,7 @@ final class ConsoleDetailViewController: NSViewController {
 
         titleLabel.attributedStringValue = ConsoleTheme.Font.tracked(
             item.name,
-            font: .systemFont(ofSize: 26, weight: .semibold),
-            tracking: -0.4)
+            font: ConsoleTheme.Font.pageTitle)
         subtitleLabel.stringValue = item.description
         subtitleLabel.isHidden = item.description.isEmpty
 
@@ -476,9 +354,9 @@ final class ConsoleDetailViewController: NSViewController {
         positionInfoRow.configure(value: positionText(item.spec.position))
         orderInfoRow.configure(value: item.order == Int.max ? "—" : "#\(item.order)")
 
-        // 卡片与舞台各有内边距：让 HTML 以其声明高度 1:1 展示；
+        // 舞台留白：让 HTML 以其声明高度 1:1 展示；
         // 过高的模板在可视区内缩放，避免把标题和操作挤出首屏。
-        let chrome = 2 * (ConsoleTheme.Space.previewCardInset + ConsoleTheme.Space.stageInset)
+        let chrome = 2 * ConsoleTheme.Space.stageInset
         let natural = item.size.height + CGFloat(chrome)
         previewHeightConstraint?.constant = min(max(120, natural), 300)
         // 整窗圆角与悬浮窗保持一致。HTML 的窗口阴影会被 WebView 边界裁断，
@@ -514,14 +392,12 @@ final class ConsoleDetailViewController: NSViewController {
     private func updateAuthor(_ author: TemplateLibraryAuthor?) {
         currentAuthor = author
         guard let author else {
-            authorInfoRow.isHidden = true
-            authorDivider.isHidden = true
+            authorSlot?.setHidden(true)
             authorButton.isHidden = true
             return
         }
         authorInfoRow.configure(value: author.name)
-        authorInfoRow.isHidden = false
-        authorDivider.isHidden = false
+        authorSlot?.setHidden(false)
         authorButton.isHidden = author.url.flatMap(URL.init(string:)) == nil
     }
 
@@ -532,39 +408,32 @@ final class ConsoleDetailViewController: NSViewController {
         show(.empty)
     }
 
-    func showLibrary(service: TemplateLibraryService) {
+    func showPage(_ page: ConsolePage, service: TemplateLibraryService) {
         currentTemplate = nil
-        ensureLibraryView(service: service)
-        show(.library)
-        libraryView?.activate()
+        let view = pageView(for: page, service: service)
+        show(.service(page))
+        (view as? ConsoleServicePage)?.activate()
     }
 
     /// 官网深链：确保模板库页存在并安装指定模板。
-    func installTemplateFromLibrary(id: String, service: TemplateLibraryService) async {
-        ensureLibraryView(service: service)
-        await libraryView?.installTemplate(id: id)
+    func installTemplateFromLibrary(id: String,
+                                    catalogURL: URL,
+                                    service: TemplateLibraryService) async {
+        let view = pageView(for: .library, service: service)
+        await (view as? ConsoleLibraryView)?.installTemplate(id: id, catalogURL: catalogURL)
     }
 
     func refreshLibrary() {
-        libraryView?.refresh()
+        (pageViews[.library] as? ConsoleLibraryView)?.refresh()
     }
 
-    func showMCP() {
-        currentTemplate = nil
-        show(.mcp)
-        mcpView?.refresh()
-    }
-
-    func showAbout() {
-        currentTemplate = nil
-        show(.about)
+    func refreshGeneral() {
+        (pageViews[.general] as? ConsoleGeneralView)?.refresh()
     }
 
     func refreshStatus(_ status: JSONValue) {
         let path = status["file"]?.stringValue
         displayedFile = path.map { ($0 as NSString).lastPathComponent }
-        fileLabel.stringValue = displayedFile ?? NSLocalizedString("console.noFile", comment: "")
-        fileLabel.toolTip = path
 
         if let frame = status["frame"],
            let width = frame["width"]?.doubleValue,

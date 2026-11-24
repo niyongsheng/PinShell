@@ -13,7 +13,7 @@
 "menu.quit" = "退出 PinShell";
 "menu.displayMode" = "显示方式";
 "menu.displayMode.desktop" = "桌面悬浮";
-"menu.displayMode.menuBar" = "菜单栏弹出";
+"menu.displayMode.menuBar" = "顶栏弹出";
 "menu.tooltip.desktop" = "PinShell · 点击打开菜单";
 "menu.tooltip.menuBar" = "PinShell · 点击显示模板，右键打开菜单";
 
@@ -81,6 +81,9 @@
 "console.sidebar.templates" = "本地";
 "console.sidebar.online" = "在线";
 "console.sidebar.library" = "模板库";
+"console.sidebar.settings" = "设置";
+"console.sidebar.general" = "通用";
+"console.sidebar.shortcuts" = "快捷键";
 "console.sidebar.services" = "服务";
 "console.sidebar.apply" = "启用";
 "console.sidebar.edit" = "编辑";
@@ -102,8 +105,8 @@
 "console.toolbar.reload" = "重载 HTML";
 "console.toolbar.folder" = "在 Finder 中显示";
 "console.toolbar.templates" = "模板操作";
-"console.toolbar.onlineLibrary" = "在线模板库…";
-"console.toolbar.revealFolder" = "打开模板文件夹";
+"console.toolbar.onlineLibrary" = "在线模板库";
+"console.toolbar.revealFolder" = "模板文件夹";
 
 /* 控制台 · 删除模板 */
 "console.delete.title" = "删除“%@”？";
@@ -167,10 +170,75 @@
 "console.about.sponsor" = "赞助";
 "console.about.feedback" = "发送反馈…";
 "console.about.feedbackHint" = "在 GitHub 上提交 Issue";
-"console.about.privacy" = "隐私";
-"console.about.analytics" = "匿名使用统计";
-"console.about.privacyText" = "通过 Aptabase 发送匿名启动统计，不含任何个人信息。";
 "console.about.copyright" = "Apache License 2.0 · © 2026 niyongsheng";
+
+/* 控制台 · 通用 */
+"console.general.title" = "通用";
+"console.general.appearance.title" = "外观";
+"console.general.appearance.theme" = "主题";
+"console.general.appearance.subtitle" = "自动跟随系统外观，也可固定为浅色或深色。";
+"console.general.appearance.auto" = "自动";
+"console.general.appearance.light" = "浅色";
+"console.general.appearance.dark" = "深色";
+"console.general.library.title" = "模板库来源";
+"console.general.library.official" = "官方模板库";
+"console.general.library.footer" = "所有来源的模板会合并显示在「模板库」页；同 id 的模板按来源顺序取第一个，官方库优先。";
+"console.general.library.add" = "添加模板库…";
+"console.general.library.addSubtitle" = "任何提供 library.json 的 HTTPS 地址";
+"console.general.library.addTitle" = "添加模板库";
+"console.general.library.addInfo" = "输入模板库地址（library.json）。只填站点地址时会自动补全 /library.json。";
+"console.general.library.urlPlaceholder" = "https://example.com/library.json";
+"console.general.library.addConfirm" = "添加";
+"console.general.library.cancel" = "取消";
+"console.general.library.remove" = "移除模板库";
+"console.general.library.removeHint" = "移除这个来源，已安装的模板会保留。";
+"console.general.library.status.loading" = "正在加载…";
+"console.general.library.status.count" = "%ld 个模板";
+"console.general.library.status.offline" = "离线缓存 · %ld 个模板";
+"console.general.library.status.offlineHint" = "正在显示缓存的目录，这个来源的模板暂时无法安装。";
+"console.general.library.status.failed" = "加载失败";
+"console.general.library.status.skipped" = "跳过 %ld 个重复模板";
+"console.general.library.status.skippedHint" = "被跳过的 id：%@";
+"console.general.library.checking" = "正在检查模板库…";
+"console.general.library.addAnyway" = "仍然添加";
+"console.general.library.conflict.title" = "添加后会有 %ld 个模板被跳过";
+"console.general.library.conflict.intro" = "以下模板 id 已由更靠前的来源提供，添加后不会显示在模板库中：";
+"console.general.library.conflict.item" = "• %@（%@）— 已由 %@ 提供";
+"console.general.library.conflict.unreadableTitle" = "无法检查模板 id 冲突";
+"console.general.library.conflict.unreadableDetail" = "无法读取该模板库：%@\n仍然可以添加；来源状态会显示加载失败，加载后会再检测冲突。";
+"console.general.library.error.empty" = "请输入模板库地址。";
+"console.general.library.error.invalid" = "请输入有效的 HTTPS 地址。";
+"console.general.library.error.insecure" = "仅支持 HTTPS 地址（本机调试可用 HTTP localhost）。";
+"console.general.library.error.duplicate" = "该模板库已添加。";
+"console.general.privacy.title" = "隐私";
+"console.general.privacy.analytics" = "匿名使用统计";
+"console.general.privacy.text" = "通过 Aptabase 发送匿名启动统计，不含任何个人信息。";
+
+/* 控制台 · 快捷键 */
+"console.shortcuts.title" = "快捷键";
+"console.shortcuts.global.title" = "全局";
+"console.shortcuts.global.footer" = "在任意应用中生效，组合需包含 ⌘、⌥ 或 ⌃。";
+"console.shortcuts.action.toggleOverlay" = "显示 / 隐藏悬浮窗";
+"console.shortcuts.action.toggleOverlay.subtitle" = "在任意应用中切换悬浮窗的显示状态。";
+"console.shortcuts.action.togglePassthrough" = "切换交互 / 穿透";
+"console.shortcuts.action.togglePassthrough.subtitle" = "让鼠标事件穿过悬浮窗，或恢复交互。";
+"console.shortcuts.action.openConsole" = "打开控制台";
+"console.shortcuts.action.openConsole.subtitle" = "打开模板、MCP 与设置所在的窗口。";
+"console.shortcuts.action.showTemplates" = "本地模板";
+"console.shortcuts.action.showMCP" = "MCP";
+"console.shortcuts.action.showAbout" = "关于";
+"console.shortcuts.action.showLibrary" = "模板库";
+"console.shortcuts.action.showGeneral" = "通用";
+"console.shortcuts.action.editTemplate" = "编辑当前模板";
+"console.shortcuts.recording" = "按下快捷键…";
+"console.shortcuts.unset" = "未设置";
+"console.shortcuts.recorderLabel" = "%@快捷键";
+"console.shortcuts.reset" = "恢复默认快捷键";
+"console.shortcuts.resetSubtitle" = "把所有快捷键恢复为默认设置。";
+"console.shortcuts.error.needsModifier" = "快捷键需包含 ⌘、⌥ 或 ⌃。";
+"console.shortcuts.error.conflict" = "该组合已用于「%@」。";
+"console.shortcuts.error.unavailable" = "该组合已被系统或其他应用占用，无法注册为全局快捷键。";
+"console.shortcuts.notice.unavailable" = "「%@」已被系统或其他应用占用，无法注册为全局快捷键。";
 
 /* 控制台 · 模板编辑弹窗 */
 "console.editor.title" = "编辑模板";
@@ -214,6 +282,7 @@
 "library.updated.cached" = "离线缓存 · %@";
 "library.updated.none" = "尚未加载";
 "library.banner.offline" = "离线：正在显示上次缓存的目录，安装与更新已禁用。";
+"library.banner.offlinePartial" = "部分模板库离线：正在显示缓存目录，相关来源的模板暂时无法安装。";
 "library.banner.readOnly" = "模板库状态由更新版本的 PinShell 创建，本次会话为只读。";
 "library.empty" = "模板库为空。";
 "library.empty.filtered" = "没有匹配的模板。";

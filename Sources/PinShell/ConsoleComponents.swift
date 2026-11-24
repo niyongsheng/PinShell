@@ -33,98 +33,15 @@ extension WindowPosition {
 
 // MARK: - 卡片与容器
 
-/// 液态玻璃卡片：macOS 26+ 用 NSGlassEffectView，旧系统回退到 NSVisualEffectView。
-/// 只用于 sheet / 浮层；页面内请用 ConsoleCard。
-final class GlassCard: NSView {
-    let contentView = NSView()
-
-    init(cornerRadius: CGFloat = 18, inset: CGFloat = 16) {
-        super.init(frame: .zero)
-        wantsLayer = true
-        layer?.cornerRadius = cornerRadius
-        layer?.cornerCurve = .continuous
-        layer?.borderWidth = 0.5
-        layer?.borderColor = ConsoleTheme.Color.cardStroke.cgColor
-
-        let backing: NSView
-        let glassOwnsContent: Bool
-        // NSGlassEffectView 来自 macOS 26 SDK（Swift 6.2）；旧 Xcode/CI runner 走视觉特效回退
-        #if compiler(>=6.2)
-        if #available(macOS 26.0, *) {
-            let glass = NSGlassEffectView()
-            glass.style = .regular
-            glass.cornerRadius = cornerRadius
-            glass.tintColor = NSColor.white.withAlphaComponent(0.04)
-            backing = glass
-            glassOwnsContent = true
-            glass.contentView = contentView
-        } else {
-            backing = Self.makeVisualEffect(cornerRadius: cornerRadius)
-            glassOwnsContent = false
-        }
-        #else
-        backing = Self.makeVisualEffect(cornerRadius: cornerRadius)
-        glassOwnsContent = false
-        #endif
-
-        addSubview(backing)
-        backing.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            backing.leadingAnchor.constraint(equalTo: leadingAnchor),
-            backing.trailingAnchor.constraint(equalTo: trailingAnchor),
-            backing.topAnchor.constraint(equalTo: topAnchor),
-            backing.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
-
-        contentView.translatesAutoresizingMaskIntoConstraints = false
-        if !glassOwnsContent {
-            backing.addSubview(contentView)
-        }
-        NSLayoutConstraint.activate([
-            contentView.leadingAnchor.constraint(equalTo: backing.leadingAnchor, constant: inset),
-            contentView.trailingAnchor.constraint(equalTo: backing.trailingAnchor, constant: -inset),
-            contentView.topAnchor.constraint(equalTo: backing.topAnchor, constant: inset),
-            contentView.bottomAnchor.constraint(equalTo: backing.bottomAnchor, constant: -inset),
-        ])
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        performWithEffectiveAppearance { [weak self] in
-            self?.layer?.borderColor = ConsoleTheme.Color.cardStroke.cgColor
-        }
-    }
-
-    private static func makeVisualEffect(cornerRadius: CGFloat) -> NSVisualEffectView {
-        let effect = NSVisualEffectView()
-        effect.material = .popover
-        effect.blendingMode = .withinWindow
-        effect.state = .active
-        effect.wantsLayer = true
-        effect.layer?.cornerRadius = cornerRadius
-        effect.layer?.cornerCurve = .continuous
-        effect.layer?.masksToBounds = true
-        return effect
-    }
-}
-
-/// 页面内标准卡片：珍珠白表面 + 发丝线，不投影。内容内缩由 `inset` 控制。
+/// 页面内标准分组卡片：原生 control 底色 + 发丝线，不投影。内容内缩由 `inset` 控制。
 final class ConsoleCard: NSView {
     let contentView = NSView()
-    private let fill: NSColor
-    private let stroke: NSColor
 
     init(cornerRadius: CGFloat = ConsoleTheme.Radius.card,
          inset: NSEdgeInsets = NSEdgeInsets(top: ConsoleTheme.Space.cardInset,
                                            left: ConsoleTheme.Space.cardInset,
                                            bottom: ConsoleTheme.Space.cardInset,
-                                           right: ConsoleTheme.Space.cardInset),
-         fill: NSColor = ConsoleTheme.Color.cardFill,
-         stroke: NSColor = ConsoleTheme.Color.cardStroke) {
-        self.fill = fill
-        self.stroke = stroke
+                                           right: ConsoleTheme.Space.cardInset)) {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = cornerRadius
@@ -145,14 +62,15 @@ final class ConsoleCard: NSView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        performWithEffectiveAppearance { [weak self] in
-            self?.applySurface()
-        }
+        applySurface()
     }
 
+    /// 动态颜色写入 CGColor 时必须按当前外观解析：视图可能在主题切换后才创建。
     private func applySurface() {
-        layer?.backgroundColor = fill.cgColor
-        layer?.borderColor = stroke.cgColor
+        performWithEffectiveAppearance { [weak self] in
+            self?.layer?.backgroundColor = ConsoleTheme.Color.cardFill.cgColor
+            self?.layer?.borderColor = ConsoleTheme.Color.cardStroke.cgColor
+        }
     }
 }
 
@@ -181,27 +99,30 @@ final class ConsoleInsetView: NSView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        performWithEffectiveAppearance { [weak self] in
-            self?.applySurface()
-        }
+        applySurface()
     }
 
     private func applySurface() {
-        layer?.backgroundColor = ConsoleTheme.Color.insetFill.cgColor
+        performWithEffectiveAppearance { [weak self] in
+            self?.layer?.backgroundColor = ConsoleTheme.Color.insetFill.cgColor
+        }
     }
 }
 
 /// 预览舞台：柔和渐变底 + 发丝线，让模板像放在摄影棚里。
 final class ConsoleStageView: NSView {
     let contentView = NSView()
+    private let showsBorder: Bool
 
     init(cornerRadius: CGFloat = ConsoleTheme.Radius.stage,
-         inset: CGFloat = ConsoleTheme.Space.stageInset) {
+         inset: CGFloat = ConsoleTheme.Space.stageInset,
+         showsBorder: Bool = true) {
+        self.showsBorder = showsBorder
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = cornerRadius
         layer?.cornerCurve = .continuous
-        layer?.borderWidth = 0.5
+        layer?.borderWidth = showsBorder ? 0.5 : 0
         layer?.masksToBounds = true
 
         contentView.translatesAutoresizingMaskIntoConstraints = false
@@ -226,165 +147,19 @@ final class ConsoleStageView: NSView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        performWithEffectiveAppearance { [weak self] in
-            self?.applyBorder()
-        }
+        applyBorder()
         needsDisplay = true
     }
 
     private func applyBorder() {
-        layer?.borderColor = ConsoleTheme.Color.cardStroke.cgColor
-    }
-}
-
-final class HairlineView: NSView {
-    init() {
-        super.init(frame: .zero)
-        wantsLayer = true
-        translatesAutoresizingMaskIntoConstraints = false
-        heightAnchor.constraint(equalToConstant: 1).isActive = true
-        applyColor()
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
+        guard showsBorder else { return }
         performWithEffectiveAppearance { [weak self] in
-            self?.applyColor()
-        }
-    }
-
-    private func applyColor() {
-        layer?.backgroundColor = ConsoleTheme.Color.hairline.cgColor
-    }
-}
-
-// MARK: - 图标块 / 页头 / 空态
-
-final class ConsoleIconTile: NSView {
-    enum Style { case neutral, accent }
-
-    private let imageView = NSImageView()
-    private let style: Style
-
-    init(symbol: String,
-         size: CGFloat = 36,
-         symbolPointSize: CGFloat = 16,
-         style: Style = .neutral) {
-        self.style = style
-        super.init(frame: .zero)
-        wantsLayer = true
-        layer?.cornerRadius = ConsoleTheme.Radius.iconTile
-        layer?.cornerCurve = .continuous
-        translatesAutoresizingMaskIntoConstraints = false
-        widthAnchor.constraint(equalToConstant: size).isActive = true
-        heightAnchor.constraint(equalToConstant: size).isActive = true
-
-        imageView.imageScaling = .scaleProportionallyDown
-        imageView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(imageView)
-        NSLayoutConstraint.activate([
-            imageView.centerXAnchor.constraint(equalTo: centerXAnchor),
-            imageView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            imageView.widthAnchor.constraint(equalToConstant: symbolPointSize),
-            imageView.heightAnchor.constraint(equalToConstant: symbolPointSize),
-        ])
-        setSymbol(symbol, pointSize: symbolPointSize)
-        setAccessibilityElement(false)
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    func setSymbol(_ name: String, pointSize: CGFloat = 16) {
-        let configuration = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .medium)
-        imageView.image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-            .withSymbolConfiguration(configuration)
-        applyColors()
-    }
-
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        performWithEffectiveAppearance { [weak self] in
-            self?.applyColors()
-        }
-    }
-
-    private func applyColors() {
-        switch style {
-        case .neutral:
-            layer?.backgroundColor = ConsoleTheme.Color.iconTileFill.cgColor
-            imageView.contentTintColor = .secondaryLabelColor
-        case .accent:
-            layer?.backgroundColor = ConsoleTheme.Color.accent.withAlphaComponent(0.12).cgColor
-            imageView.contentTintColor = ConsoleTheme.Color.accent
+            self?.layer?.borderColor = ConsoleTheme.Color.cardStroke.cgColor
         }
     }
 }
 
-/// 页面头：图标块 + 标题 + 副标题 + 右侧 accessory。MCP / 模板库共用。
-final class PageHeader: NSView {
-    private let titleLabel: NSTextField
-    private let subtitleLabel = NSTextField(wrappingLabelWithString: "")
-
-    init(symbol: String,
-         title: String,
-         subtitle: String? = nil,
-         accessory: NSView? = nil,
-         iconSize: CGFloat = 40) {
-        titleLabel = NSTextField(labelWithAttributedString:
-            ConsoleTheme.Font.tracked(title, font: ConsoleTheme.Font.pageTitle))
-        super.init(frame: .zero)
-
-        let tile = ConsoleIconTile(symbol: symbol,
-                                   size: iconSize,
-                                   symbolPointSize: max(16, iconSize * 0.46),
-                                   style: .accent)
-
-        subtitleLabel.font = ConsoleTheme.Font.pageSubtitle
-        subtitleLabel.textColor = .secondaryLabelColor
-        subtitleLabel.maximumNumberOfLines = 2
-        subtitleLabel.stringValue = subtitle ?? ""
-        subtitleLabel.isHidden = (subtitle ?? "").isEmpty
-
-        let textStack = NSStackView(views: [titleLabel, subtitleLabel])
-        textStack.orientation = .vertical
-        textStack.alignment = .leading
-        textStack.spacing = 3
-        textStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
-        let spacer = NSView()
-        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-
-        let rowViews: [NSView] = [tile, textStack, spacer] + (accessory.map { [$0] } ?? [])
-        let row = NSStackView(views: rowViews)
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = ConsoleTheme.Space.sm
-        if let accessory {
-            accessory.setContentHuggingPriority(.required, for: .horizontal)
-            accessory.setContentCompressionResistancePriority(.required, for: .horizontal)
-        }
-        row.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(row)
-        NSLayoutConstraint.activate([
-            row.leadingAnchor.constraint(equalTo: leadingAnchor),
-            row.trailingAnchor.constraint(equalTo: trailingAnchor),
-            row.topAnchor.constraint(equalTo: topAnchor),
-            row.bottomAnchor.constraint(equalTo: bottomAnchor),
-            textStack.widthAnchor.constraint(greaterThanOrEqualToConstant: 120),
-        ])
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    func configure(title: String, subtitle: String?) {
-        titleLabel.attributedStringValue = ConsoleTheme.Font.tracked(title,
-                                                                     font: ConsoleTheme.Font.pageTitle)
-        subtitleLabel.stringValue = subtitle ?? ""
-        subtitleLabel.isHidden = (subtitle ?? "").isEmpty
-    }
-}
+// MARK: - 空态
 
 /// 空态：图标块 + 标题 + 说明 + 操作按钮。
 final class EmptyStateView: NSView {
@@ -398,9 +173,9 @@ final class EmptyStateView: NSView {
          maxWidth: CGFloat = 360) {
         super.init(frame: .zero)
 
-        let tile = ConsoleIconTile(symbol: symbol, size: 56, symbolPointSize: 24, style: .accent)
+        let tile = SettingsIconTile(symbol: symbol, tint: ConsoleTheme.Color.accent, size: 40)
 
-        titleLabel.font = .systemFont(ofSize: 15, weight: .semibold)
+        titleLabel.font = ConsoleTheme.Font.emptyTitle
         titleLabel.textColor = .labelColor
         titleLabel.alignment = .center
         titleLabel.stringValue = title
@@ -471,7 +246,7 @@ final class ConsoleNoticeView: NSView {
                                   accessibilityDescription: nil)?
             .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold))
 
-        label.font = .systemFont(ofSize: 11.5, weight: .medium)
+        label.font = ConsoleTheme.Font.caption
         label.maximumNumberOfLines = 2
 
         let stack = NSStackView(views: [iconView, label])
@@ -499,62 +274,17 @@ final class ConsoleNoticeView: NSView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        performWithEffectiveAppearance { [weak self] in
-            self?.applyColors()
-        }
+        applyColors()
     }
 
     private func applyColors() {
-        let tint = tone == .warning ? ConsoleTheme.Color.warning : ConsoleTheme.Color.info
-        layer?.backgroundColor = tint.withAlphaComponent(0.11).cgColor
-        iconView.contentTintColor = tint
-        label.textColor = .labelColor
-    }
-}
-
-/// 信息行：标签 + 值 + 右侧 accessory（模板详情用）。
-final class ConsoleInfoRow: NSView {
-    private let valueLabel = NSTextField(labelWithString: "")
-
-    init(label: String, value: String, accessory: NSView? = nil) {
-        super.init(frame: .zero)
-
-        let keyLabel = NSTextField(labelWithString: label)
-        keyLabel.font = .systemFont(ofSize: 11.5)
-        keyLabel.textColor = .secondaryLabelColor
-        keyLabel.setContentHuggingPriority(.required, for: .horizontal)
-        keyLabel.widthAnchor.constraint(equalToConstant: 64).isActive = true
-
-        valueLabel.font = ConsoleTheme.Font.body
-        valueLabel.textColor = .labelColor
-        valueLabel.lineBreakMode = .byTruncatingMiddle
-        valueLabel.toolTip = value
-        valueLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
-        let spacer = NSView()
-        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-
-        let rowViews: [NSView] = [keyLabel, valueLabel, spacer] + (accessory.map { [$0] } ?? [])
-        let row = NSStackView(views: rowViews)
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = ConsoleTheme.Space.xs
-        row.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(row)
-        NSLayoutConstraint.activate([
-            row.leadingAnchor.constraint(equalTo: leadingAnchor),
-            row.trailingAnchor.constraint(equalTo: trailingAnchor),
-            row.topAnchor.constraint(equalTo: topAnchor, constant: 7),
-            row.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -7),
-        ])
-        valueLabel.stringValue = value
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    func configure(value: String) {
-        valueLabel.stringValue = value
-        valueLabel.toolTip = value
+        performWithEffectiveAppearance { [weak self] in
+            guard let self else { return }
+            let tint = tone == .warning ? ConsoleTheme.Color.warning : ConsoleTheme.Color.info
+            layer?.backgroundColor = tint.withAlphaComponent(0.11).cgColor
+            iconView.contentTintColor = tint
+            label.textColor = .labelColor
+        }
     }
 }
 
@@ -573,17 +303,17 @@ final class StatusChip: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.cornerRadius = 11
+        layer?.cornerRadius = 6
         layer?.cornerCurve = .continuous
         translatesAutoresizingMaskIntoConstraints = false
-        heightAnchor.constraint(equalToConstant: 22).isActive = true
+        heightAnchor.constraint(equalToConstant: 20).isActive = true
 
         iconView.imageScaling = .scaleProportionallyDown
         iconView.translatesAutoresizingMaskIntoConstraints = false
         iconView.setAccessibilityElement(false)
         NSLayoutConstraint.activate([
-            iconView.widthAnchor.constraint(equalToConstant: 10),
-            iconView.heightAnchor.constraint(equalToConstant: 10),
+            iconView.widthAnchor.constraint(equalToConstant: 9),
+            iconView.heightAnchor.constraint(equalToConstant: 9),
         ])
 
         label.font = ConsoleTheme.Font.chip
@@ -592,9 +322,9 @@ final class StatusChip: NSView {
 
         let stack = NSStackView(views: [iconView, label])
         stack.orientation = .horizontal
-        stack.spacing = 5
+        stack.spacing = 4
         stack.alignment = .centerY
-        stack.edgeInsets = NSEdgeInsets(top: 3, left: 8, bottom: 3, right: 9)
+        stack.edgeInsets = NSEdgeInsets(top: 2, left: 7, bottom: 2, right: 8)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
         NSLayoutConstraint.activate([
@@ -623,35 +353,36 @@ final class StatusChip: NSView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        performWithEffectiveAppearance { [weak self] in
-            self?.applyStyle()
-        }
+        applyStyle()
     }
 
     private func applyStyle() {
-        let tint: NSColor
-        switch currentStyle {
-        case .positive: tint = ConsoleTheme.Color.positive
-        case .warning: tint = ConsoleTheme.Color.warning
-        case .accent: tint = ConsoleTheme.Color.accent
-        case .destructive: tint = ConsoleTheme.Color.destructive
-        case .neutral: tint = .secondaryLabelColor
+        performWithEffectiveAppearance { [weak self] in
+            guard let self else { return }
+            let tint: NSColor
+            switch currentStyle {
+            case .positive: tint = ConsoleTheme.Color.positive
+            case .warning: tint = ConsoleTheme.Color.warning
+            case .accent: tint = ConsoleTheme.Color.accent
+            case .destructive: tint = ConsoleTheme.Color.destructive
+            case .neutral: tint = .secondaryLabelColor
+            }
+
+            label.stringValue = currentText
+            label.textColor = currentStyle == .neutral ? .secondaryLabelColor : .labelColor
+
+            let symbol = currentSymbol ?? Self.defaultSymbol(for: currentStyle)
+            let configuration = NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold)
+            iconView.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+                .withSymbolConfiguration(configuration)
+            iconView.contentTintColor = currentStyle == .neutral ? .tertiaryLabelColor : tint
+
+            layer?.backgroundColor = (currentStyle == .neutral
+                ? ConsoleTheme.Color.insetFill
+                : tint.withAlphaComponent(0.12)).cgColor
+
+            setAccessibilityLabel(currentText)
         }
-
-        label.stringValue = currentText
-        label.textColor = currentStyle == .neutral ? .secondaryLabelColor : .labelColor
-
-        let symbol = currentSymbol ?? Self.defaultSymbol(for: currentStyle)
-        let configuration = NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold)
-        iconView.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
-            .withSymbolConfiguration(configuration)
-        iconView.contentTintColor = currentStyle == .neutral ? .tertiaryLabelColor : tint
-
-        layer?.backgroundColor = (currentStyle == .neutral
-            ? ConsoleTheme.Color.insetFill
-            : tint.withAlphaComponent(0.12)).cgColor
-
-        setAccessibilityLabel(currentText)
     }
 
     private static func defaultSymbol(for style: Style) -> String {
@@ -681,10 +412,15 @@ func makeConsoleButton(_ title: String,
                        target: AnyObject?,
                        action: Selector,
                        tint: NSColor? = nil) -> NSButton {
-    let button = NSButton(title: title, target: target, action: action)
-    button.bezelStyle = .rounded
+    // 带 tint 的是关于页的链接式按钮：只保留彩色图标和文字，悬停时铺一层同色淡底。
+    let button: NSButton
+    if let tint {
+        button = ConsoleTintButton(title: title, tint: tint, target: target, action: action)
+    } else {
+        button = NSButton(title: title, target: target, action: action)
+        button.bezelStyle = .rounded
+    }
     button.controlSize = controlSize
-    button.font = ConsoleTheme.Font.button
     if let symbol {
         var configuration = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
         if let tint {
@@ -697,6 +433,72 @@ func makeConsoleButton(_ title: String,
     }
     configureConsoleButton(button, title: title, symbol: symbol, style: style)
     return button
+}
+
+/// 链接式按钮：图标 + 文字、无描边；悬停时在内容后面铺一层很淡的 tint 圆角底，
+/// 指针变手型。底色画在按钮自身 layer 上，位于文字与图标之下。
+final class ConsoleTintButton: NSButton {
+    private let hoverTint: NSColor
+    private var trackingArea: NSTrackingArea?
+
+    private var hovered = false {
+        didSet {
+            guard hovered != oldValue else { return }
+            layer?.backgroundColor = hovered
+                ? hoverTint.withAlphaComponent(0.14).cgColor
+                : NSColor.clear.cgColor
+        }
+    }
+
+    init(title: String, tint: NSColor, target: AnyObject?, action: Selector) {
+        hoverTint = tint
+        super.init(frame: .zero)
+        self.title = title
+        self.target = target
+        self.action = action
+        isBordered = false
+        // 默认 NSButton 会把图标和标题分别贴到内容区两端，中间留一大段空；
+        // 让标题贴近图标，整组内容居中，悬停底色两侧的内边距才均匀。
+        imageHugsTitle = true
+        wantsLayer = true
+        layer?.cornerRadius = ConsoleTheme.Radius.control
+        layer?.cornerCurve = .continuous
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    /// 给悬停底色留出内边距，圆角才不会贴着图标和文字。
+    override var intrinsicContentSize: NSSize {
+        let size = super.intrinsicContentSize
+        return NSSize(width: size.width + 16, height: size.height + 8)
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            owner: self,
+            userInfo: nil)
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        hovered = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        hovered = false
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        addCursorRect(bounds, cursor: .pointingHand)
+    }
 }
 
 func configureConsoleButton(_ button: NSButton,
@@ -715,23 +517,31 @@ func configureConsoleButton(_ button: NSButton,
     }
 }
 
-/// 图标按钮（无边框），用于"更多"等轻量操作。
-func makeIconButton(symbol: String,
-                    accessibilityLabel: String,
-                    target: AnyObject?,
-                    action: Selector) -> NSButton {
-    let button = NSButton(image: NSImage(systemSymbolName: symbol,
-                                         accessibilityDescription: accessibilityLabel) ?? NSImage(),
-                          target: target,
-                          action: action)
+/// 22pt 无边框图标按钮的统一外观；也供需要携带额外状态的子类复用。
+func configureIconButton(_ button: NSButton,
+                         symbol: String,
+                         accessibilityLabel: String) {
+    button.image = NSImage(systemSymbolName: symbol,
+                           accessibilityDescription: accessibilityLabel) ?? NSImage()
     button.bezelStyle = .texturedRounded
     button.isBordered = false
     button.imageScaling = .scaleProportionallyDown
     button.setAccessibilityLabel(accessibilityLabel)
     button.toolTip = accessibilityLabel
     button.translatesAutoresizingMaskIntoConstraints = false
-    button.widthAnchor.constraint(equalToConstant: 24).isActive = true
-    button.heightAnchor.constraint(equalToConstant: 24).isActive = true
+    NSLayoutConstraint.activate([
+        button.widthAnchor.constraint(equalToConstant: 22),
+        button.heightAnchor.constraint(equalToConstant: 22),
+    ])
+}
+
+/// 图标按钮（无边框），用于"更多"等轻量操作。
+func makeIconButton(symbol: String,
+                    accessibilityLabel: String,
+                    target: AnyObject?,
+                    action: Selector) -> NSButton {
+    let button = NSButton(image: NSImage(), target: target, action: action)
+    configureIconButton(button, symbol: symbol, accessibilityLabel: accessibilityLabel)
     return button
 }
 
@@ -746,7 +556,6 @@ func makeSymbolButton(symbol: String,
     let button = NSButton(title: title ?? "", target: target, action: action)
     button.bezelStyle = .rounded
     button.controlSize = .regular
-    button.font = .systemFont(ofSize: 12, weight: .medium)
     button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
     button.imagePosition = title == nil ? .imageOnly : .imageLeading
     if let accessibilityLabel {
@@ -773,7 +582,8 @@ final class ConsoleScrollPage: NSView {
     private let horizontalInset: CGFloat
     private let spacing: CGFloat
 
-    init(horizontalInset: CGFloat = 22, spacing: CGFloat = 14) {
+    init(horizontalInset: CGFloat = ConsoleTheme.Space.pageInset,
+         spacing: CGFloat = ConsoleTheme.Space.lg) {
         self.horizontalInset = horizontalInset
         self.spacing = spacing
         super.init(frame: .zero)
@@ -811,13 +621,27 @@ final class ConsoleScrollPage: NSView {
 
             stack.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: horizontalInset),
             stack.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -horizontalInset),
-            stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 4),
-            stack.bottomAnchor.constraint(equalTo: document.bottomAnchor),
+            stack.topAnchor.constraint(equalTo: document.topAnchor,
+                                       constant: ConsoleTheme.Space.lg),
+            stack.bottomAnchor.constraint(equalTo: document.bottomAnchor,
+                                          constant: -ConsoleTheme.Space.xl),
         ])
     }
 }
 
-/// 小标题：SF Symbol + 文案，用于卡片内分区。
+extension NSView {
+    func pinEdges(to parent: NSView) {
+        translatesAutoresizingMaskIntoConstraints = false
+        parent.addSubview(self)
+        NSLayoutConstraint.activate([
+            leadingAnchor.constraint(equalTo: parent.leadingAnchor),
+            trailingAnchor.constraint(equalTo: parent.trailingAnchor),
+            topAnchor.constraint(equalTo: parent.topAnchor),
+            bottomAnchor.constraint(equalTo: parent.bottomAnchor),
+        ])
+    }
+}
+
 /// 控制台错误弹窗：模板库卡片与深链安装共用同一套文案与 sheet 行为。
 func presentConsoleErrorAlert(_ error: Error, in window: NSWindow?) {
     let alert = NSAlert()

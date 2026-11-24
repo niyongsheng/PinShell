@@ -1,12 +1,10 @@
 import AppKit
 import PinShellCore
 
-/// 控制台左侧栏：搜索 + 模板 source list + MCP 服务入口。
+/// 控制台左侧栏：搜索、模板列表与服务入口。
 final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate, NSMenuDelegate {
     var onSelectTemplate: ((TemplateItem) -> Void)?
-    var onSelectLibrary: (() -> Void)?
-    var onSelectMCP: (() -> Void)?
-    var onSelectAbout: (() -> Void)?
+    var onSelectPage: ((ConsolePage) -> Void)?
     var onApplyTemplate: ((TemplateItem) -> Void)?
     var onEditTemplate: ((TemplateItem) -> Void)?
     var onDeleteTemplate: ((TemplateItem) -> Void)?
@@ -29,9 +27,7 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
     private enum Row {
         case section(String)
         case template(TemplateItem)
-        case library
-        case mcp
-        case about
+        case page(ConsolePage)
 
         var isSection: Bool {
             if case .section = self { return true }
@@ -40,8 +36,10 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
     }
 
     override func loadView() {
-        let root = NSView()
-        root.wantsLayer = true
+        let root = NSVisualEffectView()
+        root.material = .sidebar
+        root.blendingMode = .behindWindow
+        root.state = .followsWindowActiveState
         view = root
         build()
     }
@@ -54,11 +52,12 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         searchField.delegate = self
         searchField.target = self
         searchField.action = #selector(searchChanged)
-        searchField.font = .systemFont(ofSize: 12)
+        searchField.controlSize = .large
+        searchField.font = .systemFont(ofSize: 13)
         searchField.translatesAutoresizingMaskIntoConstraints = false
 
         searchEmptyLabel.stringValue = NSLocalizedString("console.sidebar.noResults", comment: "")
-        searchEmptyLabel.font = .systemFont(ofSize: 11.5)
+        searchEmptyLabel.font = ConsoleTheme.Font.caption
         searchEmptyLabel.textColor = .secondaryLabelColor
         searchEmptyLabel.alignment = .center
         searchEmptyLabel.isHidden = true
@@ -69,8 +68,8 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         tableView.addTableColumn(column)
         tableView.headerView = nil
         tableView.style = .sourceList
-        tableView.rowHeight = 32
-        tableView.intercellSpacing = NSSize(width: 0, height: 2)
+        tableView.rowHeight = ConsoleTheme.Space.sidebarRowHeight
+        tableView.intercellSpacing = NSSize(width: 0, height: 1)
         tableView.backgroundColor = .clear
         tableView.selectionHighlightStyle = .regular
         tableView.allowsEmptySelection = false
@@ -85,7 +84,9 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         tableView.menu = contextMenu
 
         scrollView.documentView = tableView
-        scrollView.hasVerticalScroller = true
+        // 侧栏不显示滚动条：内容溢出时仍可用滚轮/触控板滚动，
+        // 也避免 legacy 样式下滚动条在 vibrancy 背景上过于抢眼。
+        scrollView.hasVerticalScroller = false
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
         scrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -94,7 +95,7 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         view.addSubview(scrollView)
         view.addSubview(searchEmptyLabel)
         NSLayoutConstraint.activate([
-            searchField.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
+            searchField.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
             searchField.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
             searchField.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
 
@@ -145,11 +146,9 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         return allTemplates
     }
 
-    private enum SelectionKind {
+    private enum SelectionKind: Equatable {
         case template(URL)
-        case library
-        case mcp
-        case about
+        case page(ConsolePage)
         case none
     }
 
@@ -158,9 +157,7 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         guard rows.indices.contains(row) else { return .none }
         switch rows[row] {
         case .template(let item): return .template(item.url)
-        case .library: return .library
-        case .mcp: return .mcp
-        case .about: return .about
+        case .page(let page): return .page(page)
         case .section: return .none
         }
     }
@@ -177,12 +174,11 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
                 guard case .template(let item) = row else { return false }
                 return item.url.standardizedFileURL == url.standardizedFileURL
             }
-        case .library:
-            return rows.firstIndex { if case .library = $0 { return true }; return false }
-        case .mcp:
-            return rows.firstIndex { if case .mcp = $0 { return true }; return false }
-        case .about:
-            return rows.firstIndex { if case .about = $0 { return true }; return false }
+        case .page(let page):
+            return rows.firstIndex { row in
+                guard case .page(let candidate) = row else { return false }
+                return candidate == page
+            }
         case .none:
             return nil
         }
@@ -218,12 +214,8 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         case .template(let item):
             selectedTemplateURL = item.url
             onSelectTemplate?(item)
-        case .library:
-            onSelectLibrary?()
-        case .mcp:
-            onSelectMCP?()
-        case .about:
-            onSelectAbout?()
+        case .page(let page):
+            onSelectPage?(page)
         case .section:
             break
         }
@@ -234,12 +226,8 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         select(row: index, notify: true)
     }
 
-    func selectLibrary() {
-        select(kind: .library)
-    }
-
-    func selectMCP() {
-        select(kind: .mcp)
+    func select(_ page: ConsolePage) {
+        select(kind: .page(page))
     }
 
     /// 标记当前悬浮窗正在显示的模板。重建 cell 以保证稍后创建的复用 cell
@@ -276,7 +264,7 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         let wasSuppressed = suppressSelectionCallback
         suppressSelectionCallback = true
         libraryUpdateCount = count
-        if let index = rowIndex(for: .library) {
+        if let index = rowIndex(for: .page(.library)) {
             tableView.reloadData(forRowIndexes: IndexSet(integer: index),
                                  columnIndexes: IndexSet(integer: 0))
             restoreSelection(kind)
@@ -284,15 +272,15 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         suppressSelectionCallback = wasSuppressed
     }
 
-    func selectAbout() {
-        select(kind: .about)
+    /// 打开控制台时把焦点交给列表，搜索框不抢焦点（与系统设置一致）。
+    func focusList() {
+        view.window?.makeFirstResponder(tableView)
     }
 
     var hasTemplates: Bool { !allTemplates.isEmpty }
 
     var isLibrarySelected: Bool {
-        if case .library = selectionKind() { return true }
-        return false
+        selectionKind() == .page(.library)
     }
 
     private var query: String {
@@ -314,10 +302,13 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         rows = [.section(NSLocalizedString("console.sidebar.templates", comment: ""))]
         rows.append(contentsOf: templates.map(Row.template))
         rows.append(.section(NSLocalizedString("console.sidebar.online", comment: "")))
-        rows.append(.library)
+        rows.append(.page(.library))
+        rows.append(.section(NSLocalizedString("console.sidebar.settings", comment: "")))
+        rows.append(.page(.general))
+        rows.append(.page(.shortcuts))
         rows.append(.section(NSLocalizedString("console.sidebar.services", comment: "")))
-        rows.append(.mcp)
-        rows.append(.about)
+        rows.append(.page(.mcp))
+        rows.append(.page(.about))
         tableView.reloadData()
         searchEmptyLabel.isHidden = query.isEmpty || !templates.isEmpty
     }
@@ -424,7 +415,9 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
     }
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-        rows[row].isSection ? 28 : 32
+        rows[row].isSection
+            ? ConsoleTheme.Space.sidebarSectionHeight
+            : ConsoleTheme.Space.sidebarRowHeight
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -445,25 +438,13 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
                 + "\(NumberFormat.text(item.size.height, fractionDigits: 0))"
             return cell
 
-        case .library:
+        case .page(let page):
             let cell = rowCell()
-            cell.configure(symbol: "square.grid.2x2",
-                           title: NSLocalizedString("console.sidebar.library", comment: ""),
-                           trailing: libraryUpdateCount > 0 ? "\(libraryUpdateCount)" : nil)
-            return cell
-
-        case .mcp:
-            let cell = rowCell()
-            cell.configure(symbol: "terminal",
-                           title: NSLocalizedString("console.mcp.navTitle", comment: ""),
-                           trailing: nil)
-            return cell
-
-        case .about:
-            let cell = rowCell()
-            cell.configure(symbol: "info.circle",
-                           title: NSLocalizedString("console.about.title", comment: ""),
-                           trailing: nil)
+            let badge = page == .library && libraryUpdateCount > 0
+                ? "\(libraryUpdateCount)" : nil
+            cell.configure(symbol: page.symbol,
+                           title: page.title,
+                           trailing: badge)
             return cell
         }
     }
@@ -476,14 +457,14 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         let cell = NSTableCellView()
         cell.identifier = Self.sectionCellID
         let label = NSTextField(labelWithString: "")
-        label.font = .systemFont(ofSize: 11, weight: .semibold)
+        label.font = ConsoleTheme.Font.sidebarSection
         label.textColor = .secondaryLabelColor
         label.translatesAutoresizingMaskIntoConstraints = false
         cell.addSubview(label)
         cell.textField = label
         NSLayoutConstraint.activate([
             label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 10),
-            label.bottomAnchor.constraint(equalTo: cell.bottomAnchor, constant: -4),
+            label.bottomAnchor.constraint(equalTo: cell.bottomAnchor, constant: -5),
         ])
         return cell
     }
@@ -508,6 +489,7 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
 // MARK: - 侧栏单元格
 
 private final class SidebarCellView: NSTableCellView {
+    private let iconContainer = NSView()
     private let symbolView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
     private let trailingLabel = NSTextField(labelWithString: "")
@@ -522,20 +504,25 @@ private final class SidebarCellView: NSTableCellView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     private func build() {
-        symbolView.imageScaling = .scaleProportionallyDown
-        symbolView.contentTintColor = .secondaryLabelColor
-        symbolView.translatesAutoresizingMaskIntoConstraints = false
+        iconContainer.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            symbolView.widthAnchor.constraint(equalToConstant: 18),
-            symbolView.heightAnchor.constraint(equalToConstant: 18),
+            iconContainer.widthAnchor.constraint(equalToConstant: 22),
+            iconContainer.heightAnchor.constraint(equalToConstant: 22),
         ])
 
-        titleLabel.font = .systemFont(ofSize: 12.5, weight: .medium)
+        symbolView.imageScaling = .scaleProportionallyDown
+        symbolView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            symbolView.widthAnchor.constraint(equalToConstant: 20),
+            symbolView.heightAnchor.constraint(equalToConstant: 20),
+        ])
+
+        titleLabel.font = ConsoleTheme.Font.sidebarItem
         titleLabel.textColor = .labelColor
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        trailingLabel.font = .monospacedDigitSystemFont(ofSize: 9.5, weight: .regular)
+        trailingLabel.font = ConsoleTheme.Font.sidebarBadge
         trailingLabel.textColor = .tertiaryLabelColor
         trailingLabel.alignment = .right
         trailingLabel.setContentHuggingPriority(.required, for: .horizontal)
@@ -545,31 +532,35 @@ private final class SidebarCellView: NSTableCellView {
         appliedPin.imageScaling = .scaleProportionallyDown
         appliedPin.translatesAutoresizingMaskIntoConstraints = false
         appliedPin.image = NSImage(systemSymbolName: "pin.fill", accessibilityDescription: nil)?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold))
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 10, weight: .semibold))
         appliedPin.isHidden = true
         appliedPin.toolTip = NSLocalizedString("console.detail.showing", comment: "")
         appliedPin.setAccessibilityElement(true)
         appliedPin.setAccessibilityRole(.image)
         appliedPin.setAccessibilityLabel(NSLocalizedString("console.detail.showing", comment: ""))
 
-        addSubview(symbolView)
+        iconContainer.addSubview(symbolView)
+        addSubview(iconContainer)
         addSubview(titleLabel)
         addSubview(trailingLabel)
         addSubview(appliedPin)
 
         NSLayoutConstraint.activate([
-            symbolView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            symbolView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconContainer.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            iconContainer.centerYAnchor.constraint(equalTo: centerYAnchor),
 
-            titleLabel.leadingAnchor.constraint(equalTo: symbolView.trailingAnchor, constant: 10),
+            symbolView.centerXAnchor.constraint(equalTo: iconContainer.centerXAnchor),
+            symbolView.centerYAnchor.constraint(equalTo: iconContainer.centerYAnchor),
+
+            titleLabel.leadingAnchor.constraint(equalTo: iconContainer.trailingAnchor, constant: 8),
             titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingLabel.leadingAnchor, constant: -8),
             titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: appliedPin.leadingAnchor, constant: -8),
 
-            trailingLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            trailingLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
             trailingLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
 
-            appliedPin.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -9),
+            appliedPin.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
             appliedPin.centerYAnchor.constraint(equalTo: centerYAnchor),
             appliedPin.widthAnchor.constraint(equalToConstant: 12),
             appliedPin.heightAnchor.constraint(equalToConstant: 12),
@@ -577,8 +568,8 @@ private final class SidebarCellView: NSTableCellView {
         updatePinTint()
     }
 
-    private static let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13,
-                                                                         weight: .regular)
+    private static let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 17,
+                                                                         weight: .medium)
     private static var symbolCache: [String: NSImage] = [:]
 
     private static func symbolImage(named name: String) -> NSImage? {
@@ -595,6 +586,7 @@ private final class SidebarCellView: NSTableCellView {
         trailingLabel.stringValue = trailing ?? ""
         trailingLabel.isHidden = trailing == nil
         setApplied(applied)
+        applyColors()
     }
 
     func setApplied(_ applied: Bool) {
@@ -609,13 +601,15 @@ private final class SidebarCellView: NSTableCellView {
             : ConsoleTheme.Color.accent
     }
 
+    private func applyColors() {
+        let emphasized = backgroundStyle == .emphasized
+        titleLabel.textColor = emphasized ? .alternateSelectedControlTextColor : .labelColor
+        trailingLabel.textColor = emphasized ? .alternateSelectedControlTextColor : .tertiaryLabelColor
+        symbolView.contentTintColor = emphasized ? .alternateSelectedControlTextColor : .labelColor
+        updatePinTint()
+    }
+
     override var backgroundStyle: NSView.BackgroundStyle {
-        didSet {
-            let emphasized = backgroundStyle == .emphasized
-            titleLabel.textColor = emphasized ? .alternateSelectedControlTextColor : .labelColor
-            trailingLabel.textColor = emphasized ? .alternateSelectedControlTextColor : .tertiaryLabelColor
-            symbolView.contentTintColor = emphasized ? .alternateSelectedControlTextColor : .secondaryLabelColor
-            updatePinTint()
-        }
+        didSet { applyColors() }
     }
 }

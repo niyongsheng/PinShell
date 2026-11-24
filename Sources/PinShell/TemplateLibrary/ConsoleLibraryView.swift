@@ -3,7 +3,7 @@ import PinShellCore
 
 /// Console 的“在线模板库”页：catalog 列表、搜索/分类、安装/更新/忽略。
 @MainActor
-final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
+final class ConsoleLibraryView: NSView, NSSearchFieldDelegate, ConsoleServicePage {
     private let service: TemplateLibraryService
 
     var onOpenInstalled: ((String) -> Void)?
@@ -12,16 +12,14 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
         let button = NSButton(title: NSLocalizedString("library.refresh", comment: ""),
                               target: self, action: #selector(refreshTapped))
         button.bezelStyle = .rounded
-        button.controlSize = .regular
-        button.font = .systemFont(ofSize: 11.5, weight: .medium)
+        button.controlSize = .small
         button.imagePosition = .imageLeading
         button.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: nil)
         button.setContentHuggingPriority(.required, for: .horizontal)
         return button
     }()
 
-    private lazy var header = PageHeader(
-        symbol: "square.grid.2x2",
+    private lazy var header = SettingsPageHeaderView(
         title: NSLocalizedString("library.title", comment: ""),
         accessory: refreshButton)
 
@@ -62,9 +60,8 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
         actions: [retryButton, openFolderButton])
 
     private let progressCard = ConsoleCard(
-        cornerRadius: 12,
-        inset: NSEdgeInsets(top: 8, left: 12, bottom: 8, right: 10),
-        fill: ConsoleTheme.Color.cardFillElevated)
+        cornerRadius: ConsoleTheme.Radius.card,
+        inset: NSEdgeInsets(top: 8, left: 12, bottom: 8, right: 10))
     private let progressLabel = NSTextField(labelWithString: "")
     private let progressSpinner = NSProgressIndicator()
     private let cancelButton = NSButton(title: "", target: nil, action: nil)
@@ -92,10 +89,10 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
     }
 
     /// 官网深链：打开模板库后直接安装指定模板。
-    func installTemplate(id: String) async {
+    func installTemplate(id: String, catalogURL: URL) async {
         activate()
         do {
-            try await service.installTemplate(id: id)
+            try await service.installTemplate(id: id, catalogURL: catalogURL)
         } catch {
             presentConsoleErrorAlert(error, in: window)
         }
@@ -125,16 +122,16 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
         searchField.placeholderString = NSLocalizedString("library.search", comment: "")
         searchField.delegate = self
         searchField.sendsSearchStringImmediately = true
-        searchField.font = .systemFont(ofSize: 12)
+        searchField.font = .systemFont(ofSize: 13)
         searchField.widthAnchor.constraint(equalToConstant: 220).isActive = true
 
         categoryPopup.target = self
         categoryPopup.action = #selector(categoryChanged)
         categoryPopup.controlSize = .regular
-        categoryPopup.font = .systemFont(ofSize: 11.5)
-        categoryPopup.widthAnchor.constraint(equalToConstant: 120).isActive = true
+        categoryPopup.font = .systemFont(ofSize: 13)
+        categoryPopup.widthAnchor.constraint(equalToConstant: 140).isActive = true
 
-        updatedLabel.font = ConsoleTheme.Font.micro
+        updatedLabel.font = ConsoleTheme.Font.caption
         updatedLabel.textColor = .tertiaryLabelColor
         updatedLabel.alignment = .right
         updatedLabel.lineBreakMode = .byTruncatingTail
@@ -189,7 +186,7 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
         errorStateView.translatesAutoresizingMaskIntoConstraints = false
         errorStateView.isHidden = true
 
-        progressLabel.font = .systemFont(ofSize: 11.5, weight: .medium)
+        progressLabel.font = ConsoleTheme.Font.body
         progressSpinner.style = .spinning
         progressSpinner.controlSize = .small
         progressSpinner.isDisplayedWhenStopped = false
@@ -198,7 +195,6 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
         cancelButton.action = #selector(cancelInstall)
         cancelButton.bezelStyle = .rounded
         cancelButton.controlSize = .small
-        cancelButton.font = .systemFont(ofSize: 11)
         cancelButton.setContentHuggingPriority(.required, for: .horizontal)
 
         let progressStack = NSStackView(views: [progressSpinner, progressLabel, cancelButton])
@@ -232,7 +228,7 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
         addSubview(progressCard)
 
         NSLayoutConstraint.activate([
-            header.topAnchor.constraint(equalTo: topAnchor),
+            header.topAnchor.constraint(equalTo: topAnchor, constant: ConsoleTheme.Space.lg),
             header.leadingAnchor.constraint(equalTo: leadingAnchor,
                                             constant: ConsoleTheme.Space.pageInset),
             header.trailingAnchor.constraint(equalTo: trailingAnchor,
@@ -286,16 +282,17 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
     // MARK: - 更新
 
     private func updateUpdatedLabel() {
-        guard let snapshot = service.snapshot else {
+        guard let fetchedAt = service.latestFetchedAt else {
             updatedLabel.stringValue = NSLocalizedString("library.updated.none", comment: "")
             return
         }
         let formatter = DateFormatter()
-        formatter.dateStyle = .medium
+        formatter.dateStyle = .short
         formatter.timeStyle = .short
-        let date = formatter.string(from: snapshot.fetchedAt)
+        let date = formatter.string(from: fetchedAt)
         let format = NSLocalizedString(
-            snapshot.isReadOnly ? "library.updated.cached" : "library.updated", comment: "")
+            service.isEntirelyOffline ? "library.updated.cached" : "library.updated",
+            comment: "")
         updatedLabel.stringValue = String(format: format, date)
     }
 
@@ -303,8 +300,12 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
         let text: String?
         if service.stateReadOnly {
             text = NSLocalizedString("library.banner.readOnly", comment: "")
-        } else if service.snapshot?.isReadOnly == true {
-            text = NSLocalizedString("library.banner.offline", comment: "")
+        } else if service.isCatalogReadOnly {
+            text = NSLocalizedString(
+                service.isEntirelyOffline
+                    ? "library.banner.offline"
+                    : "library.banner.offlinePartial",
+                comment: "")
         } else {
             text = nil
         }
@@ -320,7 +321,7 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
     }
 
     private func rebuildCategoryPopupIfNeeded() {
-        let categories = service.snapshot?.index.categoryList ?? []
+        let categories = service.categories
         let signature = categories.map(\.id).joined(separator: "|")
         guard signature != categorySignature else { return }
         categorySignature = signature
@@ -370,6 +371,8 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
              row.evaluation.isEdited ? "1" : "0",
              row.evaluation.isIgnored ? "1" : "0",
              row.evaluation.needsNewerApp ? "1" : "0",
+             row.sourceIsReadOnly ? "1" : "0",
+             row.source.id,
              row.record?.sha256 ?? ""].joined(separator: ":")
         }.joined(separator: "|") + "|installing:\(service.isInstalling)"
         guard signature != rowsSignature else { return }
@@ -380,14 +383,16 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
             rowsStack.removeArrangedSubview(view)
             view.removeFromSuperview()
         }
+        let group = SettingsGroupView()
         for row in filtered {
             let card = TemplateLibraryCardView(service: service, row: row)
             card.onOpenInstalled = { [weak self] in
                 self?.onOpenInstalled?(row.entry.file)
             }
-            rowsStack.addArrangedSubview(card)
-            card.widthAnchor.constraint(equalTo: rowsStack.widthAnchor).isActive = true
+            group.addRow(card)
         }
+        rowsStack.addArrangedSubview(group)
+        group.widthAnchor.constraint(equalTo: rowsStack.widthAnchor).isActive = true
         scrollView.contentView.scroll(to: origin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }

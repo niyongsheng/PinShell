@@ -358,7 +358,10 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         let metadata = applyDeclaredSpec(for: resolved)
         installBridgeScript(templateLanguage: metadata.resolvedLanguage)
         webView.loadLocalHTMLFile(resolved)
-        AppState.lastHTMLURL = resolved
+        // 占位页只是首启兜底，不记为用户选择。
+        if !Self.isPlaceholder(resolved) {
+            AppState.lastHTMLURL = resolved
+        }
         if present { showWindow() }
         updateFileWatcher()
         notifyStatusChanged()

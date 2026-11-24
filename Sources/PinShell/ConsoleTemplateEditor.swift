@@ -50,7 +50,7 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
     init(item: TemplateItem, libraryVersion: String? = nil) {
         self.item = item
         self.libraryVersion = libraryVersion
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 540),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 660, height: 620),
                               styleMask: [.titled],
                               backing: .buffered, defer: false)
         window.title = NSLocalizedString("console.editor.title", comment: "")
@@ -71,33 +71,41 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
 
     private func build() {
         guard let window else { return }
-        let root = NSVisualEffectView()
-        root.material = .underWindowBackground
-        root.blendingMode = .behindWindow
-        root.state = .active
+        let root = ConsoleBackgroundView()
         window.contentView = root
 
         let header = buildHeader()
         let form = buildForm()
         let preview = buildPreviewCard()
 
-        let content = NSStackView(views: [form, preview])
+        // 预览列用透明容器承载：容器随表单列拉伸，但预览卡保持自身高度。
+        let previewColumn = NSView()
+        previewColumn.translatesAutoresizingMaskIntoConstraints = false
+        preview.translatesAutoresizingMaskIntoConstraints = false
+        previewColumn.addSubview(preview)
+        NSLayoutConstraint.activate([
+            previewColumn.widthAnchor.constraint(equalToConstant: 206),
+            preview.leadingAnchor.constraint(equalTo: previewColumn.leadingAnchor),
+            preview.trailingAnchor.constraint(equalTo: previewColumn.trailingAnchor),
+            preview.topAnchor.constraint(equalTo: previewColumn.topAnchor),
+            preview.bottomAnchor.constraint(lessThanOrEqualTo: previewColumn.bottomAnchor),
+        ])
+
+        let content = NSStackView(views: [form, previewColumn])
         content.orientation = .horizontal
         content.alignment = .top
         content.spacing = 18
         content.distribution = .fill
-        preview.widthAnchor.constraint(equalToConstant: 206).isActive = true
         form.setContentHuggingPriority(.defaultLow, for: .horizontal)
         form.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        errorLabel.font = .systemFont(ofSize: 11)
+        errorLabel.font = ConsoleTheme.Font.caption
         errorLabel.textColor = ConsoleTheme.Color.destructive
         errorLabel.isHidden = true
 
         let restore = NSButton(title: NSLocalizedString("console.editor.restore", comment: ""),
                                target: self, action: #selector(restoreForm))
         restore.bezelStyle = .rounded
-        restore.font = .systemFont(ofSize: 12)
         restore.image = NSImage(systemSymbolName: "arrow.uturn.backward",
                                 accessibilityDescription: nil)
         restore.imagePosition = .imageLeading
@@ -113,7 +121,6 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
         saveButton.action = #selector(save)
         saveButton.bezelStyle = .rounded
         saveButton.controlSize = .regular
-        saveButton.font = .systemFont(ofSize: 12, weight: .medium)
         saveButton.keyEquivalent = "\r"
         saveButton.image = NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil)
         saveButton.imagePosition = .imageLeading
@@ -152,15 +159,9 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
     }
 
     private func buildHeader() -> NSView {
-        let icon = ConsoleIconTile(symbol: "slider.horizontal.3",
-                                   size: 32,
-                                   symbolPointSize: 15,
-                                   style: .accent)
-
         let title = NSTextField(labelWithAttributedString: ConsoleTheme.Font.tracked(
             NSLocalizedString("console.editor.title", comment: ""),
-            font: .systemFont(ofSize: 18, weight: .semibold),
-            tracking: -0.2))
+            font: ConsoleTheme.Font.editorTitle))
         title.alignment = .left
         title.lineBreakMode = .byTruncatingTail
         title.maximumNumberOfLines = 1
@@ -169,39 +170,21 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
             String(format: NSLocalizedString("console.editor.library", comment: ""), $0)
         } ?? NSLocalizedString("console.editor.local", comment: "")
         let fileLabel = NSTextField(labelWithString: "\(item.file)  ·  \(kind)")
-        fileLabel.font = .monospacedSystemFont(ofSize: 10.5, weight: .regular)
+        fileLabel.font = ConsoleTheme.Font.monoMeta
         fileLabel.textColor = .secondaryLabelColor
         fileLabel.alignment = .left
         fileLabel.lineBreakMode = .byTruncatingMiddle
         fileLabel.maximumNumberOfLines = 1
         fileLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        let headerText = NSStackView(views: [title, fileLabel])
-        headerText.orientation = .vertical
-        headerText.alignment = .leading
-        headerText.spacing = 3
-        headerText.distribution = .fill
-        headerText.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        let header = NSStackView(views: [title, fileLabel])
+        header.orientation = .vertical
+        header.alignment = .leading
+        header.spacing = 3
+        header.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         NSLayoutConstraint.activate([
-            title.widthAnchor.constraint(lessThanOrEqualTo: headerText.widthAnchor),
-            fileLabel.widthAnchor.constraint(lessThanOrEqualTo: headerText.widthAnchor),
-        ])
-
-        // 用显式约束而不是横向 stack：保证文本区吃满剩余宽度，
-        // 左侧标题不会因内在宽度被 stack 挤到右边。
-        let header = NSView()
-        icon.translatesAutoresizingMaskIntoConstraints = false
-        headerText.translatesAutoresizingMaskIntoConstraints = false
-        header.addSubview(icon)
-        header.addSubview(headerText)
-        NSLayoutConstraint.activate([
-            icon.leadingAnchor.constraint(equalTo: header.leadingAnchor),
-            icon.topAnchor.constraint(equalTo: header.topAnchor),
-
-            headerText.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 10),
-            headerText.trailingAnchor.constraint(equalTo: header.trailingAnchor),
-            headerText.topAnchor.constraint(equalTo: header.topAnchor),
-            headerText.bottomAnchor.constraint(equalTo: header.bottomAnchor),
+            title.widthAnchor.constraint(lessThanOrEqualTo: header.widthAnchor),
+            fileLabel.widthAnchor.constraint(lessThanOrEqualTo: header.widthAnchor),
         ])
         return header
     }
@@ -230,17 +213,15 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
         sizePresetPopup.target = self
         sizePresetPopup.action = #selector(sizePresetChanged)
         sizePresetPopup.controlSize = .regular
-        sizePresetPopup.font = .systemFont(ofSize: 11.5)
         sizePresetPopup.addItem(withTitle: NSLocalizedString("console.editor.customSize", comment: ""))
         for size in Self.sizePresets {
             sizePresetPopup.addItem(withTitle: "\(NumberFormat.text(size.width)) × \(NumberFormat.text(size.height))")
         }
-        sizePresetPopup.widthAnchor.constraint(equalToConstant: 103).isActive = true
+        sizePresetPopup.widthAnchor.constraint(equalToConstant: 100).isActive = true
 
         positionPopup.target = self
         positionPopup.action = #selector(positionChanged)
         positionPopup.controlSize = .regular
-        positionPopup.font = .systemFont(ofSize: 12)
         for anchor in Self.anchors {
             positionPopup.addItem(withTitle: anchor.displayName)
         }
@@ -255,7 +236,7 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
         radiusSlider.action = #selector(radiusChanged)
 
         for label in [opacityValueLabel, radiusValueLabel] {
-            label.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+            label.font = ConsoleTheme.Font.monoMeta
             label.textColor = .secondaryLabelColor
             label.alignment = .right
             label.widthAnchor.constraint(equalToConstant: 42).isActive = true
@@ -270,11 +251,13 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
         sizeRow.orientation = .horizontal
         sizeRow.spacing = 6
         sizeRow.alignment = .centerY
+        sizeRow.setContentHuggingPriority(.required, for: .horizontal)
 
         let coordinateRow = NSStackView(views: [label("X"), xField, label("Y"), yField])
         coordinateRow.orientation = .horizontal
         coordinateRow.spacing = 6
         coordinateRow.alignment = .centerY
+        coordinateRow.setContentHuggingPriority(.required, for: .horizontal)
 
         let opacityRow = NSStackView(views: [opacitySlider, opacityValueLabel])
         opacityRow.orientation = .horizontal
@@ -293,128 +276,87 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
         passthroughRow.orientation = .horizontal
         passthroughRow.spacing = 10
         passthroughRow.alignment = .centerY
+        passthroughRow.setContentHuggingPriority(.required, for: .horizontal)
 
         let orderRow = NSStackView(views: [orderField,
                                           secondaryLabel(NSLocalizedString("console.editor.orderHint", comment: ""))])
         orderRow.orientation = .horizontal
         orderRow.spacing = 10
         orderRow.alignment = .centerY
+        orderRow.setContentHuggingPriority(.required, for: .horizontal)
 
-        let infoHeader = sectionHeader(NSLocalizedString("console.editor.section.info", comment: ""),
-                                       symbol: "doc.text")
-        let windowHeader = sectionHeader(NSLocalizedString("console.editor.section.window", comment: ""),
-                                         symbol: "macwindow")
-
-        let separator = NSBox()
-        separator.boxType = .separator
-
-        let titleRow = formRow(NSLocalizedString("console.editor.name", comment: ""), titleField)
-        let subtitleRow = formRow(NSLocalizedString("console.editor.description", comment: ""), subtitleField)
-        let languageHint = secondaryLabel(String(
+        let languageHint = String(
             format: NSLocalizedString("console.editor.languageHint", comment: ""),
-            LanguageTag.displayName(for: editLanguage)
-        ))
-        let rows: [NSView] = [
-            infoHeader,
-            titleRow,
-            subtitleRow,
-            languageHint,
-            separator,
-            windowHeader,
-            formRow(NSLocalizedString("console.editor.size", comment: ""), sizeRow, stretch: false),
-            formRow(NSLocalizedString("console.editor.position", comment: ""), positionPopup, stretch: false),
-            formRow(NSLocalizedString("console.editor.coordinates", comment: ""), coordinateRow, stretch: false),
-            formRow(NSLocalizedString("console.editor.opacity", comment: ""), opacityRow),
-            formRow(NSLocalizedString("console.editor.radius", comment: ""), radiusRow),
-            formRow(NSLocalizedString("console.editor.passthrough", comment: ""), passthroughRow, stretch: false),
-            formRow(NSLocalizedString("console.editor.order", comment: ""), orderRow, stretch: false),
-        ]
+            LanguageTag.displayName(for: editLanguage))
 
-        let form = NSStackView(views: rows)
+        let infoGroup = SettingsGroupView(
+            title: NSLocalizedString("console.editor.section.info", comment: ""),
+            footer: languageHint)
+        infoGroup.addRow(SettingsFormRowView(
+            label: NSLocalizedString("console.editor.name", comment: ""),
+            control: titleField,
+            stretch: true))
+        infoGroup.addRow(SettingsFormRowView(
+            label: NSLocalizedString("console.editor.description", comment: ""),
+            control: subtitleField,
+            stretch: true))
+
+        let windowGroup = SettingsGroupView(
+            title: NSLocalizedString("console.editor.section.window", comment: ""))
+        windowGroup.addRow(SettingsFormRowView(
+            label: NSLocalizedString("console.editor.size", comment: ""),
+            control: sizeRow))
+        windowGroup.addRow(SettingsFormRowView(
+            label: NSLocalizedString("console.editor.position", comment: ""),
+            control: positionPopup))
+        windowGroup.addRow(SettingsFormRowView(
+            label: NSLocalizedString("console.editor.coordinates", comment: ""),
+            control: coordinateRow))
+        windowGroup.addRow(SettingsFormRowView(
+            label: NSLocalizedString("console.editor.opacity", comment: ""),
+            control: opacityRow))
+        windowGroup.addRow(SettingsFormRowView(
+            label: NSLocalizedString("console.editor.radius", comment: ""),
+            control: radiusRow))
+        windowGroup.addRow(SettingsFormRowView(
+            label: NSLocalizedString("console.editor.passthrough", comment: ""),
+            control: passthroughRow))
+        windowGroup.addRow(SettingsFormRowView(
+            label: NSLocalizedString("console.editor.order", comment: ""),
+            control: orderRow))
+
+        let form = NSStackView(views: [infoGroup, windowGroup])
         form.orientation = .vertical
-        form.alignment = .width
-        form.spacing = 8
-        form.setCustomSpacing(12, after: languageHint)
-        form.setCustomSpacing(12, after: separator)
+        form.alignment = .leading
+        form.spacing = ConsoleTheme.Space.groupSpacing
+        // 纵向 stack 的 .width 对齐不可靠，显式把分组拉到整列宽度。
+        infoGroup.widthAnchor.constraint(equalTo: form.widthAnchor).isActive = true
+        windowGroup.widthAnchor.constraint(equalTo: form.widthAnchor).isActive = true
         return form
     }
 
     private func buildPreviewCard() -> NSView {
-        let card = GlassCard(cornerRadius: 14)
-
-        let heading = sectionHeader(NSLocalizedString("console.editor.preview", comment: ""),
-                                    symbol: "rectangle.3.group")
         previewView.translatesAutoresizingMaskIntoConstraints = false
         previewView.heightAnchor.constraint(equalToConstant: 150).isActive = true
 
-        previewInfoLabel.font = .systemFont(ofSize: 10)
+        previewInfoLabel.font = ConsoleTheme.Font.caption
         previewInfoLabel.textColor = .secondaryLabelColor
         previewInfoLabel.maximumNumberOfLines = 3
 
-        let stack = NSStackView(views: [heading, previewView, previewInfoLabel])
-        stack.orientation = .vertical
-        stack.alignment = .width
-        stack.spacing = 8
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        card.contentView.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: card.contentView.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: card.contentView.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: card.contentView.topAnchor),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: card.contentView.bottomAnchor),
-        ])
-        return card
-    }
-
-    /// 分区标题：强制贴左，避免在拉伸的垂直 stack 里被挤到右侧。
-    private func sectionHeader(_ text: String, symbol: String) -> NSView {
-        let label = makeSectionLabel(text, symbol: symbol)
-        let spacer = NSView()
-        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        let row = NSStackView(views: [label, spacer])
-        row.orientation = .horizontal
-        row.spacing = 0
-        row.alignment = .centerY
-        return row
-    }
-
-    /// 单行表单：固定宽度标签 + 控件。
-    /// 控件统一从标签右侧起始；stretch 为 true 时填满剩余宽度。
-    private func formRow(_ title: String, _ control: NSView, stretch: Bool = true) -> NSStackView {
-        let name = NSTextField(labelWithString: title)
-        name.font = .systemFont(ofSize: 12)
-        name.textColor = .secondaryLabelColor
-        name.alignment = .left
-        name.setContentHuggingPriority(.required, for: .horizontal)
-        name.translatesAutoresizingMaskIntoConstraints = false
-        name.widthAnchor.constraint(equalToConstant: 82).isActive = true
-
-        control.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        control.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        control.translatesAutoresizingMaskIntoConstraints = false
-
-        let controlContainer = NSView()
-        controlContainer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        controlContainer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        controlContainer.addSubview(control)
-        NSLayoutConstraint.activate([
-            control.leadingAnchor.constraint(equalTo: controlContainer.leadingAnchor),
-            control.topAnchor.constraint(equalTo: controlContainer.topAnchor),
-            control.bottomAnchor.constraint(equalTo: controlContainer.bottomAnchor),
-        ])
-        if stretch {
-            control.trailingAnchor.constraint(equalTo: controlContainer.trailingAnchor).isActive = true
-        }
-
-        let row = NSStackView(views: [name, controlContainer])
-        row.orientation = .horizontal
-        row.spacing = 10
-        row.alignment = .centerY
-        return row
+        let group = SettingsGroupView(
+            title: NSLocalizedString("console.editor.preview", comment: ""))
+        let content = NSStackView(views: [previewView, previewInfoLabel])
+        content.orientation = .vertical
+        content.alignment = .leading
+        content.spacing = 8
+        previewInfoLabel.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true
+        group.addContent(content)
+        previewView.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true
+        return group
     }
 
     private func configureField(_ field: NSTextField) {
-        field.font = .systemFont(ofSize: 12)
+        field.font = ConsoleTheme.Font.body
         field.controlSize = .regular
         field.isBezeled = true
         field.bezelStyle = .roundedBezel
@@ -649,14 +591,14 @@ final class TemplateEditorSheetController: NSWindowController, NSTextFieldDelega
 
     private func label(_ text: String) -> NSTextField {
         let label = NSTextField(labelWithString: text)
-        label.font = .systemFont(ofSize: 12)
+        label.font = ConsoleTheme.Font.body
         label.textColor = .secondaryLabelColor
         return label
     }
 
     private func secondaryLabel(_ text: String) -> NSTextField {
         let label = NSTextField(labelWithString: text)
-        label.font = .systemFont(ofSize: 10)
+        label.font = ConsoleTheme.Font.caption
         label.textColor = .secondaryLabelColor
         return label
     }

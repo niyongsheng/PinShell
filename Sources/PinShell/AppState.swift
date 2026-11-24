@@ -10,6 +10,8 @@ enum AppState {
     private static let kLastUpdateCheck = "lastUpdateCheckDate"
     private static let kSkippedVersion = "skippedUpdateVersion"
     private static let kAnalyticsEnabled = "analyticsEnabled"
+    private static let kAppearance = "appAppearance"
+    private static let kBundledSeedVersion = "bundledSeedVersion"
 
     static var windowFrame: NSRect? {
         get {
@@ -65,5 +67,39 @@ enum AppState {
             UserDefaults.standard.object(forKey: kAnalyticsEnabled) as? Bool ?? true
         }
         set { UserDefaults.standard.set(newValue, forKey: kAnalyticsEnabled) }
+    }
+
+    /// 应用外观：自动跟随系统 / 浅色 / 深色。默认跟随系统。
+    static var appearance: AppAppearance {
+        get {
+            AppAppearance(rawValue: UserDefaults.standard.string(forKey: kAppearance) ?? "")
+                ?? .system
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: kAppearance) }
+    }
+
+    static var bundledSeedVersion: Int {
+        get { UserDefaults.standard.integer(forKey: kBundledSeedVersion) }
+        set { UserDefaults.standard.set(newValue, forKey: kBundledSeedVersion) }
+    }
+}
+
+/// 应用外观偏好；`system` 跟随系统，其余强制指定。
+enum AppAppearance: String, CaseIterable {
+    case system
+    case light
+    case dark
+
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .system: return nil                // nil = 跟随系统
+        case .light: return NSAppearance(named: .aqua)
+        case .dark: return NSAppearance(named: .darkAqua)
+        }
+    }
+
+    /// 立即应用到整个应用：控制台、悬浮窗以及网页的 prefers-color-scheme 同步切换。
+    func apply() {
+        NSApp.appearance = nsAppearance
     }
 }

@@ -15,12 +15,15 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
 
     private var showHideItem: NSToolbarItem?
     private var editorSheet: TemplateEditorSheetController?
-    private var keyMonitor: Any?
     private var lastStatusFile: String?
     private var hasShown = false
     private var templatesWatcher: TemplateDirectoryWatcher?
     private var lastDirectTemplatesChange = Date.distantPast
     private var templatesRefreshWork: DispatchWorkItem?
+
+    /// 官网模板库：支持从网页一键安装到 PinShell（pinshell:// 深链）。
+    private static let onlineLibraryURL = URL(
+        string: "https://pinshell.looplooptech.com/templates/")!
 
     init(windowController: OverlayWindowController) {
         self.windowController = windowController
@@ -28,7 +31,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         buildWindow()
         wireActions()
         installObservers()
-        installKeyMonitor()
+        installShortcutHandling()
         installTemplatesWatcher()
         libraryService.onChange = { [weak self] in
             self?.libraryChanged()
@@ -37,36 +40,28 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
-        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         templatesWatcher?.stop()
     }
 
-    /// 控制台快捷键：⌘1 模板、⌘2 MCP、⌘3 关于、⌘4 在线模板库、⌘E 编辑当前模板。
-    private func installKeyMonitor() {
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, self.window.isKeyWindow,
-                  event.modifierFlags.contains(.command),
-                  let key = event.charactersIgnoringModifiers?.lowercased() else {
-                return event
-            }
-            switch key {
-            case "1":
-                self.sidebar.selectFirstTemplate()
-                return nil
-            case "2":
-                self.sidebar.selectMCP()
-                return nil
-            case "3":
-                self.sidebar.selectAbout()
-                return nil
-            case "4":
-                self.sidebar.selectLibrary()
-                return nil
-            case "e":
-                self.editSelected()
-                return nil
-            default:
-                return event
+    /// 控制台快捷键：默认 ⌘1 模板、⌘2 MCP、⌘3 关于、⌘4 在线模板库、⌘5 通用、⌘E 编辑；
+    /// 组合可在「快捷键」中修改，统一由 ShortcutDispatcher 分发。
+    private func installShortcutHandling() {
+        let dispatcher = ShortcutDispatcher.shared
+        for action in ShortcutAction.allCases where action.scope == .console {
+            dispatcher.register(action) { [weak self] in self?.performShortcut(action) }
+        }
+        dispatcher.installConsoleMonitor(for: window)
+    }
+
+    private func performShortcut(_ action: ShortcutAction) {
+        switch action {
+        case .showTemplates:
+            sidebar.selectFirstTemplate()
+        case .editTemplate:
+            editSelected()
+        default:
+            if let page = action.page {
+                sidebar.select(page)
             }
         }
     }
@@ -78,7 +73,9 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
                            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                            backing: .buffered, defer: false)
         win.title = NSLocalizedString("console.title", comment: "")
+        win.titleVisibility = .hidden
         win.titlebarAppearsTransparent = true
+        win.titlebarSeparatorStyle = .none
         win.toolbarStyle = .unified
         win.minSize = NSSize(width: 780, height: 540)
         win.isReleasedWhenClosed = false
@@ -89,8 +86,8 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         window = win
 
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebar)
-        sidebarItem.minimumThickness = 235
-        sidebarItem.maximumThickness = 320
+        sidebarItem.minimumThickness = 180
+        sidebarItem.maximumThickness = 300
         sidebarItem.canCollapse = true
         splitController.addSplitViewItem(sidebarItem)
         splitController.addSplitViewItem(NSSplitViewItem(viewController: detail))
@@ -109,22 +106,14 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
             self?.detail.showTemplate(item)
             self?.window.toolbar?.validateVisibleItems()
         }
-        sidebar.onSelectLibrary = { [weak self] in
-            self?.showLibrary()
+        sidebar.onSelectPage = { [weak self] page in
+            self?.show(page)
         }
         detail.onOpenLibrary = { [weak self] in
-            self?.sidebar.selectLibrary()
+            self?.sidebar.select(.library)
         }
         detail.onOpenInstalled = { [weak self] file in
             self?.openInstalledTemplate(file)
-        }
-        sidebar.onSelectMCP = { [weak self] in
-            self?.detail.showMCP()
-            self?.window.toolbar?.validateVisibleItems()
-        }
-        sidebar.onSelectAbout = { [weak self] in
-            self?.detail.showAbout()
-            self?.window.toolbar?.validateVisibleItems()
         }
         sidebar.onApplyTemplate = { [weak self] item in
             self?.apply(item)
@@ -166,7 +155,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
 
     @objc private func templateInstalled(_ notification: Notification) {
         // Installing from the library must not navigate away; keep the user in the library.
-        sidebar.selectLibrary()
+        sidebar.select(.library)
     }
 
     private func installTemplatesWatcher() {
@@ -237,6 +226,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         }
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        sidebar.focusList()
         refreshStatus()
     }
 
@@ -265,8 +255,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         detail.refreshStatus(status)
 
         let visible = status["visible"]?.boolValue ?? false
-        showHideItem?.image = NSImage(systemSymbolName: visible ? "eye.slash" : "eye",
-                                      accessibilityDescription: nil)
+        showHideItem?.image = Self.toolbarImage(visible ? "eye.slash" : "eye")
         showHideItem?.label = visible
             ? NSLocalizedString("console.toolbar.hide", comment: "")
             : NSLocalizedString("console.toolbar.show", comment: "")
@@ -282,17 +271,19 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         refreshStatus()
     }
 
-    private func showLibrary() {
-        detail.showLibrary(service: libraryService)
+    private func show(_ page: ConsolePage) {
+        detail.showPage(page, service: libraryService)
         window.toolbar?.validateVisibleItems()
     }
 
     /// 官网深链：打开控制台与模板库，并安装指定模板。
-    func installTemplateFromLibrary(id: String) {
+    func installTemplateFromLibrary(id: String, catalogURL: URL) {
         show()
-        sidebar.selectLibrary()
+        sidebar.select(.library)
         Task { @MainActor in
-            await detail.installTemplateFromLibrary(id: id, service: libraryService)
+            await detail.installTemplateFromLibrary(id: id,
+                                                    catalogURL: catalogURL,
+                                                    service: libraryService)
         }
     }
 
@@ -300,12 +291,13 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         sidebar.updateLibraryBadge(libraryService.updateCount)
         detail.refreshLibrary()
         detail.refreshLibraryMetadata()
+        detail.refreshGeneral()
     }
 
     private func syncDetailToSidebar() {
         if sidebar.isLibrarySelected {
             if !detail.isShowingLibrary {
-                detail.showLibrary(service: libraryService)
+                detail.showPage(.library, service: libraryService)
             }
         } else if !sidebar.hasTemplates,
                   !detail.isShowingLibrary,
@@ -390,8 +382,8 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         }
     }
 
-    @objc private func openLibraryFromToolbar() {
-        sidebar.selectLibrary()
+    @objc private func openOnlineLibrary() {
+        NSWorkspace.shared.open(Self.onlineLibraryURL)
     }
 
     @objc private func revealTemplatesFolder() {
@@ -419,6 +411,14 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         static let showHide = NSToolbarItem.Identifier("PinShell.Console.ShowHide")
         static let reload = NSToolbarItem.Identifier("PinShell.Console.Reload")
         static let templates = NSToolbarItem.Identifier("PinShell.Console.Templates")
+    }
+
+    /// 工具栏三个图标统一按 17pt 渲染。SF Symbol 的字形留白不同，
+    /// 用默认尺寸时眼睛偏大、省略号圆偏小，显式配置后视觉大小才齐平。
+    private static func toolbarImage(_ symbol: String) -> NSImage? {
+        NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 17,
+                                                                 weight: .regular))
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -453,12 +453,12 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         guard let spec = specs[itemIdentifier] else { return nil }
 
         let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-        item.isBordered = true
+        item.isBordered = false
         item.target = self
         item.label = NSLocalizedString(spec.titleKey, comment: "")
         item.paletteLabel = item.label
         item.toolTip = item.label
-        item.image = NSImage(systemSymbolName: spec.symbol, accessibilityDescription: nil)
+        item.image = Self.toolbarImage(spec.symbol)
         item.action = spec.action
         if itemIdentifier == ToolbarID.showHide {
             showHideItem = item
@@ -472,13 +472,13 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         item.label = NSLocalizedString("console.toolbar.templates", comment: "")
         item.paletteLabel = item.label
         item.toolTip = item.label
-        item.image = NSImage(systemSymbolName: "ellipsis.circle", accessibilityDescription: nil)
-        item.isBordered = true
+        item.image = Self.toolbarImage("ellipsis.circle")
+        item.isBordered = false
         item.showsIndicator = true
 
         let menu = NSMenu()
         let library = NSMenuItem(title: NSLocalizedString("console.toolbar.onlineLibrary", comment: ""),
-                                 action: #selector(openLibraryFromToolbar), keyEquivalent: "")
+                                 action: #selector(openOnlineLibrary), keyEquivalent: "")
         library.target = self
         library.image = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: nil)
         menu.addItem(library)
