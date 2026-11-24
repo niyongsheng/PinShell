@@ -2,6 +2,7 @@
 <html lang="zh-Hans">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
 <script type="application/json" id="pinshell:i18n">
 {
   "default": "zh-Hans",
@@ -10,20 +11,20 @@
     "zh-Hans": {
       "meta": {
         "name": "五子棋",
-        "description": "你执黑先行，与 Claude 对弈五子棋"
+        "description": "你执黑先行，与内置算法对弈五子棋"
       }
     },
     "en": {
       "meta": {
         "name": "Gomoku",
-        "description": "You play black and move first against Claude."
+        "description": "You play black and move first against a built-in opponent."
       }
     }
   }
 }
 </script>
 <title>五子棋</title>
-<meta name="description" content="你执黑先行，与 Claude 对弈五子棋">
+<meta name="description" content="你执黑先行，与内置算法对弈五子棋">
 <meta name="pinshell:size" content="360x440">
 <meta name="pinshell:position" content="bottom-right">
 <meta name="pinshell:passthrough" content="false">
@@ -32,9 +33,32 @@
 <meta name="pinshell:order" content="9">
 <style>
   :root {
+    color-scheme: light dark;
+
+    /* 浅色（默认）：暖色木纹棋盘 */
     --ink: #4a3418;
     --muted: #7a5c33;
     --accent: #d64538;
+    --wood-top: #efd9ad;
+    --wood-mid: #e3c28a;
+    --wood-bottom: #d3ab6d;
+    --wood-sheen: rgba(255, 247, 226, .65);
+    --wood-sheen-clear: rgba(255, 247, 226, 0);
+    --wood-grain: rgba(116, 78, 30, .045);
+    --wood-border: rgba(255, 255, 255, .38);
+    --wood-inset: rgba(255, 255, 255, .55);
+    --wood-inner: rgba(120, 80, 30, .15);
+    --button-border: rgba(116, 78, 30, .24);
+    --button-bg: rgba(255, 255, 255, .34);
+    --button-hover: rgba(255, 255, 255, .62);
+    --button-ink: #5a3f1c;
+    --board-bg-1: rgba(255, 250, 235, .5);
+    --board-bg-2: rgba(255, 244, 216, .18);
+    --board-inset-1: rgba(255, 255, 255, .45);
+    --board-inset-2: rgba(120, 80, 30, .12);
+    --grid-rgb: 74, 52, 24;
+    --dot-idle: #111111;
+    --dot-ring: rgba(0, 0, 0, .12);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; }
@@ -54,10 +78,10 @@
     overflow: hidden;
     color: var(--ink);
     background:
-      radial-gradient(120% 100% at 18% 0%, rgba(255,247,226,.65), rgba(255,247,226,0) 55%),
-      repeating-linear-gradient(0deg, rgba(116,78,30,.045) 0 2px, rgba(116,78,30,0) 2px 7px),
-      linear-gradient(158deg, #efd9ad 0%, #e3c28a 52%, #d3ab6d 100%);
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,.38), inset 0 1px 0 rgba(255,255,255,.55), inset 0 0 46px rgba(120,80,30,.15);
+      radial-gradient(120% 100% at 18% 0%, var(--wood-sheen), var(--wood-sheen-clear) 55%),
+      repeating-linear-gradient(0deg, var(--wood-grain) 0 2px, transparent 2px 7px),
+      linear-gradient(158deg, var(--wood-top) 0%, var(--wood-mid) 52%, var(--wood-bottom) 100%);
+    box-shadow: inset 0 0 0 1px var(--wood-border), inset 0 1px 0 var(--wood-inset), inset 0 0 46px var(--wood-inner);
   }
   header { flex: 0 0 auto; height: 34px; display: flex; align-items: center; justify-content: space-between; }
   .brand { display: flex; align-items: center; gap: 9px; }
@@ -70,9 +94,9 @@
   .actions { display: flex; gap: 6px; }
   button {
     appearance: none;
-    border: 1px solid rgba(116,78,30,.24);
-    background: rgba(255,255,255,.34);
-    color: #5a3f1c;
+    border: 1px solid var(--button-border);
+    background: var(--button-bg);
+    color: var(--button-ink);
     width: 28px;
     height: 28px;
     padding: 0;
@@ -83,10 +107,10 @@
     cursor: pointer;
     transition: background .15s ease, transform .1s ease, opacity .15s ease;
   }
-  button:hover { background: rgba(255,255,255,.62); }
+  button:hover { background: var(--button-hover); }
   button:active { transform: scale(.93); }
   button:disabled { opacity: .3; cursor: default; }
-  button:disabled:hover { background: rgba(255,255,255,.34); }
+  button:disabled:hover { background: var(--button-bg); }
   button svg { width: 15px; height: 15px; display: block; }
   .board-wrap { flex: 0 0 auto; display: flex; justify-content: center; margin-top: 8px; }
   .board {
@@ -95,8 +119,8 @@
     width: 336px;
     height: 336px;
     border-radius: 12px;
-    background: linear-gradient(150deg, rgba(255,250,235,.5), rgba(255,244,216,.18));
-    box-shadow: inset 0 1px 2px rgba(255,255,255,.45), inset 0 -2px 6px rgba(120,80,30,.12);
+    background: linear-gradient(150deg, var(--board-bg-1), var(--board-bg-2));
+    box-shadow: inset 0 1px 2px var(--board-inset-1), inset 0 -2px 6px var(--board-inset-2);
   }
   .board svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .points { position: absolute; inset: 0; }
@@ -147,13 +171,13 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #111;
-    box-shadow: 0 0 0 1px rgba(0,0,0,.12);
+    background: var(--dot-idle);
+    box-shadow: 0 0 0 1px var(--dot-ring);
     transition: background .2s ease;
   }
   .dot.white { background: #fff; animation: pulse 1.1s ease-in-out infinite; }
   .dot.hot { background: var(--accent); animation: none; }
-  #status { font-size: 11.5px; color: #5a3f1c; letter-spacing: .02em; }
+  #status { font-size: 11.5px; color: var(--button-ink); letter-spacing: .02em; }
   .toast {
     position: absolute;
     left: 50%;
@@ -181,6 +205,50 @@
     0%, 100% { transform: scale(1); opacity: 1; }
     50% { transform: scale(.72); opacity: .55; }
   }
+  /* 深色：深胡桃木 + 暖色线条，黑子补一圈浅色边缘 */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #f0e4cf;
+      --muted: rgba(240, 228, 207, .62);
+      --accent: #ff6b5e;
+      --wood-top: #4a3522;
+      --wood-mid: #3b2a1b;
+      --wood-bottom: #2c1f14;
+      --wood-sheen: rgba(255, 235, 200, .08);
+      --wood-sheen-clear: rgba(255, 235, 200, 0);
+      --wood-grain: rgba(0, 0, 0, .10);
+      --wood-border: rgba(255, 235, 200, .10);
+      --wood-inset: rgba(255, 235, 200, .12);
+      --wood-inner: rgba(0, 0, 0, .35);
+      --button-border: rgba(255, 235, 200, .18);
+      --button-bg: rgba(255, 235, 200, .08);
+      --button-hover: rgba(255, 235, 200, .16);
+      --button-ink: #f0e4cf;
+      --board-bg-1: rgba(0, 0, 0, .18);
+      --board-bg-2: rgba(0, 0, 0, .28);
+      --board-inset-1: rgba(255, 235, 200, .08);
+      --board-inset-2: rgba(0, 0, 0, .30);
+      --grid-rgb: 240, 228, 207;
+      --dot-idle: #f0e4cf;
+      --dot-ring: rgba(255, 235, 200, .25);
+    }
+    body.myturn .pt:not(.filled):hover::after {
+      background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.9), rgba(255,255,255,.45));
+      opacity: .22;
+    }
+    .stone.black {
+      box-shadow: 0 2px 3px rgba(0,0,0,.55), inset 0 -1px 2px rgba(255,255,255,.10),
+                  0 0 0 1px rgba(255,235,200,.14);
+    }
+    .logo .b {
+      box-shadow: 0 1px 2px rgba(0,0,0,.6), 0 0 0 1px rgba(255,235,200,.35);
+    }
+    .toast {
+      background: rgba(15, 10, 6, .92);
+      border: 1px solid rgba(255, 235, 200, .12);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .stone { animation: none; }
     .dot.white { animation: none; }
@@ -256,7 +324,9 @@
   });
 
   // ---------- 棋盘网格 ----------
-  (() => {
+  function drawGrid() {
+    const gridRGB = getComputedStyle(document.documentElement)
+      .getPropertyValue('--grid-rgb').trim() || '74,52,24';
     const parts = [];
     for (let i = 0; i < N; i++) {
       const p = PAD + i * CELL;
@@ -264,16 +334,20 @@
       const alpha = edge ? 0.62 : 0.4;
       const width = edge ? 1.6 : 1;
       parts.push('<line x1="' + PAD + '" y1="' + p + '" x2="' + (SIZE - PAD) + '" y2="' + p +
-        '" stroke="rgba(74,52,24,' + alpha + ')" stroke-width="' + width + '"/>');
+        '" stroke="rgba(' + gridRGB + ',' + alpha + ')" stroke-width="' + width + '"/>');
       parts.push('<line x1="' + p + '" y1="' + PAD + '" x2="' + p + '" y2="' + (SIZE - PAD) +
-        '" stroke="rgba(74,52,24,' + alpha + ')" stroke-width="' + width + '"/>');
+        '" stroke="rgba(' + gridRGB + ',' + alpha + ')" stroke-width="' + width + '"/>');
     }
     for (const [r, c] of [[3, 3], [3, 11], [11, 3], [11, 11], [7, 7]]) {
       parts.push('<circle cx="' + (PAD + c * CELL) + '" cy="' + (PAD + r * CELL) +
-        '" r="2.3" fill="rgba(74,52,24,.62)"/>');
+        '" r="2.3" fill="rgba(' + gridRGB + ',.62)"/>');
     }
     gridEl.innerHTML = parts.join('');
-  })();
+  }
+  drawGrid();
+  const colorScheme = window.matchMedia('(prefers-color-scheme: dark)');
+  if (colorScheme.addEventListener) colorScheme.addEventListener('change', drawGrid);
+  else if (colorScheme.addListener) colorScheme.addListener(drawGrid);
 
   // ---------- 交叉点 ----------
   for (let r = 0; r < N; r++) {

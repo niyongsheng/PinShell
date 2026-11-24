@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
 <script type="application/json" id="pinshell:i18n">
 {
   "default": "zh-Hans",
@@ -32,6 +33,34 @@
 <meta name="pinshell:order" content="2">
 <link rel="stylesheet" href="design-tokens.css">
 <style>
+:root {
+  color-scheme: light dark;
+
+  /* 深色（默认）：石墨卡片 */
+  --card-bg: var(--ps-surface-tile-1);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --title-ink: var(--ps-body-muted);
+  --value-ink: var(--ps-body-on-dark);
+  --accent-ink: var(--ps-primary-on-dark);
+  --track-bg: rgba(255, 255, 255, 0.10);
+  --shimmer: rgba(255, 255, 255, 0.35);
+  --dot-idle: #6e6e73;
+}
+
+/* 浅色：珍珠白卡片 + Action Blue */
+@media (prefers-color-scheme: light) {
+  :root {
+    --card-bg: rgba(250, 250, 252, 0.94);
+    --card-border: rgba(0, 0, 0, 0.08);
+    --title-ink: rgba(29, 29, 31, 0.62);
+    --value-ink: var(--ps-ink);
+    --accent-ink: var(--ps-primary);
+    --track-bg: rgba(0, 0, 0, 0.08);
+    --shimmer: rgba(255, 255, 255, 0.55);
+    --dot-idle: rgba(29, 29, 31, 0.35);
+  }
+}
+
 .card {
   position: absolute;
   inset: 0;
@@ -40,8 +69,8 @@
   justify-content: center;
   gap: 10px;
   padding: 0 16px;
-  background: var(--ps-surface-tile-1);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
   border-radius: var(--ps-radius-lg);
   box-sizing: border-box;
 }
@@ -57,7 +86,7 @@
   gap: 6px;
   font-size: 12px;
   letter-spacing: 0.02em;
-  color: var(--ps-body-muted);
+  color: var(--title-ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -76,7 +105,7 @@
 }
 .live-dot {
   width: 5px; height: 5px; border-radius: 50%;
-  background: #6e6e73;
+  background: var(--dot-idle);
   transition: background 0.3s ease, box-shadow 0.3s ease;
 }
 .live-dot.on {
@@ -87,15 +116,15 @@
 .nums {
   font-size: 13px; font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--ps-body-on-dark);
+  color: var(--value-ink);
   white-space: nowrap;
 }
-.nums .cur { color: var(--ps-primary-on-dark); }
+.nums .cur { color: var(--accent-ink); }
 .track {
   position: relative;
   height: 6px;
   border-radius: var(--ps-radius-pill);
-  background: rgba(255, 255, 255, 0.10);
+  background: var(--track-bg);
   overflow: hidden;
 }
 .fill {
@@ -110,7 +139,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  background: linear-gradient(90deg, transparent, var(--shimmer), transparent);
   transform: translateX(-100%);
   animation: shimmer 2.4s ease-in-out infinite;
 }
@@ -118,6 +147,7 @@
   0% { transform: translateX(-100%); }
   60%, 100% { transform: translateX(100%); }
 }
+
 </style>
 </head>
 <body>

@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
 <script type="application/json" id="pinshell:i18n">
 {
   "default": "zh-Hans",
@@ -61,8 +62,45 @@
 <style>
   * { box-sizing: border-box; }
 
+  :root {
+    color-scheme: light dark;
+
+    /* 深色（默认）：石墨玻璃仪表盘 */
+    --panel-top: rgba(36, 36, 39, 0.93);
+    --panel-bottom: rgba(22, 22, 24, 0.95);
+    --panel-border: rgba(255, 255, 255, 0.09);
+    --panel-inset: rgba(255, 255, 255, 0.07);
+    --ink: #f5f5f7;
+    --ink-strong: rgba(255, 255, 255, 0.92);
+    --ink-soft: rgba(255, 255, 255, 0.88);
+    --ink-mid: rgba(255, 255, 255, 0.52);
+    --ink-muted: rgba(255, 255, 255, 0.40);
+    --ink-faint: rgba(255, 255, 255, 0.37);
+    --ink-weak: rgba(255, 255, 255, 0.32);
+    --ink-ghost: rgba(255, 255, 255, 0.26);
+    --hairline: rgba(255, 255, 255, 0.06);
+    --control-bg: rgba(255, 255, 255, 0.055);
+    --control-border: rgba(255, 255, 255, 0.05);
+    --control-ink: rgba(255, 255, 255, 0.34);
+    --control-hover: rgba(255, 255, 255, 0.72);
+    --control-active-bg: rgba(255, 255, 255, 0.14);
+    --control-active-ink: #f5f5f7;
+    --ico-bg: rgba(255, 255, 255, 0.055);
+    --ico-border: rgba(255, 255, 255, 0.045);
+    --bar-bg: rgba(255, 255, 255, 0.075);
+    --ring-bg-top: rgba(255, 255, 255, 0.07);
+    --ring-bg-bottom: rgba(255, 255, 255, 0.015);
+    --ring-track: rgba(255, 255, 255, 0.075);
+    --dot-idle: #6e6e73;
+    --accent: #2997ff;
+    --green: #30d158;
+    --orange: #ff9f0a;
+    --red: #ff453a;
+    --red-soft: #ff6961;
+  }
+
   body {
-    color: #f5f5f7;
+    color: var(--ink);
     user-select: none;
     -webkit-user-select: none;
   }
@@ -71,14 +109,14 @@
     position: absolute; inset: 0;
     display: flex; flex-direction: column;
     padding: 13px 15px 11px;
-    color: #f5f5f7;
+    color: var(--ink);
     background:
       radial-gradient(120% 90% at 0% 0%, rgba(41, 151, 255, 0.11), transparent 55%),
       radial-gradient(90% 70% at 100% 105%, rgba(48, 209, 88, 0.055), transparent 60%),
-      linear-gradient(180deg, rgba(36, 36, 39, 0.93), rgba(22, 22, 24, 0.95));
-    border: 1px solid rgba(255, 255, 255, 0.09);
+      linear-gradient(180deg, var(--panel-top), var(--panel-bottom));
+    border: 1px solid var(--panel-border);
     border-radius: 18px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    box-shadow: inset 0 1px 0 var(--panel-inset);
     -webkit-backdrop-filter: blur(26px) saturate(1.5);
     backdrop-filter: blur(26px) saturate(1.5);
     overflow: hidden;
@@ -94,7 +132,7 @@
     display: flex; align-items: center; justify-content: space-between;
     height: 21px;
     padding-bottom: 9px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid var(--hairline);
   }
   .title { display: flex; align-items: center; gap: 7px; min-width: 0; }
   .title-text { font-size: 13px; font-weight: 650; letter-spacing: -0.1px; white-space: nowrap; }
@@ -137,26 +175,26 @@
     display: flex; align-items: center; gap: 1px;
     height: 20px; padding: 1px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.055);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
   }
   .view-btn {
     width: 21px; height: 16px;
     display: grid; place-items: center;
     padding: 0; border: 0; border-radius: 999px;
     background: transparent;
-    color: rgba(255, 255, 255, 0.34);
+    color: var(--control-ink);
     cursor: pointer;
     transition: background 0.18s ease, color 0.18s ease;
     -webkit-tap-highlight-color: transparent;
   }
-  .view-btn:hover { color: rgba(255, 255, 255, 0.72); }
+  .view-btn:hover { color: var(--control-hover); }
   .view-btn.active {
-    background: rgba(255, 255, 255, 0.14);
-    color: #f5f5f7;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    background: var(--control-active-bg);
+    color: var(--control-active-ink);
+    box-shadow: inset 0 1px 0 var(--panel-inset);
   }
-  .view-btn:focus-visible { outline: 2px solid #2997ff; outline-offset: 1px; }
+  .view-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .view-btn svg { display: block; width: 11px; height: 11px; }
 
   .clock {
@@ -164,7 +202,7 @@
     font-size: 10.5px; font-weight: 500;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.2px;
-    color: rgba(255, 255, 255, 0.40);
+    color: var(--ink-muted);
   }
 
   .metrics {
@@ -182,8 +220,8 @@
     display: grid; place-items: center;
     border-radius: 6px;
     color: var(--c);
-    background: rgba(255, 255, 255, 0.055);
-    border: 1px solid rgba(255, 255, 255, 0.045);
+    background: var(--ico-bg);
+    border: 1px solid var(--ico-border);
     transition: color 0.3s ease;
   }
   .ico svg { display: block; width: 13px; height: 13px; }
@@ -191,14 +229,14 @@
     flex: none; width: 48px;
     font-size: 11.5px; font-weight: 600;
     letter-spacing: 0.1px;
-    color: rgba(255, 255, 255, 0.92);
+    color: var(--ink-strong);
   }
   .detail {
     flex: 1; min-width: 0;
     font-size: 9.5px; font-weight: 500;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.1px;
-    color: rgba(255, 255, 255, 0.37);
+    color: var(--ink-faint);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .value {
@@ -211,13 +249,13 @@
     font-size: 16px; font-weight: 700;
     letter-spacing: -0.45px;
     text-align: right;
-    color: #f5f5f7;
+    color: var(--ink);
     transition: color 0.3s ease;
   }
   .value i {
     font-style: normal;
     font-size: 9px; font-weight: 600;
-    color: rgba(255, 255, 255, 0.36);
+    color: var(--ink-weak);
   }
 
   /* 每个指标的基础色，超阈值时由 .hot 覆盖为警示红 */
@@ -225,13 +263,13 @@
   .m-mem  { --c: #30d158; --c2: #7ee787; --glow: rgba(48, 209, 88, 0.45); }
   .m-disk { --c: #ff9f0a; --c2: #ffc15c; --glow: rgba(255, 159, 10, 0.45); }
   .metric.hot { --c: #ff453a; --c2: #ff8a80; --glow: rgba(255, 69, 58, 0.55); }
-  .metric.hot .value b { color: #ff6961; }
+  .metric.hot .value b { color: var(--red-soft); }
 
   .bar {
     position: relative;
     height: 5px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.075);
+    background: var(--bar-bg);
   }
   .fill {
     position: absolute; left: 0; top: 0; bottom: 0; width: 0;
@@ -279,8 +317,8 @@
     content: '';
     position: absolute; inset: 6px;
     border-radius: 50%;
-    background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.015));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    background: radial-gradient(circle at 50% 30%, var(--ring-bg-top), var(--ring-bg-bottom));
+    box-shadow: inset 0 1px 0 var(--panel-inset);
   }
   .ring svg {
     position: absolute; inset: 0;
@@ -288,7 +326,7 @@
     transform: rotate(-90deg);
     overflow: visible;
   }
-  .ring-track { fill: none; stroke: rgba(255, 255, 255, 0.075); stroke-width: 5.5; }
+  .ring-track { fill: none; stroke: var(--ring-track); stroke-width: 5.5; }
   .ring-fill {
     fill: none;
     stroke: var(--c);
@@ -306,7 +344,7 @@
   .ring-name {
     display: flex; align-items: center; gap: 4px;
     font-size: 11px; font-weight: 600;
-    color: rgba(255, 255, 255, 0.88);
+    color: var(--ink-soft);
   }
   .ring-caption .detail {
     flex: none; width: 100%;
@@ -323,9 +361,9 @@
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     height: 13px;
     padding-top: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-top: 1px solid var(--hairline);
     font-size: 9.5px; font-weight: 500;
-    color: rgba(255, 255, 255, 0.32);
+    color: var(--ink-weak);
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.1px;
   }
@@ -333,22 +371,69 @@
   .source .dot {
     flex: none;
     width: 5px; height: 5px; border-radius: 50%;
-    background: #6e6e73;
+    background: var(--dot-idle);
     transition: background 0.3s ease, box-shadow 0.3s ease;
   }
   .source.live .dot {
-    background: #30d158;
+    background: var(--green);
     box-shadow: 0 0 0 2px rgba(48, 209, 88, 0.13);
   }
-  .source.live .label { color: rgba(255, 255, 255, 0.52); }
-  .source .sep, .source .age { color: rgba(255, 255, 255, 0.25); }
+  .source.live .label { color: var(--ink-mid); }
+  .source .sep, .source .age { color: var(--ink-ghost); }
 
   .net { display: flex; align-items: center; gap: 9px; white-space: nowrap; }
   .net .arrow { font-size: 10px; font-weight: 700; }
-  .net .down .arrow { color: #2997ff; }
-  .net .up .arrow { color: #30d158; }
-  .net b { font-weight: 600; color: rgba(255, 255, 255, 0.52); }
-  .net .unit { color: rgba(255, 255, 255, 0.28); }
+  .net .down .arrow { color: var(--accent); }
+  .net .up .arrow { color: var(--green); }
+  .net b { font-weight: 600; color: var(--ink-mid); }
+  .net .unit { color: var(--ink-ghost); }
+
+  /* 浅色：珍珠白玻璃仪表盘 + 加深的语义色 */
+  @media (prefers-color-scheme: light) {
+    :root {
+      --panel-top: rgba(255, 255, 255, 0.94);
+      --panel-bottom: rgba(242, 242, 245, 0.96);
+      --panel-border: rgba(0, 0, 0, 0.09);
+      --panel-inset: rgba(255, 255, 255, 0.9);
+      --ink: var(--ps-ink);
+      --ink-strong: rgba(29, 29, 31, 0.9);
+      --ink-soft: rgba(29, 29, 31, 0.84);
+      --ink-mid: rgba(29, 29, 31, 0.55);
+      --ink-muted: rgba(29, 29, 31, 0.5);
+      --ink-faint: rgba(29, 29, 31, 0.42);
+      --ink-weak: rgba(29, 29, 31, 0.36);
+      --ink-ghost: rgba(29, 29, 31, 0.3);
+      --hairline: rgba(0, 0, 0, 0.08);
+      --control-bg: rgba(0, 0, 0, 0.055);
+      --control-border: rgba(0, 0, 0, 0.05);
+      --control-ink: rgba(29, 29, 31, 0.4);
+      --control-hover: rgba(29, 29, 31, 0.72);
+      --control-active-bg: rgba(255, 255, 255, 0.95);
+      --control-active-ink: var(--ps-ink);
+      --ico-bg: rgba(0, 0, 0, 0.045);
+      --ico-border: rgba(0, 0, 0, 0.04);
+      --bar-bg: rgba(0, 0, 0, 0.08);
+      --ring-bg-top: rgba(255, 255, 255, 0.9);
+      --ring-bg-bottom: rgba(0, 0, 0, 0.03);
+      --ring-track: rgba(0, 0, 0, 0.09);
+      --dot-idle: rgba(29, 29, 31, 0.35);
+      --accent: var(--ps-primary);
+      --green: #248a3d;
+      --orange: #b25000;
+      --red: #d13b33;
+      --red-soft: #d13b33;
+    }
+
+    .panel[data-health="ok"]   { --tone: #248a3d; --tone-soft: rgba(36, 138, 61, 0.10); --tone-line: rgba(36, 138, 61, 0.25); }
+    .panel[data-health="busy"] { --tone: #b25000; --tone-soft: rgba(178, 80, 0, 0.11); --tone-line: rgba(178, 80, 0, 0.26); }
+    .panel[data-health="high"] { --tone: #d13b33; --tone-soft: rgba(209, 59, 51, 0.11); --tone-line: rgba(209, 59, 51, 0.26); }
+
+    .metric.m-cpu  { --c: var(--ps-primary); --c2: #4da3ff; --glow: rgba(0, 102, 204, 0.25); }
+    .metric.m-mem  { --c: #248a3d; --c2: #5ccf7a; --glow: rgba(36, 138, 61, 0.22); }
+    .metric.m-disk { --c: #b25000; --c2: #e0912f; --glow: rgba(178, 80, 0, 0.22); }
+    .metric.hot    { --c: #d13b33; --c2: #ff7b72; --glow: rgba(209, 59, 51, 0.25); }
+    .metric.hot .value b { color: #d13b33; }
+  }
 
   @media (prefers-reduced-motion: reduce) {
     .pulse::after { animation: none; }

@@ -1,11 +1,15 @@
 {
   "schemaVersion": 1,
   "id": "badge-carousel",
-  "version": "1.0.0",
-  "releaseDate": "2026-11-23",
+  "version": "1.1.0",
+  "releaseDate": "2026-11-24",
   "minAppVersion": "1.4.0",
   "category": "social",
-  "tags": ["social", "badges", "streaming"],
+  "tags": [
+    "social",
+    "badges",
+    "streaming"
+  ],
   "author": {
     "name": "Nico",
     "url": "https://github.com/niyongsheng"
@@ -13,11 +17,19 @@
   "listing": {
     "zh-Hans": {
       "tagline": "轮播你的社交名片。",
-      "highlights": ["多账号徽章轮播", "实时在线标记", "240×80 紧凑尺寸"]
+      "highlights": [
+        "多账号徽章轮播",
+        "实时在线标记",
+        "240×80 紧凑尺寸"
+      ]
     },
     "en": {
       "tagline": "Rotate your social badges.",
-      "highlights": ["Multi-account carousel", "Live presence dot", "Compact 240×80 frame"]
+      "highlights": [
+        "Multi-account carousel",
+        "Live presence dot",
+        "Compact 240×80 frame"
+      ]
     }
   },
   "changelog": {
@@ -26,6 +38,13 @@
       "notes": {
         "zh-Hans": "首个在线版本：社交账号徽章轮播。",
         "en": "First library release: rotating social badges."
+      }
+    },
+    "1.1.0": {
+      "date": "2026-11-24",
+      "notes": {
+        "zh-Hans": "支持浅色与深色外观自适应。",
+        "en": "Adds light and dark appearance support."
       }
     }
   }

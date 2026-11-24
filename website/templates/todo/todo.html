@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
 <script type="application/json" id="pinshell:i18n">
 {
   "default": "zh-Hans",
@@ -76,9 +77,92 @@
 <style>
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
-  body { color: #f5f5f7; user-select: none; -webkit-user-select: none; }
+
+  :root {
+    color-scheme: light dark;
+
+    /* 深色（默认）：石墨玻璃面板 */
+    --panel-bg: rgba(28, 28, 30, 0.88);
+    --panel-border: rgba(255, 255, 255, 0.09);
+    --panel-shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
+    --ink: #f5f5f7;
+    --ink-muted: rgba(255, 255, 255, 0.45);
+    --ink-soft: rgba(255, 255, 255, 0.72);
+    --ink-faint: rgba(255, 255, 255, 0.35);
+    --ink-weak: rgba(255, 255, 255, 0.3);
+    --ink-ghost: rgba(255, 255, 255, 0.26);
+    --placeholder: rgba(255, 255, 255, 0.32);
+    --hairline: rgba(255, 255, 255, 0.055);
+    --field-bg: rgba(255, 255, 255, 0.06);
+    --field-border: rgba(255, 255, 255, 0.10);
+    --field-hover: rgba(255, 255, 255, 0.11);
+    --focus-border: rgba(41, 151, 255, 0.7);
+    --focus-bg: rgba(41, 151, 255, 0.08);
+    --hover: rgba(255, 255, 255, 0.07);
+    --seg-bg: rgba(255, 255, 255, 0.06);
+    --seg-border: rgba(255, 255, 255, 0.05);
+    --seg-active-bg: rgba(255, 255, 255, 0.14);
+    --seg-active-ink: #ffffff;
+    --seg-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    --accent: #2997ff;
+    --accent-soft: rgba(41, 151, 255, 0.13);
+    --grad: linear-gradient(90deg, #2997ff, #64d2ff);
+    --track-bg: rgba(255, 255, 255, 0.08);
+    --menu-bg: rgba(42, 42, 45, 0.98);
+    --menu-border: rgba(255, 255, 255, 0.10);
+    --menu-shadow: 0 14px 32px rgba(0, 0, 0, 0.5);
+    --quadrant-bg: rgba(255, 255, 255, 0.035);
+    --quadrant-border: rgba(255, 255, 255, 0.07);
+    --q1: #ff6961; --q1-soft: rgba(255, 105, 97, 0.12); --q1-line: rgba(255, 105, 97, 0.55);
+    --q2: #2997ff; --q2-soft: rgba(41, 151, 255, 0.12); --q2-line: rgba(41, 151, 255, 0.55);
+    --q3: #ffb340; --q3-soft: rgba(255, 179, 64, 0.12); --q3-line: rgba(255, 179, 64, 0.55);
+    --q4: #98989f; --q4-soft: rgba(152, 152, 159, 0.12); --q4-line: rgba(152, 152, 159, 0.55);
+  }
+
+  /* 浅色：珍珠白玻璃 + Action Blue；象限色加深以保对比度 */
+  @media (prefers-color-scheme: light) {
+    :root {
+      --panel-bg: rgba(250, 250, 252, 0.94);
+      --panel-border: rgba(0, 0, 0, 0.09);
+      --panel-shadow: 0 18px 40px rgba(0, 0, 0, 0.12);
+      --ink: var(--ps-ink);
+      --ink-muted: rgba(29, 29, 31, 0.5);
+      --ink-soft: rgba(29, 29, 31, 0.72);
+      --ink-faint: rgba(29, 29, 31, 0.4);
+      --ink-weak: rgba(29, 29, 31, 0.35);
+      --ink-ghost: rgba(29, 29, 31, 0.3);
+      --placeholder: rgba(29, 29, 31, 0.35);
+      --hairline: rgba(0, 0, 0, 0.07);
+      --field-bg: rgba(255, 255, 255, 0.8);
+      --field-border: rgba(0, 0, 0, 0.12);
+      --field-hover: rgba(0, 0, 0, 0.06);
+      --focus-border: rgba(0, 102, 204, 0.6);
+      --focus-bg: rgba(0, 102, 204, 0.06);
+      --hover: rgba(0, 0, 0, 0.05);
+      --seg-bg: rgba(0, 0, 0, 0.055);
+      --seg-border: rgba(0, 0, 0, 0.05);
+      --seg-active-bg: rgba(255, 255, 255, 0.95);
+      --seg-active-ink: var(--ps-ink);
+      --seg-shadow: 0 1px 2px rgba(0, 0, 0, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+      --accent: var(--ps-primary);
+      --accent-soft: rgba(0, 102, 204, 0.10);
+      --grad: linear-gradient(90deg, #0066cc, #2f9bff);
+      --track-bg: rgba(0, 0, 0, 0.08);
+      --menu-bg: rgba(255, 255, 255, 0.98);
+      --menu-border: rgba(0, 0, 0, 0.10);
+      --menu-shadow: 0 14px 32px rgba(0, 0, 0, 0.18);
+      --quadrant-bg: rgba(0, 0, 0, 0.03);
+      --quadrant-border: rgba(0, 0, 0, 0.07);
+      --q1: #d13b33; --q1-soft: rgba(209, 59, 51, 0.10); --q1-line: rgba(209, 59, 51, 0.5);
+      --q2: var(--ps-primary); --q2-soft: rgba(0, 102, 204, 0.10); --q2-line: rgba(0, 102, 204, 0.5);
+      --q3: #b25000; --q3-soft: rgba(178, 80, 0, 0.10); --q3-line: rgba(178, 80, 0, 0.5);
+      --q4: #6e6e73; --q4-soft: rgba(110, 110, 115, 0.10); --q4-line: rgba(110, 110, 115, 0.5);
+    }
+  }
+
+  body { color: var(--ink); user-select: none; -webkit-user-select: none; }
   button { font: inherit; color: inherit; }
-  button:focus-visible { outline: 2px solid #2997ff; outline-offset: 1px; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
   .panel {
     position: absolute; inset: 0;
@@ -87,10 +171,10 @@
     background:
       radial-gradient(80% 60% at 0% 0%, rgba(255, 105, 97, 0.055), transparent 60%),
       radial-gradient(80% 60% at 100% 100%, rgba(41, 151, 255, 0.055), transparent 60%),
-      rgba(28, 28, 30, 0.88);
-    border: 1px solid rgba(255, 255, 255, 0.09);
+      var(--panel-bg);
+    border: 1px solid var(--panel-border);
     border-radius: 20px;
-    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
+    box-shadow: var(--panel-shadow);
     overflow: hidden;
   }
 
@@ -98,39 +182,39 @@
   .headline { min-width: 0; }
   .title { font-size: 15px; font-weight: 650; letter-spacing: -0.2px; white-space: nowrap; }
   .date {
-    margin-top: 2px; font-size: 10.5px; color: rgba(255, 255, 255, 0.45);
+    margin-top: 2px; font-size: 10.5px; color: var(--ink-muted);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .head-actions { display: flex; align-items: center; gap: 8px; flex: none; }
   .view-switch {
     display: flex; gap: 2px; padding: 2px; border-radius: 999px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: var(--seg-bg);
+    border: 1px solid var(--seg-border);
   }
   .view-btn {
     height: 21px; padding: 0 8px; border: 0; border-radius: 999px;
-    background: transparent; color: rgba(255, 255, 255, 0.45);
+    background: transparent; color: var(--ink-muted);
     font-size: 10px; font-weight: 600; white-space: nowrap; cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
   }
-  .view-btn:hover { color: rgba(255, 255, 255, 0.8); }
+  .view-btn:hover { color: var(--ink-soft); }
   .view-btn[aria-selected="true"] {
-    background: rgba(255, 255, 255, 0.14); color: #fff;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    background: var(--seg-active-bg); color: var(--seg-active-ink);
+    box-shadow: var(--seg-shadow);
   }
   .count {
     min-width: 34px; padding: 3px 9px; border-radius: 999px;
     font-size: 10.5px; font-weight: 600; text-align: center;
     font-variant-numeric: tabular-nums;
-    color: #2997ff; background: rgba(41, 151, 255, 0.13);
+    color: var(--accent); background: var(--accent-soft);
   }
   .progress-track {
     height: 4px; flex: none; border-radius: 999px; overflow: hidden;
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--track-bg);
   }
   .progress-bar {
     height: 100%; width: 0%; border-radius: inherit;
-    background: linear-gradient(90deg, #2997ff, #64d2ff);
+    background: var(--grad);
     transition: width 0.28s cubic-bezier(.2,.8,.2,1);
   }
 
@@ -138,22 +222,22 @@
   .add-wrap { position: relative; flex: none; display: flex; gap: 6px; }
   .add-wrap input {
     flex: 1; min-width: 0; height: 32px; padding: 0 11px;
-    border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.10);
-    background: rgba(255, 255, 255, 0.06);
-    color: #f5f5f7; font: inherit; font-size: 12px; outline: none;
+    border-radius: 10px; border: 1px solid var(--field-border);
+    background: var(--field-bg);
+    color: var(--ink); font: inherit; font-size: 12px; outline: none;
   }
-  .add-wrap input::placeholder { color: rgba(255, 255, 255, 0.32); }
-  .add-wrap input:focus { border-color: rgba(41, 151, 255, 0.7); background: rgba(41, 151, 255, 0.08); }
+  .add-wrap input::placeholder { color: var(--placeholder); }
+  .add-wrap input:focus { border-color: var(--focus-border); background: var(--focus-bg); }
   .target {
     display: flex; align-items: center; gap: 5px; flex: none;
     height: 32px; padding: 0 7px; border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    background: rgba(255, 255, 255, 0.06);
-    font-size: 10.5px; font-weight: 600; color: rgba(255, 255, 255, 0.72);
+    border: 1px solid var(--field-border);
+    background: var(--field-bg);
+    font-size: 10.5px; font-weight: 600; color: var(--ink-soft);
     cursor: pointer; transition: background 0.15s ease, color 0.15s ease;
   }
-  .target:hover, .target[aria-expanded="true"] { background: rgba(255, 255, 255, 0.11); color: #fff; }
-  .target-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: #2997ff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25); }
+  .target:hover, .target[aria-expanded="true"] { background: var(--field-hover); color: var(--ink); }
+  .target-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25); }
   .target svg { width: 8px; height: 8px; opacity: 0.45; }
   .add-btn {
     width: 32px; height: 32px; flex: none;
@@ -168,9 +252,9 @@
   .menu {
     position: absolute; top: calc(100% + 6px); right: 38px; z-index: 20;
     width: 196px; padding: 5px;
-    border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.10);
-    background: rgba(42, 42, 45, 0.98);
-    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.5);
+    border-radius: 12px; border: 1px solid var(--menu-border);
+    background: var(--menu-bg);
+    box-shadow: var(--menu-shadow);
     animation: menuIn 0.14s ease both;
   }
   @keyframes menuIn {
@@ -181,12 +265,12 @@
     display: flex; align-items: center; gap: 8px;
     width: 100%; height: 30px; padding: 0 8px;
     border: 0; border-radius: 8px; background: transparent;
-    font-size: 11.5px; color: #f5f5f7; text-align: left; cursor: pointer;
+    font-size: 11.5px; color: var(--ink); text-align: left; cursor: pointer;
   }
-  .menu button:hover { background: rgba(255, 255, 255, 0.07); }
-  .menu button[aria-selected="true"] { background: rgba(255, 255, 255, 0.06); }
+  .menu button:hover { background: var(--hover); }
+  .menu button[aria-selected="true"] { background: var(--field-bg); }
   .m-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--c); }
-  .m-action { margin-left: auto; font-size: 10px; color: rgba(255, 255, 255, 0.38); }
+  .m-action { margin-left: auto; font-size: 10px; color: var(--ink-weak); }
   .menu button[aria-selected="true"] .m-action { color: var(--c); }
 
   /* ── 四象限矩阵 ───────────────────────────────────── */
@@ -196,29 +280,29 @@
     gap: 8px;
   }
   .quadrant {
-    --q: #98989f; --q-soft: rgba(152, 152, 159, 0.10); --q-line: rgba(152, 152, 159, 0.5);
+    --q: var(--q4); --q-soft: var(--q4-soft); --q-line: var(--q4-line);
     min-height: 0; display: flex; flex-direction: column; gap: 5px;
     padding: 8px; border-radius: 12px;
-    background: rgba(255, 255, 255, 0.035);
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: var(--quadrant-bg);
+    border: 1px solid var(--quadrant-border);
     overflow: hidden;
     transition: border-color 0.15s ease, background 0.15s ease;
   }
-  .quadrant.q1 { --q: #ff6961; --q-soft: rgba(255, 105, 97, 0.10); --q-line: rgba(255, 105, 97, 0.55); }
-  .quadrant.q2 { --q: #2997ff; --q-soft: rgba(41, 151, 255, 0.10); --q-line: rgba(41, 151, 255, 0.55); }
-  .quadrant.q3 { --q: #ffb340; --q-soft: rgba(255, 179, 64, 0.10); --q-line: rgba(255, 179, 64, 0.55); }
-  .quadrant.q4 { --q: #98989f; --q-soft: rgba(152, 152, 159, 0.10); --q-line: rgba(152, 152, 159, 0.55); }
+  .quadrant.q1 { --q: var(--q1); --q-soft: var(--q1-soft); --q-line: var(--q1-line); }
+  .quadrant.q2 { --q: var(--q2); --q-soft: var(--q2-soft); --q-line: var(--q2-line); }
+  .quadrant.q3 { --q: var(--q3); --q-soft: var(--q3-soft); --q-line: var(--q3-line); }
+  .quadrant.q4 { --q: var(--q4); --q-soft: var(--q4-soft); --q-line: var(--q4-line); }
   .quadrant.drop { border-color: var(--q-line); background: var(--q-soft); }
   .q-head { flex: none; display: flex; align-items: center; gap: 5px; padding: 0 2px; }
   .q-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--q); }
   .q-title {
     flex: 1; min-width: 0; font-size: 10.5px; font-weight: 600;
-    color: rgba(255, 255, 255, 0.72);
+    color: var(--ink-soft);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .q-count {
     flex: none; font-size: 10px; font-variant-numeric: tabular-nums;
-    color: rgba(255, 255, 255, 0.35);
+    color: var(--ink-faint);
   }
   .q-list {
     flex: 1; min-height: 0; margin: 0; padding: 0 1px 0 0; list-style: none;
@@ -229,7 +313,7 @@
   .q-list li {
     display: flex; align-items: center; gap: 6px;
     padding: 4px 1px 4px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--hairline);
     -webkit-user-drag: element;
   }
   .q-list li:last-child { border-bottom: 0; }
@@ -241,7 +325,7 @@
   }
   .q-empty {
     display: block; padding: 12px 0; text-align: center;
-    font-size: 10px; color: rgba(255, 255, 255, 0.26);
+    font-size: 10px; color: var(--ink-ghost);
   }
 
   /* ── 列表视图 ─────────────────────────────────────── */
@@ -253,14 +337,14 @@
   .flat-list li {
     display: flex; align-items: center; gap: 8px;
     padding: 7px 4px 7px 2px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+    border-bottom: 1px solid var(--hairline);
   }
   .flat-list li:last-child { border-bottom: 0; }
   .flat-list li.enter { animation: itemIn 0.22s cubic-bezier(.2,.8,.2,1) both; }
   .flat-list .text { font-size: 12.5px; }
   .flat-list li.flat-empty {
     display: block; padding: 30px 0; border-bottom: 0;
-    text-align: center; font-size: 11.5px; color: rgba(255, 255, 255, 0.32);
+    text-align: center; font-size: 11.5px; color: var(--placeholder);
   }
   .q-tag {
     display: flex; align-items: center; gap: 3px; flex: none;
@@ -274,7 +358,7 @@
 
   .check {
     width: 16px; height: 16px; flex: none; padding: 0; border-radius: 50%;
-    border: 1.6px solid rgba(255, 255, 255, 0.26);
+    border: 1.6px solid var(--ink-ghost);
     background: transparent;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; transition: all 0.16s ease;
@@ -286,18 +370,18 @@
   li.done .check svg { opacity: 1; transform: scale(1); }
   .text {
     flex: 1; min-width: 0; font-size: 11.5px; line-height: 1.35;
-    color: #f5f5f7; transition: color 0.16s ease;
+    color: var(--ink); transition: color 0.16s ease;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  li.done .text { color: rgba(255, 255, 255, 0.35); text-decoration: line-through; }
+  li.done .text { color: var(--ink-faint); text-decoration: line-through; }
   .move, .remove {
     width: 16px; height: 16px; flex: none; padding: 0;
     border: 0; border-radius: 5px; background: transparent;
     line-height: 1; cursor: pointer;
     opacity: 0; transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
   }
-  .move { color: rgba(255, 255, 255, 0.4); font-size: 10px; }
-  .remove { color: rgba(255, 255, 255, 0.3); font-size: 13px; }
+  .move { color: var(--ink-faint); font-size: 10px; }
+  .remove { color: var(--ink-weak); font-size: 13px; }
   li:hover .move, li:hover .remove,
   .move:focus-visible, .remove:focus-visible { opacity: 1; }
   .move:hover { background: var(--q-soft); color: var(--q); }
@@ -305,15 +389,15 @@
 
   footer {
     display: flex; align-items: center; justify-content: space-between; flex: none;
-    font-size: 10.5px; color: rgba(255, 255, 255, 0.42);
+    font-size: 10.5px; color: var(--ink-muted);
   }
   .clear {
     border: 0; padding: 4px 8px; border-radius: 7px; cursor: pointer;
-    background: transparent; color: rgba(255, 255, 255, 0.45);
+    background: transparent; color: var(--ink-muted);
     font: inherit; font-size: 10.5px;
     transition: background 0.16s ease, color 0.16s ease;
   }
-  .clear:hover { background: rgba(255, 255, 255, 0.08); color: #f5f5f7; }
+  .clear:hover { background: var(--track-bg); color: var(--ink); }
 </style>
 </head>
 <body>
@@ -370,10 +454,10 @@
   const viewKey = 'pinshell.todo.view.v1';
 
   const QUADRANTS = {
-    1: { name: PS.t('q1Name', '紧急且重要'),   action: PS.t('q1Action', '立即做'), hint: PS.t('q1Hint', '马上处理'), color: '#ff6961' },
-    2: { name: PS.t('q2Name', '重要不紧急'),   action: PS.t('q2Action', '计划做'), hint: PS.t('q2Hint', '安排时间'), color: '#2997ff' },
-    3: { name: PS.t('q3Name', '紧急不重要'),   action: PS.t('q3Action', '委托做'), hint: PS.t('q3Hint', '尽量委托'), color: '#ffb340' },
-    4: { name: PS.t('q4Name', '不重要不紧急'), action: PS.t('q4Action', '别做'),   hint: PS.t('q4Hint', '考虑舍弃'), color: '#98989f' },
+    1: { name: PS.t('q1Name', '紧急且重要'),   action: PS.t('q1Action', '立即做'), hint: PS.t('q1Hint', '马上处理'), color: 'var(--q1)', soft: 'var(--q1-soft)' },
+    2: { name: PS.t('q2Name', '重要不紧急'),   action: PS.t('q2Action', '计划做'), hint: PS.t('q2Hint', '安排时间'), color: 'var(--q2)', soft: 'var(--q2-soft)' },
+    3: { name: PS.t('q3Name', '紧急不重要'),   action: PS.t('q3Action', '委托做'), hint: PS.t('q3Hint', '尽量委托'), color: 'var(--q3)', soft: 'var(--q3-soft)' },
+    4: { name: PS.t('q4Name', '不重要不紧急'), action: PS.t('q4Action', '别做'),   hint: PS.t('q4Hint', '考虑舍弃'), color: 'var(--q4)', soft: 'var(--q4-soft)' },
   };
   const ORDER = [1, 2, 3, 4];
 
@@ -462,11 +546,6 @@
     const quadrants = { 1: 0, 2: 0, 3: 0, 4: 0 };
     for (const item of items) quadrants[item.q] += 1;
     bridge.emit('todo:changed', { total: items.length, done, quadrants, target, view });
-  }
-
-  function tint(hex, alpha) {
-    const value = parseInt(hex.slice(1), 16);
-    return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
   }
 
   // ── 构建象限与菜单 ─────────────────────────────────
@@ -675,7 +754,7 @@
       tag.type = 'button';
       tag.className = 'q-tag';
       tag.style.color = meta.color;
-      tag.style.background = tint(meta.color, 0.12);
+      tag.style.background = meta.soft;
       tag.title = PS.t('tagTitle', '{name} · {action}（点击移到下一象限）',
                        { name: meta.name, action: meta.action });
       tag.setAttribute('aria-label', PS.t('tagAria', '象限：{name}，点击移到下一象限',

@@ -2,6 +2,7 @@
 <html lang="zh-Hans">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
 <script type="application/json" id="pinshell:i18n">
 {
   "default": "zh-Hans",
@@ -32,6 +33,9 @@
 <link rel="stylesheet" href="design-tokens.css">
 <style>
   :root {
+    color-scheme: light dark;
+
+    /* 深色（默认）：石墨行情板 */
     --ink: #f5f5f7;
     --muted: #a1a1a6;
     --dim: rgba(255, 255, 255, .38);
@@ -42,6 +46,74 @@
     --flat: #a1a1a6;
     --live: #64d2c3;
     --warn: #ffb86b;
+    --board-top: #2b2b2d;
+    --board-mid: #252527;
+    --board-bottom: #202022;
+    --board-highlight: rgba(255, 255, 255, .05);
+    --board-border: rgba(255, 255, 255, .085);
+    --board-inset: rgba(255, 255, 255, .06);
+    --hover-bg: rgba(255, 255, 255, .07);
+    --hover-row: rgba(255, 255, 255, .035);
+    --input-bg: rgba(0, 0, 0, .2);
+    --accent: #2997ff;
+    --accent-ink: #8ec5ff;
+    --accent-soft: rgba(41, 151, 255, .16);
+    --focus-border: rgba(41, 151, 255, .55);
+    --focus-ring: rgba(41, 151, 255, .12);
+    --live-ink: #b9eee7;
+    --live-border: rgba(100, 210, 195, .28);
+    --live-glow: rgba(100, 210, 195, .7);
+    --warn-ink: #f0d3a8;
+    --warn-border: rgba(255, 184, 107, .3);
+    --spark-base: rgba(255, 255, 255, .16);
+    --flat-soft: rgba(161, 161, 166, .1);
+    --up-soft: rgba(255, 107, 99, .1);
+    --down-soft: rgba(50, 215, 75, .1);
+    --add-border: rgba(255, 255, 255, .12);
+    --add-bg: rgba(255, 255, 255, .06);
+    --add-hover: rgba(255, 255, 255, .12);
+  }
+
+  /* 浅色：珍珠白行情板，涨跌色加深以保对比度 */
+  @media (prefers-color-scheme: light) {
+    :root {
+      --ink: var(--ps-ink);
+      --muted: #6e6e73;
+      --dim: rgba(29, 29, 31, .42);
+      --hairline: rgba(0, 0, 0, .09);
+      --surface: #f5f5f7;
+      --up: #d13b33;
+      --down: #1e8f45;
+      --flat: #6e6e73;
+      --live: #0f8f82;
+      --warn: #b25000;
+      --board-top: #ffffff;
+      --board-mid: #f7f7f9;
+      --board-bottom: #f2f2f5;
+      --board-highlight: rgba(255, 255, 255, .7);
+      --board-border: rgba(0, 0, 0, .085);
+      --board-inset: rgba(255, 255, 255, .9);
+      --hover-bg: rgba(0, 0, 0, .05);
+      --hover-row: rgba(0, 0, 0, .03);
+      --input-bg: rgba(255, 255, 255, .75);
+      --accent: var(--ps-primary);
+      --accent-ink: var(--ps-primary);
+      --accent-soft: rgba(0, 102, 204, .12);
+      --focus-border: rgba(0, 102, 204, .5);
+      --focus-ring: rgba(0, 102, 204, .12);
+      --live-ink: #0f6e65;
+      --live-border: rgba(15, 143, 130, .3);
+      --live-glow: rgba(15, 143, 130, .35);
+      --warn-ink: #8a4a00;
+      --warn-border: rgba(178, 80, 0, .28);
+      --spark-base: rgba(0, 0, 0, .14);
+      --flat-soft: rgba(110, 110, 115, .1);
+      --up-soft: rgba(209, 59, 51, .1);
+      --down-soft: rgba(30, 143, 69, .1);
+      --add-border: rgba(0, 0, 0, .12);
+      --add-bg: rgba(0, 0, 0, .05);
+      --add-hover: rgba(0, 0, 0, .08);
+    }
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: transparent; }
@@ -55,10 +127,10 @@
     overflow: hidden;
     color: var(--ink);
     background:
-      radial-gradient(120% 70% at 50% -20%, rgba(255, 255, 255, .05), transparent 60%),
-      linear-gradient(165deg, #2b2b2d 0%, #252527 55%, #202022 100%);
-    border: 1px solid rgba(255, 255, 255, .085);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+      radial-gradient(120% 70% at 50% -20%, var(--board-highlight), transparent 60%),
+      linear-gradient(165deg, var(--board-top) 0%, var(--board-mid) 55%, var(--board-bottom) 100%);
+    border: 1px solid var(--board-border);
+    box-shadow: inset 0 1px 0 var(--board-inset);
     font: 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
     user-select: none;
     -webkit-user-select: none;
@@ -98,9 +170,9 @@
     background: var(--dim);
     flex: 0 0 auto;
   }
-  .status.live { color: #b9eee7; border-color: rgba(100, 210, 195, .28); }
-  .status.live .status-dot { background: var(--live); box-shadow: 0 0 6px rgba(100, 210, 195, .7); }
-  .status.auction { color: #f0d3a8; border-color: rgba(255, 184, 107, .3); }
+  .status.live { color: var(--live-ink); border-color: var(--live-border); }
+  .status.live .status-dot { background: var(--live); box-shadow: 0 0 6px var(--live-glow); }
+  .status.auction { color: var(--warn-ink); border-color: var(--warn-border); }
   .status.auction .status-dot { background: var(--warn); animation: blink 1.2s ease-in-out infinite; }
 
   .head-actions {
@@ -122,13 +194,13 @@
     cursor: pointer;
     transition: color .15s, background .15s;
   }
-  .icon-btn:hover { color: var(--ink); background: rgba(255, 255, 255, .07); }
+  .icon-btn:hover { color: var(--ink); background: var(--hover-bg); }
   .icon-btn:active { transform: scale(.94); }
-  .icon-btn:focus-visible { outline: 1px solid #2997ff; outline-offset: 1px; }
+  .icon-btn:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
   .icon-btn svg { width: 12px; height: 12px; display: block; }
   .icon-btn.loading svg { animation: spin .9s linear infinite; }
   .icon-btn .ico-done { display: none; }
-  .board.editing .edit-btn { color: #8ec5ff; background: rgba(41, 151, 255, .16); }
+  .board.editing .edit-btn { color: var(--accent-ink); background: var(--accent-soft); }
   .board.editing .edit-btn .ico-edit { display: none; }
   .board.editing .edit-btn .ico-done { display: block; }
 
@@ -153,7 +225,7 @@
     cursor: default;
   }
   .row.watch { height: 26px; }
-  .row:hover { background: rgba(255, 255, 255, .035); }
+  .row:hover { background: var(--hover-row); }
   .name {
     min-width: 0;
     overflow: hidden;
@@ -206,12 +278,12 @@
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  .spark-area { fill: rgba(161, 161, 166, .1); }
-  .spark-base { stroke: rgba(255, 255, 255, .16); stroke-width: 1; }
+  .spark-area { fill: var(--flat-soft); }
+  .spark-base { stroke: var(--spark-base); stroke-width: 1; }
   .row.up .spark-line { stroke: var(--up); }
-  .row.up .spark-area { fill: rgba(255, 107, 99, .1); }
+  .row.up .spark-area { fill: var(--up-soft); }
   .row.down .spark-line { stroke: var(--down); }
-  .row.down .spark-area { fill: rgba(50, 215, 75, .1); }
+  .row.down .spark-area { fill: var(--down-soft); }
 
   /* ---------- 编辑自选 ---------- */
   .remove { display: none; }
@@ -229,9 +301,9 @@
     cursor: pointer;
     transition: color .15s, background .15s;
   }
-  .remove:hover { color: var(--ink); background: rgba(255, 255, 255, .1); }
+  .remove:hover { color: var(--ink); background: var(--hover-bg); }
   .remove:active { transform: scale(.92); }
-  .remove:focus-visible { outline: 1px solid #2997ff; outline-offset: 1px; }
+  .remove:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
   .remove svg { width: 10px; height: 10px; display: block; pointer-events: none; }
 
   .group-label .count { margin-left: 5px; letter-spacing: 0; }
@@ -245,7 +317,7 @@
     padding: 0 7px;
     border: 1px solid var(--hairline);
     border-radius: 6px;
-    background: rgba(0, 0, 0, .2);
+    background: var(--input-bg);
     color: var(--ink);
     font: inherit;
     font-size: 10.5px;
@@ -255,8 +327,8 @@
   }
   .add-input::placeholder { color: var(--dim); }
   .add-input:focus {
-    border-color: rgba(41, 151, 255, .55);
-    box-shadow: 0 0 0 2px rgba(41, 151, 255, .12);
+    border-color: var(--focus-border);
+    box-shadow: 0 0 0 2px var(--focus-ring);
   }
   .add-input:disabled { opacity: .55; }
   .add-submit {
@@ -265,14 +337,14 @@
     display: grid;
     place-items: center;
     padding: 0;
-    border: 1px solid rgba(255, 255, 255, .12);
+    border: 1px solid var(--add-border);
     border-radius: 6px;
-    background: rgba(255, 255, 255, .06);
+    background: var(--add-bg);
     color: var(--ink);
     font: 15px/1 -apple-system, BlinkMacSystemFont, sans-serif;
     cursor: pointer;
   }
-  .add-submit:hover { background: rgba(255, 255, 255, .12); }
+  .add-submit:hover { background: var(--add-hover); }
   .add-submit:active { transform: scale(.94); }
   .add-submit:disabled { opacity: .4; cursor: default; }
   .add-hint {

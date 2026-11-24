@@ -1,11 +1,15 @@
 {
   "schemaVersion": 1,
   "id": "todo",
-  "version": "1.0.0",
-  "releaseDate": "2026-11-23",
+  "version": "1.1.0",
+  "releaseDate": "2026-11-24",
   "minAppVersion": "1.4.0",
   "category": "productivity",
-  "tags": ["tasks", "eisenhower", "local-storage"],
+  "tags": [
+    "tasks",
+    "eisenhower",
+    "local-storage"
+  ],
   "author": {
     "name": "Nico",
     "url": "https://github.com/niyongsheng"
@@ -13,11 +17,19 @@
   "listing": {
     "zh-Hans": {
       "tagline": "把今天安放在屏幕一角。",
-      "highlights": ["列表与四象限", "拖动排序与本地保存", "Agent 可读取变更"]
+      "highlights": [
+        "列表与四象限",
+        "拖动排序与本地保存",
+        "Agent 可读取变更"
+      ]
     },
     "en": {
       "tagline": "Keep today in the corner of your screen.",
-      "highlights": ["List and Eisenhower views", "Drag ordering with local persistence", "Agent-readable changes"]
+      "highlights": [
+        "List and Eisenhower views",
+        "Drag ordering with local persistence",
+        "Agent-readable changes"
+      ]
     }
   },
   "changelog": {
@@ -26,6 +38,13 @@
       "notes": {
         "zh-Hans": "首个在线版本：列表与四象限待办。",
         "en": "First library release: list and Eisenhower todo."
+      }
+    },
+    "1.1.0": {
+      "date": "2026-11-24",
+      "notes": {
+        "zh-Hans": "支持浅色与深色外观自适应。",
+        "en": "Adds light and dark appearance support."
       }
     }
   }

@@ -1,11 +1,15 @@
 {
   "schemaVersion": 1,
   "id": "pomodoro",
-  "version": "1.0.0",
-  "releaseDate": "2026-11-23",
+  "version": "1.1.0",
+  "releaseDate": "2026-11-24",
   "minAppVersion": "1.4.0",
   "category": "focus",
-  "tags": ["timer", "focus", "breaks"],
+  "tags": [
+    "timer",
+    "focus",
+    "breaks"
+  ],
   "author": {
     "name": "Nico",
     "url": "https://github.com/niyongsheng"
@@ -13,11 +17,19 @@
   "listing": {
     "zh-Hans": {
       "tagline": "25 分钟，只做一件事。",
-      "highlights": ["专注、短休与长休", "四轮一个长休", "Agent 可发送指令"]
+      "highlights": [
+        "专注、短休与长休",
+        "四轮一个长休",
+        "Agent 可发送指令"
+      ]
     },
     "en": {
       "tagline": "Twenty-five minutes for one thing.",
-      "highlights": ["Focus, short break, long break", "Long break every four rounds", "Agent commands"]
+      "highlights": [
+        "Focus, short break, long break",
+        "Long break every four rounds",
+        "Agent commands"
+      ]
     }
   },
   "changelog": {
@@ -26,6 +38,13 @@
       "notes": {
         "zh-Hans": "首个在线版本：番茄时钟与 Agent 指令。",
         "en": "First library release: Pomodoro timer with agent commands."
+      }
+    },
+    "1.1.0": {
+      "date": "2026-11-24",
+      "notes": {
+        "zh-Hans": "支持浅色与深色外观自适应。",
+        "en": "Adds light and dark appearance support."
       }
     }
   }

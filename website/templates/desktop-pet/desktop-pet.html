@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
 <script type="application/json" id="pinshell:i18n">
 {
   "default": "zh-Hans",
@@ -92,6 +93,9 @@
   * { box-sizing: border-box; }
 
   :root {
+    color-scheme: light dark;
+
+    /* 深色（默认）：石墨玻璃气泡 */
     --glass: rgba(28, 28, 30, 0.90);
     --line: rgba(255, 255, 255, 0.10);
     --ink: #f5f5f7;
@@ -99,6 +103,45 @@
     --accent: #ffd479;
     --danger: #ff6b4a;
     --ok: #57d98a;
+    --glass-shadow: 0 10px 24px rgba(0, 0, 0, 0.30);
+    --spinner-track: rgba(255, 255, 255, 0.25);
+    --think-dot: #9ec5ff;
+    --track-bg: rgba(255, 255, 255, 0.08);
+    --ctl-bg: rgba(28, 28, 30, 0.72);
+    --ctl-border: rgba(255, 255, 255, 0.10);
+    --ctl-ink: rgba(255, 255, 255, 0.55);
+    --ctl-hover-bg: rgba(255, 255, 255, 0.12);
+    --ctl-hover-ink: #ffffff;
+    --warn: #ff9f0a;
+    --badge-bg: rgba(28, 28, 30, 0.72);
+    --badge-border: rgba(255, 212, 121, 0.28);
+    --danger-ink: #2a0d05;
+  }
+
+  /* 浅色：珍珠白气泡，文字与图标换深色 */
+  @media (prefers-color-scheme: light) {
+    :root {
+      --glass: rgba(255, 255, 255, 0.94);
+      --line: rgba(0, 0, 0, 0.08);
+      --ink: var(--ps-ink);
+      --muted: rgba(29, 29, 31, 0.62);
+      --accent: #b25000;
+      --danger: #d13b33;
+      --ok: #1e8f45;
+      --glass-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+      --spinner-track: rgba(0, 0, 0, 0.18);
+      --think-dot: var(--ps-primary);
+      --track-bg: rgba(0, 0, 0, 0.08);
+      --ctl-bg: rgba(255, 255, 255, 0.88);
+      --ctl-border: rgba(0, 0, 0, 0.10);
+      --ctl-ink: rgba(29, 29, 31, 0.55);
+      --ctl-hover-bg: rgba(0, 0, 0, 0.06);
+      --ctl-hover-ink: var(--ps-ink);
+      --warn: #b25000;
+      --badge-bg: rgba(255, 255, 255, 0.9);
+      --badge-border: rgba(178, 80, 0, 0.28);
+      --danger-ink: #ffffff;
+    }
   }
 
   body {
@@ -260,10 +303,10 @@
     position: absolute; top: 2px; right: 0;
     padding: 2px 6px;
     border-radius: 8px;
-    background: rgba(28, 28, 30, 0.66);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--glass);
+    border: 1px solid var(--line);
     font-size: 9.5px; font-weight: 600; letter-spacing: 0.06em;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--muted);
     opacity: 0; pointer-events: none;
     transition: opacity 0.3s ease;
   }
@@ -283,13 +326,13 @@
     border-radius: 10px;
     background: var(--glass);
     border: 1px solid var(--line);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+    box-shadow: var(--glass-shadow);
     pointer-events: none;
   }
   body[data-mood="thinking"] .think-dots { display: flex; }
   .think-dots i {
     width: 4px; height: 4px; border-radius: 50%;
-    background: #9ec5ff;
+    background: var(--think-dot);
     animation: dotPulse 1.1s ease-in-out infinite;
   }
   .think-dots i:nth-child(2) { animation-delay: 0.14s; }
@@ -305,7 +348,7 @@
     display: none; align-items: center; justify-content: center;
     border-radius: 50%;
     background: var(--danger);
-    color: #2a0d05;
+    color: var(--danger-ink);
     font-size: 11px; font-weight: 800; line-height: 1;
     box-shadow: 0 2px 10px rgba(255, 80, 60, 0.55);
     pointer-events: none;
@@ -326,7 +369,7 @@
     border-radius: 10px;
     background: var(--glass);
     border: 1px solid var(--line);
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--ink);
     font-size: 9.5px; line-height: 1.3; text-align: center;
     opacity: 0; transform: translateY(4px);
     transition: opacity 0.2s ease, transform 0.2s ease;
@@ -350,7 +393,7 @@
     border-radius: 10px;
     background: var(--glass);
     border: 1px solid var(--line);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.30);
+    box-shadow: var(--glass-shadow);
     font-size: 10.5px; line-height: 1.2;
     overflow: hidden;
     opacity: 0; transform: translateY(-4px);
@@ -360,7 +403,7 @@
   .task.show { opacity: 1; transform: translateY(0); }
   .task-icon { flex: none; width: 11px; height: 11px; display: flex; align-items: center; justify-content: center; font-size: 10px; }
   .task-icon.spinner {
-    border: 1.5px solid rgba(255, 255, 255, 0.25);
+    border: 1.5px solid var(--spinner-track);
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: taskSpin 0.8s linear infinite;
@@ -378,7 +421,7 @@
   .task[data-status="waiting"] .task-icon { color: var(--accent); }
   .task-track {
     position: absolute; left: 0; right: 0; bottom: 0;
-    height: 2px; background: rgba(255, 255, 255, 0.08);
+    height: 2px; background: var(--track-bg);
     opacity: 0; transition: opacity 0.2s ease;
   }
   .task.has-progress .task-track { opacity: 1; }
@@ -395,7 +438,7 @@
     border-radius: 12px;
     background: var(--glass);
     border: 1px solid var(--line);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.30);
+    box-shadow: var(--glass-shadow);
     color: var(--ink);
     font-size: 11px; line-height: 1.35; text-align: center;
     opacity: 0; transform: translateY(3px) scale(0.96);
@@ -706,18 +749,18 @@
     width: 22px; height: 22px;
     display: flex; align-items: center; justify-content: center;
     padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.10);
+    border: 1px solid var(--ctl-border);
     border-radius: 50%;
-    background: rgba(28, 28, 30, 0.72);
-    color: rgba(255, 255, 255, 0.55);
+    background: var(--ctl-bg);
+    color: var(--ctl-ink);
     cursor: pointer;
     opacity: 0.42;
     transition: opacity 0.18s ease, background 0.18s ease,
                 color 0.18s ease, transform 0.12s ease;
   }
-  .ctl:hover { opacity: 1; background: rgba(255, 255, 255, 0.12); color: #ffffff; }
+  .ctl:hover { opacity: 1; background: var(--ctl-hover-bg); color: var(--ctl-hover-ink); }
   .ctl:active { transform: scale(0.9); }
-  .ctl.muted { opacity: 0.8; color: #ff9f0a; }
+  .ctl.muted { opacity: 0.8; color: var(--warn); }
   .ctl svg { width: 11px; height: 11px; display: block; }
   .ctl:focus-visible { outline: 2px solid var(--ps-primary-focus); outline-offset: 1px; opacity: 1; }
 
@@ -726,8 +769,8 @@
     display: flex; align-items: center; gap: 4px;
     padding: 2px 6px;
     border-radius: 999px;
-    background: rgba(28, 28, 30, 0.72);
-    border: 1px solid rgba(255, 212, 121, 0.28);
+    background: var(--badge-bg);
+    border: 1px solid var(--badge-border);
     color: var(--accent);
     font-size: 8.5px; font-weight: 600; letter-spacing: 0.08em;
     opacity: 0; transform: scale(0.9);

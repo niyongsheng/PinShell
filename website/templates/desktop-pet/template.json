@@ -1,11 +1,15 @@
 {
   "schemaVersion": 1,
   "id": "desktop-pet",
-  "version": "1.0.2",
-  "releaseDate": "2026-11-23",
+  "version": "1.1.0",
+  "releaseDate": "2026-11-24",
   "minAppVersion": "1.4.0",
   "category": "companion",
-  "tags": ["pet", "agent", "companion"],
+  "tags": [
+    "pet",
+    "agent",
+    "companion"
+  ],
   "author": {
     "name": "Nico",
     "url": "https://github.com/niyongsheng"
@@ -13,11 +17,21 @@
   "listing": {
     "zh-Hans": {
       "tagline": "住在屏幕角落的桌面宠物。",
-      "highlights": ["双向 pet:* 事件", "心情、睡眠与抚摸", "Agent 在线状态显示", "12 种动作，含跑动与后空翻"]
+      "highlights": [
+        "双向 pet:* 事件",
+        "心情、睡眠与抚摸",
+        "Agent 在线状态显示",
+        "12 种动作，含跑动与后空翻"
+      ]
     },
     "en": {
       "tagline": "A small companion living in the corner of your screen.",
-      "highlights": ["Two-way pet:* events", "Moods, sleep, and petting", "Agent presence indicator", "12 actions, including run and backflip"]
+      "highlights": [
+        "Two-way pet:* events",
+        "Moods, sleep, and petting",
+        "Agent presence indicator",
+        "12 actions, including run and backflip"
+      ]
     }
   },
   "changelog": {
@@ -40,6 +54,13 @@
       "notes": {
         "zh-Hans": "首个在线版本：桌面宠物 v2，支持 Agent 在场与问题队列。",
         "en": "First library release: desktop pet v2 with agent presence and queued questions."
+      }
+    },
+    "1.1.0": {
+      "date": "2026-11-24",
+      "notes": {
+        "zh-Hans": "支持浅色与深色外观自适应。",
+        "en": "Adds light and dark appearance support."
       }
     }
   }

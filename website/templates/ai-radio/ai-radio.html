@@ -2,6 +2,7 @@
 <html lang="zh-Hans">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
 <script type="application/json" id="pinshell:i18n">
 {
   "default": "zh-Hans",
@@ -676,6 +677,79 @@
     78% { transform: rotate(16deg); }
     100% { transform: rotate(4deg); }
   }
+  /* 深色：深石墨阳极氧化机身，保留银色唱盘、米色纸标与象牙琴键 */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #ece5d8;
+      --muted: #b8b1a4;
+      --dim: #918a7e;
+      --brass: #d8b274;
+      --brass-hi: #e8c98c;
+      --cream: #e9e0cf;
+      --paper: #efe6d4;
+      --paper-ink: #2f3438;
+      --red: #ff6b4a;
+      --red-glow: rgba(255, 107, 74, .55);
+    }
+    .panel {
+      background:
+        linear-gradient(116deg,
+          rgba(255, 255, 255, .10) 0%, rgba(255, 255, 255, 0) 26%,
+          rgba(255, 255, 255, .04) 47%, rgba(0, 0, 0, .10) 72%,
+          rgba(255, 255, 255, .06) 100%),
+        repeating-linear-gradient(90deg,
+          rgba(255, 255, 255, .05) 0 1px, rgba(255, 255, 255, .01) 1px 2px,
+          rgba(0, 0, 0, .16) 2px 3px, transparent 3px 4px),
+        repeating-linear-gradient(89.5deg,
+          rgba(255, 255, 255, .02) 0 3px, rgba(0, 0, 0, .10) 3px 4px,
+          transparent 4px 12px),
+        linear-gradient(180deg, #3a3f44 0%, #2e3237 46%, #24282c 100%);
+      border-color: #0f1215;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .18),
+        inset 0 -1px 0 rgba(255, 255, 255, .06),
+        inset 0 0 0 1px rgba(255, 255, 255, .04),
+        inset 0 0 42px rgba(0, 0, 0, .35);
+    }
+    .panel::after {
+      box-shadow:
+        inset 0 0 30px rgba(0, 0, 0, .35),
+        inset 0 -12px 26px rgba(0, 0, 0, .28),
+        inset 0 1px 0 rgba(255, 255, 255, .12);
+    }
+    .screw {
+      background: radial-gradient(circle at 35% 30%, #8b9197, #3d4247 55%, #1c2023);
+      box-shadow: 0 1px 1px rgba(0, 0, 0, .6);
+    }
+    .screw::after { background: rgba(0, 0, 0, .75); }
+    .brand { border-left-color: rgba(255, 255, 255, .16); }
+    .eyebrow { color: rgba(235, 230, 220, .55); }
+    .title { color: #f2eee5; text-shadow: 0 1px 0 rgba(0, 0, 0, .55); }
+    .ai-chip {
+      border-color: #5a6066;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), 0 1px 1px rgba(0, 0, 0, .4);
+    }
+    .iconbtn { border-color: #5a6066; }
+    .turntable { filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .55)); }
+    .speed-led::after { color: rgba(235, 230, 220, .55); }
+    .genre { color: #b8b1a4; }
+    .segment { color: #e08a72; border-color: rgba(255, 107, 74, .45); }
+    .rpm { color: rgba(235, 230, 220, .5); }
+    .track-title { color: #f2eee5; text-shadow: 0 1px 0 rgba(0, 0, 0, .55); }
+    .meter { border-color: #5a6066; }
+    .time { color: rgba(235, 230, 220, .6); }
+    .panel.playing .state { color: #ff8a72; }
+    .foot-note { color: #b8b1a4; }
+    .foot-note.warn { color: #ff8a72; }
+    .retry {
+      border-color: rgba(255, 107, 74, .45);
+      background: rgba(255, 107, 74, .10);
+      color: #ff9b84;
+    }
+    .retry:hover { background: rgba(255, 107, 74, .18); }
+    .progress { background: #15181b; box-shadow: inset 0 1px 2px rgba(0, 0, 0, .8); }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .vinyl, .panel.playing .vinyl { animation: none; }
     .panel.playing .needle { animation: none; transform: rotate(5deg); }

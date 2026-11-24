@@ -1,31 +1,50 @@
 {
   "schemaVersion": 1,
   "id": "gomoku",
-  "version": "1.0.0",
-  "releaseDate": "2026-11-23",
+  "version": "1.1.0",
+  "releaseDate": "2026-11-24",
   "minAppVersion": "1.4.0",
   "category": "play",
-  "tags": ["game", "board", "agent"],
+  "tags": [
+    "game",
+    "board",
+    "local"
+  ],
   "author": {
     "name": "Nico",
     "url": "https://github.com/niyongsheng"
   },
   "listing": {
     "zh-Hans": {
-      "tagline": "和 Claude 下一盘五子棋。",
-      "highlights": ["执黑先行", "Agent 落子事件", "木质棋盘与立体棋子"]
+      "tagline": "和内置算法下一盘五子棋。",
+      "highlights": [
+        "执黑先行",
+        "内置算法对弈，无需联网",
+        "木质棋盘与立体棋子"
+      ]
     },
     "en": {
-      "tagline": "Play a game of Gomoku against Claude.",
-      "highlights": ["Play black and move first", "Agent move events", "Wood-grain board with dimensional stones"]
+      "tagline": "Play a game of Gomoku against a built-in opponent.",
+      "highlights": [
+        "Play black and move first",
+        "Built-in opponent, fully offline",
+        "Wood-grain board with dimensional stones"
+      ]
     }
   },
   "changelog": {
     "1.0.0": {
       "date": "2026-11-23",
       "notes": {
-        "zh-Hans": "首个在线版本：与 Agent 对弈的五子棋。",
-        "en": "First library release: Gomoku against an agent."
+        "zh-Hans": "首个在线版本：内置算法对弈的五子棋。",
+        "en": "First library release: Gomoku with a built-in opponent."
+      }
+    },
+    "1.1.0": {
+      "date": "2026-11-24",
+      "notes": {
+        "zh-Hans": "支持浅色与深色外观自适应；修正对手说明为内置算法。",
+        "en": "Adds light and dark appearance support; corrects the opponent description to the built-in algorithm."
       }
     }
   }

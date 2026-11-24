@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <script type="application/json" id="pinshell:i18n">
 {
   "default": "zh-Hans",
@@ -227,6 +228,57 @@ main{position:relative;z-index:1;flex:1;min-height:0}
 .result{max-width:min(300px,calc(100vw - 56px))}
 .faces{flex-wrap:wrap;justify-content:center}
 .emoji-picker{width:min(272px,calc(100vw - 40px))}
+}
+/* 浅色：珍珠白面板，保留彩色转盘与金币材质 */
+@media (prefers-color-scheme:light){
+.panel{color:var(--ps-ink);background:radial-gradient(90% 70% at 12% 0,rgba(0,102,204,.07),transparent 55%),radial-gradient(70% 60% at 92% 100%,rgba(255,150,80,.05),transparent 60%),linear-gradient(180deg,rgba(255,255,255,.97),rgba(242,242,245,.98));border-color:rgba(0,0,0,.09);box-shadow:0 24px 60px rgba(0,0,0,.12),inset 0 1px 0 rgba(255,255,255,.9)}
+.panel::before{background:radial-gradient(ellipse at 50% 50%,rgba(0,102,204,.10),transparent 65%)}
+.brand svg{color:var(--ps-primary)}
+.icon-btn{color:rgba(29,29,31,.5)}
+.icon-btn:hover{background:rgba(0,0,0,.05);color:var(--ps-ink)}
+.options-toggle[aria-pressed="true"]{background:rgba(0,0,0,.06);color:rgba(29,29,31,.85)}
+.options-toggle[aria-pressed="false"]{color:rgba(29,29,31,.35)}
+.tabs{background:rgba(0,0,0,.05);border-color:rgba(0,0,0,.05)}
+.tab{color:rgba(29,29,31,.45)}
+.tab:hover{color:rgba(29,29,31,.8)}
+.tab.active{background:rgba(255,255,255,.95);color:var(--ps-ink);box-shadow:0 1px 3px rgba(0,0,0,.12),inset 0 1px 0 rgba(255,255,255,.9)}
+.wheel-wrap::before{box-shadow:0 22px 44px rgba(0,0,0,.14),0 0 36px rgba(0,102,204,.08)}
+.hub{background:radial-gradient(circle at 35% 30%,#fff,#d9d9de 70%);border-color:rgba(0,0,0,.15);box-shadow:0 8px 20px rgba(0,0,0,.15),inset 0 1px 0 rgba(255,255,255,.9);color:var(--ps-ink)}
+.hub:hover{color:var(--ps-primary)}
+.result{background:rgba(0,0,0,.035);border-color:rgba(0,0,0,.07);color:rgba(29,29,31,.45)}
+.result.live{background:rgba(0,102,204,.08);border-color:rgba(0,102,204,.25);color:rgba(29,29,31,.8)}
+.result .kicker{color:rgba(29,29,31,.45)}
+.result.live .text{color:var(--ps-ink)}
+.editor{background:rgba(0,0,0,.03);border-color:rgba(0,0,0,.07)}
+.editor-head{color:rgba(29,29,31,.5)}
+.editor-head .count{color:rgba(29,29,31,.35)}
+.list::-webkit-scrollbar-thumb{background:rgba(0,0,0,.14)}
+.row:hover{background:rgba(0,0,0,.04)}
+.row:focus-within{background:rgba(0,0,0,.05);box-shadow:0 0 0 1px rgba(0,102,204,.35)}
+.row input{color:var(--ps-ink)}
+.row input::placeholder{color:rgba(29,29,31,.28)}
+.row .del{color:rgba(29,29,31,.35)}
+.row .del:hover{background:rgba(209,59,51,.12);color:#d13b33}
+.add{border-color:rgba(0,0,0,.14);background:rgba(0,0,0,.02);color:rgba(29,29,31,.55)}
+.add:hover:not(:disabled){border-color:rgba(0,0,0,.3);background:rgba(0,0,0,.05);color:var(--ps-ink)}
+.coin-result{color:rgba(29,29,31,.45)}
+.coin-result.live{color:var(--ps-ink)}
+.face-edit{background:rgba(0,0,0,.035);border-color:rgba(0,0,0,.07)}
+.face-edit .tag{color:rgba(29,29,31,.35)}
+.face-edit input{color:var(--ps-ink)}
+.emoji-chip{background:rgba(0,0,0,.05);border-color:rgba(0,0,0,.08)}
+.emoji-chip:hover{background:rgba(0,0,0,.08);border-color:rgba(0,0,0,.15)}
+.emoji-picker{background:rgba(255,255,255,.99);border-color:rgba(0,0,0,.12);box-shadow:0 20px 44px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.9)}
+.emoji-head{color:rgba(29,29,31,.5)}
+.emoji-grid button:hover{background:rgba(0,0,0,.06)}
+.emoji-custom{border-top-color:rgba(0,0,0,.07)}
+.emoji-custom span{color:rgba(29,29,31,.4)}
+.emoji-custom input{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.08);color:var(--ps-ink)}
+.emoji-custom input::placeholder{color:rgba(29,29,31,.28)}
+.stats{color:rgba(29,29,31,.45)}
+.stats button{color:rgba(29,29,31,.35)}
+.stats button:hover{background:rgba(0,0,0,.05);color:rgba(29,29,31,.7)}
+.wheel-view .editor{background:rgba(255,255,255,.98);border-color:rgba(0,0,0,.1);box-shadow:0 18px 40px rgba(0,0,0,.18)}
 }
 @media (prefers-reduced-motion:reduce){.coin-result.pop,.pointer.tick,.result.pop{animation:none}
 .wheel-wrap.spinning .hub::before{animation:none}
