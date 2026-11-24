@@ -37,6 +37,12 @@ final class TemplateLibraryService {
         let entry: TemplateLibraryEntry
         let evaluation: TemplateLibraryEvaluation
         let record: InstalledTemplateRecord?
+        let source: TemplateLibrarySource
+        /// 该来源当前是否只能读缓存；缓存来源的模板不可安装。
+        let sourceIsReadOnly: Bool
+
+        var isOfficialSource: Bool { source.isOfficial }
+        var sourceDisplayName: String { source.displayName }
 
         var localizedName: String {
             entry.localizedName(preferredLanguages: LanguageTag.templatePreferredLanguages)
@@ -49,6 +55,32 @@ final class TemplateLibraryService {
         var localizedListing: TemplateLibraryListing? {
             entry.listing(preferredLanguages: LanguageTag.templatePreferredLanguages)
         }
+    }
+
+    /// 单个来源的加载状态，供通用页展示来源健康度。
+    struct SourceStatus: Equatable {
+        let source: TemplateLibrarySource
+        var isLoaded = false
+        var isReadOnly = false
+        var templateCount = 0
+        /// 因 id 已被更靠前的来源占用而跳过的模板。
+        var skippedTemplateIDs: [String] = []
+        var error: String?
+
+        var skippedCount: Int { skippedTemplateIDs.count }
+    }
+
+    /// 添加来源前的检查结果：冲突项已能定位到占用该 id 的既有来源。
+    struct SourceConflict: Equatable {
+        let templateID: String
+        let templateName: String
+        let existingSourceName: String
+    }
+
+    struct SourcePreview: Equatable {
+        let conflicts: [SourceConflict]
+        /// 拉取失败时记录原因；此时无法检查冲突，但仍允许添加。
+        let fetchError: String?
     }
 
     enum ServiceError: LocalizedError {
@@ -92,7 +124,10 @@ final class TemplateLibraryService {
         }
     }
 
-    private(set) var snapshot: TemplateCatalogSnapshot?
+    private(set) var sources: [TemplateLibrarySource] = []
+    private(set) var snapshots: [String: TemplateCatalogSnapshot] = [:]
+    private(set) var sourceStatuses: [SourceStatus] = []
+    private(set) var categories: [TemplateLibraryCategory] = []
     private(set) var state: TemplateLibraryState
     private(set) var rows: [Row] = []
     private(set) var loadState: LoadState = .idle
@@ -104,22 +139,33 @@ final class TemplateLibraryService {
     var onChange: (() -> Void)?
     var onError: ((String) -> Void)?
 
-    let catalogURL: URL
-
     private let client: TemplateCatalogClient
     private let stateStore: TemplateLibraryStateStore
     private let templatesDirectory: URL
     private let appDirectory: URL
     private weak var windowController: OverlayWindowController?
     private var installTask: Task<Result<Void, Error>, Never>?
-    /// 进行中的 catalog 请求；`ensureLoaded` / `installTemplate` 共享同一次加载。
+    /// 串行刷新循环：请求排队，调用方在覆盖它的那一轮完成后返回。
     private var refreshTask: Task<Void, Never>?
+    private struct RefreshRequest {
+        let force: Bool
+        let continuation: CheckedContinuation<Void, Never>?
+    }
+    private var pendingRefreshes: [RefreshRequest] = []
+    /// 刷新途中新增来源：本轮结束后再跑一轮。
+    private var needsRefreshAgain = false
+    private var sourceErrors: [String: String] = [:]
     private var didPrepare = false
     private var observer: NSObjectProtocol?
 
+    private enum FetchResult: Sendable {
+        case success(TemplateCatalogSnapshot)
+        case failure(String)
+    }
+
     init(windowController: OverlayWindowController?) {
         self.windowController = windowController
-        self.catalogURL = TemplateLibraryPreferences.catalogURL()
+        self.sources = TemplateLibrarySource.configured()
         let appDirectory = ControlEndpoint.applicationDirectory()
         self.appDirectory = appDirectory
         self.templatesDirectory = appDirectory.appendingPathComponent("templates", isDirectory: true)
@@ -139,11 +185,13 @@ final class TemplateLibraryService {
             self.stateWarning = error.localizedDescription
         }
 
+        rebuildRows()
+
         observer = NotificationCenter.default.addObserver(
             forName: .pinshellTemplatesChanged, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                guard let self, self.snapshot != nil else { return }
+                guard let self, !self.snapshots.isEmpty else { return }
                 self.rebuildRows()
                 self.onChange?()
             }
@@ -156,7 +204,18 @@ final class TemplateLibraryService {
         }
     }
 
-    var isCatalogReadOnly: Bool { snapshot?.isReadOnly == true }
+    var isCatalogReadOnly: Bool {
+        snapshots.values.contains { $0.isReadOnly }
+    }
+
+    /// 所有已加载来源都只能读缓存。
+    var isEntirelyOffline: Bool {
+        !snapshots.isEmpty && snapshots.values.allSatisfy(\.isReadOnly)
+    }
+
+    var latestFetchedAt: Date? {
+        snapshots.values.map(\.fetchedAt).max()
+    }
 
     var updateCount: Int {
         rows.filter {
@@ -172,10 +231,12 @@ final class TemplateLibraryService {
         guard !didPrepare else { return }
         didPrepare = true
         guard !stateReadOnly else { return }
+        let officialURL = sources.first(where: \.isOfficial)?.url
+            ?? TemplateLibraryPreferences.catalogURL()
         let migrated = LegacyTemplateMigrator.migrate(
             state: state,
             templatesDirectory: templatesDirectory,
-            sourceCatalog: catalogURL)
+            sourceCatalog: officialURL)
         if migrated != state {
             state = migrated
             try? stateStore.save(state)
@@ -187,9 +248,7 @@ final class TemplateLibraryService {
         switch loadState {
         case .idle, .failed:
             await refresh()
-        case .loading:
-            if let refreshTask { await refreshTask.value }
-        case .loaded:
+        case .loading, .loaded:
             if let refreshTask {
                 await refreshTask.value
             } else {
@@ -199,78 +258,195 @@ final class TemplateLibraryService {
         }
     }
 
-    /// 加载 catalog；已有请求在途时等待同一次请求，避免重复拉取与重复 hash 扫描。
+    /// 加载所有来源。请求由单一循环串行处理：每个调用都在覆盖它的那一轮完成后返回，
+    /// `force` 请求保证至少有一轮强制拉取，避免拿着旧快照继续判断。
     func refresh(force: Bool = false) async {
-        if let refreshTask {
-            await refreshTask.value
-            return
+        await withCheckedContinuation { continuation in
+            pendingRefreshes.append(RefreshRequest(force: force, continuation: continuation))
+            startRefreshLoopIfNeeded()
         }
+    }
+
+    private func startRefreshLoopIfNeeded() {
+        guard refreshTask == nil else { return }
         isRefreshing = true
         if loadState == .idle {
             loadState = .loading
         }
-        onChange?()
-        let task = Task { [weak self] in
+        refreshTask = Task { [weak self] in
             guard let self else { return }
-            await self.performRefresh(force: force)
+            while !self.pendingRefreshes.isEmpty {
+                let batch = self.pendingRefreshes
+                self.pendingRefreshes.removeAll()
+                await self.performRefresh(force: batch.contains { $0.force })
+                batch.compactMap(\.continuation).forEach { $0.resume() }
+                if self.needsRefreshAgain {
+                    self.needsRefreshAgain = false
+                    self.pendingRefreshes.append(
+                        RefreshRequest(force: true, continuation: nil))
+                }
+            }
+            self.refreshTask = nil
+            if self.pendingRefreshes.isEmpty {
+                self.isRefreshing = false
+                self.onChange?()
+            } else {
+                self.startRefreshLoopIfNeeded()
+            }
         }
-        refreshTask = task
-        await task.value
-        refreshTask = nil
-        isRefreshing = false
         onChange?()
     }
 
     private func performRefresh(force: Bool) async {
         prepareIfNeeded()
-        do {
-            let snapshot = try await client.fetch(catalogURL: catalogURL,
-                                                  forceRefresh: force)
-            self.snapshot = snapshot
-            reconcileState()
-            rebuildRows()
-            loadState = .loaded
-        } catch {
-            if snapshot == nil {
-                loadState = .failed(error.localizedDescription)
-            } else {
-                loadState = .loaded
+        let client = self.client
+        let sources = self.sources
+        var results: [String: FetchResult] = [:]
+        await withTaskGroup(of: (String, FetchResult).self) { group in
+            for source in sources {
+                group.addTask {
+                    do {
+                        let snapshot = try await client.fetch(catalogURL: source.url,
+                                                              forceRefresh: force)
+                        return (source.id, .success(snapshot))
+                    } catch {
+                        return (source.id, .failure(error.localizedDescription))
+                    }
+                }
             }
-            onError?(error.localizedDescription)
+            for await (id, result) in group {
+                results[id] = result
+            }
+        }
+
+        var firstError: String?
+        for source in sources {
+            guard let result = results[source.id] else { continue }
+            switch result {
+            case .success(let snapshot):
+                snapshots[source.id] = snapshot
+                sourceErrors[source.id] = nil
+            case .failure(let message):
+                sourceErrors[source.id] = message
+                if firstError == nil { firstError = message }
+            }
+        }
+        // 刷新途中来源可能被移除：丢弃已不在配置中的结果。
+        let validIDs = Set(self.sources.map(\.id))
+        snapshots = snapshots.filter { validIDs.contains($0.key) }
+        sourceErrors = sourceErrors.filter { validIDs.contains($0.key) }
+        // 刷新途中新增了来源：再跑一轮把它拉下来。
+        let refreshedIDs = Set(sources.map(\.id))
+        if self.sources.contains(where: { !refreshedIDs.contains($0.id) }) {
+            needsRefreshAgain = true
+        }
+
+        reconcileState()
+        rebuildRows()
+        if snapshots.isEmpty, let firstError {
+            loadState = .failed(firstError)
+            onError?(firstError)
+        } else {
+            loadState = .loaded
         }
     }
 
     /// 外部编辑器/Finder 改动模板目录后，重新计算本地 hash 与状态。
     func revalidateLocalFiles() {
-        guard snapshot != nil else { return }
+        guard !snapshots.isEmpty else { return }
         rebuildRows()
         onChange?()
     }
 
+    // MARK: - 来源管理
+
+    /// 添加前的只读检查：规范化地址，拉取候选目录，并与现有来源比较 id。
+    /// 不写入偏好、不修改当前快照；校验失败会抛出 `AddCatalogError`。
+    func previewSource(_ raw: String) async throws -> SourcePreview {
+        let url = try TemplateLibraryPreferences.validateCustomCatalogURL(raw)
+        // 两个请求互不依赖：已配置来源的加载与新目录的拉取并行进行。
+        async let loaded: Void = ensureLoaded()
+        async let candidate = client.fetch(catalogURL: url, forceRefresh: true)
+        await loaded
+
+        // rows 已按「官方优先、首个来源胜出」合并，可直接作为 id 占用者。
+        var providers: [String: String] = [:]
+        for row in rows where providers[row.entry.id] == nil {
+            providers[row.entry.id] = row.source.localizedTitle
+        }
+
+        do {
+            let snapshot = try await candidate
+            let conflicts = snapshot.index.templates.compactMap { entry -> SourceConflict? in
+                guard let provider = providers[entry.id] else { return nil }
+                return SourceConflict(
+                    templateID: entry.id,
+                    templateName: entry.localizedName(
+                        preferredLanguages: LanguageTag.templatePreferredLanguages),
+                    existingSourceName: provider)
+            }.sorted {
+                $0.templateID.localizedStandardCompare($1.templateID) == .orderedAscending
+            }
+            return SourcePreview(conflicts: conflicts, fetchError: nil)
+        } catch {
+            return SourcePreview(conflicts: [], fetchError: error.localizedDescription)
+        }
+    }
+
+    /// 添加附加来源并持久化；返回添加后的来源。拉取由调用方触发。
+    @discardableResult
+    func addSource(_ raw: String) throws -> TemplateLibrarySource {
+        let url = try TemplateLibraryPreferences.addCustomCatalogURL(raw)
+        reloadConfiguredSources()
+        return sources.first(where: { $0.url.absoluteString == url.absoluteString })
+            ?? TemplateLibrarySource(url: url, isOfficial: false)
+    }
+
+    func removeSource(_ source: TemplateLibrarySource) {
+        guard !source.isOfficial else { return }
+        TemplateLibraryPreferences.removeCustomCatalogURL(source.url)
+        reloadConfiguredSources()
+    }
+
+    private func reloadConfiguredSources() {
+        sources = TemplateLibrarySource.configured()
+        let validIDs = Set(sources.map(\.id))
+        snapshots = snapshots.filter { validIDs.contains($0.key) }
+        sourceErrors = sourceErrors.filter { validIDs.contains($0.key) }
+        rebuildRows()
+        onChange?()
+    }
+
+    // MARK: - 查询
+
     func categoryName(for id: String?) -> String {
         guard let id,
-              let category = snapshot?.index.categoryList.first(where: { $0.id == id }) else {
+              let category = categories.first(where: { $0.id == id }) else {
             return id ?? ""
         }
         return category.name(preferredLanguages: LanguageTag.templatePreferredLanguages)
     }
 
-    /// 按 id 查询目录行；catalog 未加载或模板不存在时返回 nil。
-    func row(id: String) -> Row? {
-        rows.first(where: { $0.entry.id == id })
+    /// 按 id 查询目录行；可选来源过滤用于深链定位到声明该模板的库。
+    func row(id: String, catalogURL: URL? = nil) -> Row? {
+        let target = catalogURL?.absoluteString
+        return rows.first { row in
+            row.entry.id == id
+                && (target == nil || row.source.url.absoluteString == target)
+        }
     }
 
     /// 官网深链入口：按 id 安装目录中的最新版本。
     /// 已是最新则直接返回；本地有修改时先备份再安装，不静默覆盖用户改动。
-    func installTemplate(id: String) async throws {
+    func installTemplate(id: String, catalogURL: URL) async throws {
         await ensureLoaded()
-        if row(id: id) == nil, snapshot != nil {
+        if row(id: id, catalogURL: catalogURL) == nil, !snapshots.isEmpty {
             await refresh(force: true)
         }
-        guard let snapshot, !snapshot.isReadOnly else {
+        guard !snapshots.isEmpty else {
             throw ServiceError.catalogUnavailable
         }
-        guard let row = row(id: id) else {
+        guard let row = row(id: id, catalogURL: catalogURL) else {
             throw ServiceError.templateNotFound(id)
         }
         if row.evaluation.installState == .installed && !row.evaluation.updateAvailable {
@@ -291,7 +467,7 @@ final class TemplateLibraryService {
     }
 
     func install(_ row: Row, conflict: ConflictDecision) async throws {
-        guard let snapshot, !snapshot.isReadOnly else {
+        guard let snapshot = snapshots[row.source.id], !snapshot.isReadOnly else {
             throw ServiceError.catalogUnavailable
         }
         guard installTask == nil else { throw ServiceError.busy }
@@ -309,11 +485,12 @@ final class TemplateLibraryService {
         progress = Progress(templateID: entry.id, phase: .downloading)
         onChange?()
 
+        let catalogURL = row.source.url
         let task = Task { () -> Result<Void, Error> in
             do {
                 try await self.performInstall(
                     entry: entry,
-                    catalogURL: snapshot.catalogURL,
+                    catalogURL: catalogURL,
                     localURL: localURL,
                     beforeHash: beforeHash,
                     backup: backup)
@@ -364,10 +541,9 @@ final class TemplateLibraryService {
     }
 
     func openWebsite(for row: Row) {
-        guard let snapshot,
-              let page = row.entry.pageURLString(
-                preferredLanguages: LanguageTag.templatePreferredLanguages),
-              let url = URL(string: page, relativeTo: snapshot.catalogURL)?.absoluteURL else {
+        guard let page = row.entry.pageURLString(
+            preferredLanguages: LanguageTag.templatePreferredLanguages),
+              let url = URL(string: page, relativeTo: row.source.url)?.absoluteURL else {
             return
         }
         NSWorkspace.shared.open(url)
@@ -383,8 +559,8 @@ final class TemplateLibraryService {
     }
 
     func installedVersion(forFile file: String) -> String? {
-        if let entry = snapshot?.index.templates.first(where: { $0.file == file }) {
-            return state.installed[entry.id]?.version
+        if let row = rows.first(where: { $0.entry.file == file }) {
+            return state.installed[row.entry.id]?.version
         }
         // 目录尚未加载时也能按文件名反推 id。
         let id = (file as NSString).deletingPathExtension
@@ -397,9 +573,9 @@ final class TemplateLibraryService {
 
     /// 已安装模板对应的目录作者信息；目录未加载或文件不是从模板库安装时返回 nil。
     func author(forFile file: String) -> TemplateLibraryAuthor? {
-        guard let entry = snapshot?.index.templates.first(where: { $0.file == file }),
-              state.installed[entry.id] != nil else { return nil }
-        return entry.author
+        guard let row = rows.first(where: { $0.entry.file == file }),
+              state.installed[row.entry.id] != nil else { return nil }
+        return row.entry.author
     }
 
     // MARK: - Private
@@ -463,24 +639,29 @@ final class TemplateLibraryService {
     }
 
     private func reconcileState() {
-        guard let index = snapshot?.index, !stateReadOnly else { return }
+        guard !stateReadOnly, !snapshots.isEmpty else { return }
         var changed = false
-        for entry in index.templates {
-            let url = localURL(for: entry)
-            if state.installed[entry.id] != nil {
-                if !fileExists(url) {
-                    state.installed[entry.id] = nil
+        var seenIDs = Set<String>()
+        for source in sources {
+            guard let snapshot = snapshots[source.id] else { continue }
+            for entry in snapshot.index.templates {
+                guard seenIDs.insert(entry.id).inserted else { continue }
+                let url = localURL(for: entry)
+                if state.installed[entry.id] != nil {
+                    if !fileExists(url) {
+                        state.installed[entry.id] = nil
+                        changed = true
+                    }
+                } else if fileExists(url),
+                          let hash = try? FileDigest.sha256(of: url),
+                          hash == entry.payload.sha256 {
+                    state.installed[entry.id] = InstalledTemplateRecord(
+                        version: entry.version,
+                        sha256: hash,
+                        installedAt: Date(),
+                        sourceCatalog: source.url.absoluteString)
                     changed = true
                 }
-            } else if fileExists(url),
-                      let hash = try? FileDigest.sha256(of: url),
-                      hash == entry.payload.sha256 {
-                state.installed[entry.id] = InstalledTemplateRecord(
-                    version: entry.version,
-                    sha256: hash,
-                    installedAt: Date(),
-                    sourceCatalog: catalogURL.absoluteString)
-                changed = true
             }
         }
         if changed {
@@ -488,25 +669,55 @@ final class TemplateLibraryService {
         }
     }
 
+    /// 合并所有来源：官方库优先，同 id 的模板只保留第一个来源。
     private func rebuildRows() {
-        guard let index = snapshot?.index else {
-            rows = []
-            return
-        }
         let appVersion = Bundle.main.object(
             forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
-        rows = index.templates.sortedForLibrary().map { entry in
-            let url = localURL(for: entry)
-            let localHash = fileExists(url) ? try? FileDigest.sha256(of: url) : nil
-            let record = state.installed[entry.id]
-            let evaluation = TemplateLibraryEvaluator.evaluate(
-                entry: entry,
-                record: record,
-                localSHA256: localHash,
-                appVersion: appVersion,
-                ignoredVersion: state.ignored[entry.id])
-            return Row(entry: entry, evaluation: evaluation, record: record)
+        var seenIDs = Set<String>()
+        var seenCategories = Set<String>()
+        var newRows: [Row] = []
+        var newCategories: [TemplateLibraryCategory] = []
+        var statuses: [SourceStatus] = []
+
+        for source in sources {
+            var status = SourceStatus(source: source)
+            if let snapshot = snapshots[source.id] {
+                status.isLoaded = true
+                status.isReadOnly = snapshot.isReadOnly
+                for category in snapshot.index.categoryList
+                    where seenCategories.insert(category.id).inserted {
+                    newCategories.append(category)
+                }
+                for entry in snapshot.index.templates.sortedForLibrary() {
+                    guard seenIDs.insert(entry.id).inserted else {
+                        status.skippedTemplateIDs.append(entry.id)
+                        continue
+                    }
+                    let url = localURL(for: entry)
+                    let localHash = fileExists(url) ? try? FileDigest.sha256(of: url) : nil
+                    let record = state.installed[entry.id]
+                    let evaluation = TemplateLibraryEvaluator.evaluate(
+                        entry: entry,
+                        record: record,
+                        localSHA256: localHash,
+                        appVersion: appVersion,
+                        ignoredVersion: state.ignored[entry.id])
+                    newRows.append(Row(
+                        entry: entry,
+                        evaluation: evaluation,
+                        record: record,
+                        source: source,
+                        sourceIsReadOnly: snapshot.isReadOnly))
+                    status.templateCount += 1
+                }
+            }
+            status.error = sourceErrors[source.id]
+            statuses.append(status)
         }
+
+        rows = newRows
+        categories = newCategories
+        sourceStatuses = statuses
     }
 
     private func localURL(for entry: TemplateLibraryEntry) -> URL {

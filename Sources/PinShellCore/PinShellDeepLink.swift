@@ -10,16 +10,19 @@ import Foundation
 public enum PinShellDeepLink {
     public struct InstallRequest: Equatable, Sendable {
         public let templateID: String
+        /// 深链声明且已配置为可信来源的模板库地址。
+        public let catalogURL: URL
 
-        public init(templateID: String) {
+        public init(templateID: String, catalogURL: URL) {
             self.templateID = templateID
+            self.catalogURL = catalogURL
         }
     }
 
     public static let scheme = "pinshell"
     private static let installHost = "install"
 
-    /// 官网“安装到 PinShell”按钮使用的深链；与 `installRequest(from:trustedCatalogURL:)` 成对维护。
+    /// 官网“安装到 PinShell”按钮使用的深链；与 `installRequest(from:trustedCatalogURLs:)` 成对维护。
     public static func installURL(templateID: String, catalogURL: String) -> URL? {
         var components = URLComponents()
         components.scheme = scheme
@@ -31,8 +34,9 @@ public enum PinShellDeepLink {
         return components.url
     }
 
+    /// `catalog` 参数必须与任一已配置的模板库地址完全一致。
     public static func installRequest(from url: URL,
-                                      trustedCatalogURL: URL) -> InstallRequest? {
+                                      trustedCatalogURLs: [URL]) -> InstallRequest? {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               components.scheme?.lowercased() == scheme,
               components.host?.lowercased() == installHost,
@@ -50,30 +54,24 @@ public enum PinShellDeepLink {
               templateValues[0].count <= 64,
               let catalogURL = URL(string: catalogValues[0]),
               TemplateLibraryValidation.isAllowedCatalogURL(catalogURL),
-              let expected = canonicalCatalogURL(trustedCatalogURL),
               let actual = canonicalCatalogURL(catalogURL),
-              expected == actual else {
+              let trusted = trustedCatalogURLs.first(where: {
+                  canonicalCatalogURL($0) == actual
+              }) else {
             return nil
         }
 
-        return InstallRequest(templateID: templateValues[0])
+        return InstallRequest(templateID: templateValues[0], catalogURL: trusted)
     }
 
     // MARK: - 校验
 
-    /// 规范化 catalog 地址；带 userinfo / query / fragment 的一律拒绝。
+    /// 规范化 catalog 地址：与偏好存储共用同一套规则（补全 `/library.json`、
+    /// 拒绝 userinfo / query / fragment），避免深链与已配置来源判定不一致。
     private static func canonicalCatalogURL(_ url: URL) -> String? {
-        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let scheme = components.scheme?.lowercased(),
-              let host = components.host?.lowercased(),
-              components.user == nil,
-              components.password == nil,
-              components.query == nil,
-              components.fragment == nil else {
+        guard case .success(let normalized) = TemplateCatalogURL.normalize(url.absoluteString) else {
             return nil
         }
-        let port = components.port.map { ":\($0)" } ?? ""
-        let path = components.percentEncodedPath.isEmpty ? "/" : components.percentEncodedPath
-        return "\(scheme)://\(host)\(port)\(path)"
+        return normalized.absoluteString
     }
 }

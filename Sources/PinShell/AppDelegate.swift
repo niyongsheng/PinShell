@@ -14,9 +14,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var queuedDeepLink: URL?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // 自动化截图时可用 PINSHELL_APPEARANCE=dark 强制深色，不需要改系统外观
+        // 自动化截图时可用 PINSHELL_APPEARANCE=dark 强制深色，不需要改系统外观；
+        // 否则按「通用」里的主题设置启动。
         if ProcessInfo.processInfo.environment["PINSHELL_APPEARANCE"] == "dark" {
             NSApp.appearance = NSAppearance(named: .darkAqua)
+        } else {
+            AppState.appearance.apply()
         }
         SharedTemplateAssets.seedOnce()
         // 空模板目录（首次安装）先播种内置工作日历，画廊不可达时也有可用内容。
@@ -45,11 +48,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 加载优先级：openFiles 队列 > 上次打开的有效模板 > 内置模板 > 内置占位页
         let queued = queuedFile.map(URL.init(fileURLWithPath:))
         queuedFile = nil
-        let lastTemplate = AppState.lastHTMLURL.flatMap { url -> URL? in
-            // 占位页只是首启兜底，不算“用户已选模板”
-            guard !OverlayWindowController.isPlaceholder(url) else { return nil }
-            return url.isRegularFile ? url : nil
+        // 旧版本会把占位页写进 lastHTMLURL；这里做一次清理，之后只由 loadHTML 写入真实模板。
+        if let last = AppState.lastHTMLURL, OverlayWindowController.isPlaceholder(last) {
+            AppState.lastHTMLURL = nil
         }
+        let lastTemplate = AppState.lastHTMLURL.flatMap { $0.isRegularFile ? $0 : nil }
         let target = queued ?? lastTemplate ?? bundledTemplate
             ?? OverlayWindowController.placeholderURL
 
@@ -118,12 +121,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleDeepLink(_ url: URL) {
         guard let request = PinShellDeepLink.installRequest(
             from: url,
-            trustedCatalogURL: TemplateLibraryPreferences.catalogURL()
+            trustedCatalogURLs: TemplateLibraryPreferences.allCatalogURLs()
         ) else {
             NSLog("PinShell: ignored untrusted deep link %@", url.absoluteString)
             return
         }
-        statusItemController.installTemplateFromLibrary(id: request.templateID)
+        statusItemController.installTemplateFromLibrary(id: request.templateID,
+                                                       catalogURL: request.catalogURL)
     }
 
     // MARK: - 单实例

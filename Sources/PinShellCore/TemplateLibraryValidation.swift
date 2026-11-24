@@ -235,7 +235,12 @@ public enum TemplateLibraryValidation {
               let host = url.host, !host.isEmpty else { return false }
         if scheme == "https" { return true }
         guard scheme == "http" else { return false }
-        return host == "localhost" || host == "127.0.0.1" || host == "::1"
+        return isLoopbackHost(host)
+    }
+
+    public static func isLoopbackHost(_ host: String) -> Bool {
+        let lower = host.lowercased()
+        return lower == "localhost" || lower == "127.0.0.1" || lower == "::1"
     }
 
     // MARK: - 复合字段
