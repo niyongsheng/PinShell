@@ -9,8 +9,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let windowController: OverlayWindowController
     /// 首次打开控制台时才构建（避免启动即建第二个 WKWebView + 扫描模板目录）
     private lazy var consoleController = ConsoleController(windowController: windowController)
+    private var consoleItem: NSMenuItem!
     private var windowStateItem: NSMenuItem!
     private var visibilityItem: NSMenuItem!
+    private var visibilityRow: MenuToggleRowView!
     private var statusMenu: NSMenu!
     private var positionItem: NSMenuItem!
     private var displayModeItems: [DisplayMode: NSMenuItem] = [:]
@@ -33,6 +35,17 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
         NotificationCenter.default.addObserver(self, selector: #selector(passthroughChanged(_:)),
                                                name: .pinshellPassthroughChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(shortcutsChanged),
+                                               name: .pinshellShortcutsChanged, object: nil)
+        // 全局快捷键：App 未激活时也能打开控制台 / 显隐悬浮窗 / 切换穿透。
+        let dispatcher = ShortcutDispatcher.shared
+        dispatcher.register(.openConsole) { [weak self] in self?.openConsole(nil) }
+        dispatcher.register(.toggleOverlay) { [weak self] in self?.toggleVisibility(nil) }
+        dispatcher.register(.togglePassthrough) { [weak self] in
+            guard let self else { return }
+            self.togglePassthrough(self.windowStateItem)
+        }
+        dispatcher.startGlobalHotKeys()
     }
 
     deinit {
@@ -76,11 +89,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(header)
         menu.addItem(.separator())
 
-        // 内容：控制台
-        let console = NSMenuItem(title: NSLocalizedString("menu.console", comment: ""),
-                                 action: #selector(openConsole(_:)), keyEquivalent: "k")
-        console.target = self
-        menu.addItem(console)
+        // 内容：控制台（快捷键由「快捷键」配置，见 updateShortcutTitles）
+        consoleItem = NSMenuItem(title: NSLocalizedString("menu.console", comment: ""),
+                                 action: #selector(openConsole(_:)), keyEquivalent: "")
+        consoleItem.target = self
+        menu.addItem(consoleItem)
 
         menu.addItem(.separator())
 
@@ -100,20 +113,20 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         displayModeRoot.submenu = displayModeMenu
         menu.addItem(displayModeRoot)
 
-        // 位置：四角预设子菜单；窗口状态：交互 / 穿透
+        // 位置：四角预设子菜单
         positionItem = NSMenuItem(title: NSLocalizedString("menu.position", comment: ""),
                                   action: nil, keyEquivalent: "")
         let positionMenu = NSMenu()
-        let corners: [(corner: WindowAnchor, titleKey: String, shortcut: String)] = [
-            (.topLeft, "menu.position.topLeft", ""),
-            (.topRight, "menu.position.topRight", ""),
-            (.bottomLeft, "menu.position.bottomLeft", ""),
-            (.bottomRight, "menu.position.bottomRight", "0"),   // 沿用原 ⌘0 复位快捷键
+        let corners: [(corner: WindowAnchor, titleKey: String)] = [
+            (.topLeft, "menu.position.topLeft"),
+            (.topRight, "menu.position.topRight"),
+            (.bottomLeft, "menu.position.bottomLeft"),
+            (.bottomRight, "menu.position.bottomRight"),
         ]
         for entry in corners {
             let item = NSMenuItem(title: NSLocalizedString(entry.titleKey, comment: ""),
                                   action: #selector(moveToCorner(_:)),
-                                  keyEquivalent: entry.shortcut)
+                                  keyEquivalent: "")
             item.representedObject = entry.corner.rawValue
             item.target = self
             positionMenu.addItem(item)
@@ -121,15 +134,22 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         positionItem.submenu = positionMenu
         menu.addItem(positionItem)
 
-        windowStateItem = NSMenuItem(title: "", action: #selector(togglePassthrough(_:)), keyEquivalent: "t")
+        // 窗口显隐：原生菜单没有开关控件，用自定义视图承载标题 + NSSwitch（开 = 显示）
+        visibilityRow = MenuToggleRowView()
+        visibilityRow.onChange = { [weak self] isOn in
+            self?.setWindowVisibility(isOn)
+        }
+        visibilityItem = NSMenuItem(title: NSLocalizedString("menu.windowHidden", comment: ""),
+                                    action: #selector(toggleVisibility(_:)), keyEquivalent: "")
+        visibilityItem.target = self
+        visibilityItem.view = visibilityRow
+        menu.addItem(visibilityItem)
+
+        // 窗口状态：交互 / 穿透（置于显隐开关下方）
+        windowStateItem = NSMenuItem(title: "", action: #selector(togglePassthrough(_:)),
+                                     keyEquivalent: "")
         windowStateItem.target = self
         menu.addItem(windowStateItem)
-
-        // 窗口显隐：开关项（勾选 = 显示），标题随状态显示「窗口显示 / 窗口隐藏」
-        visibilityItem = NSMenuItem(title: NSLocalizedString("menu.windowHidden", comment: ""),
-                                    action: #selector(toggleVisibility(_:)), keyEquivalent: "h")
-        visibilityItem.target = self
-        menu.addItem(visibilityItem)
 
         menu.addItem(.separator())
 
@@ -159,7 +179,23 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         updateDisplayModeItems()
         updateWindowStateItem(windowStateItem)
         updateMenuAvailability()
+        updateShortcutTitles()
         updateToolTip()
+    }
+
+    /// 快捷键只写进标题做展示：菜单 keyEquivalent 会与 Carbon 热键重复触发。
+    private func updateShortcutTitles() {
+        consoleItem.title = menuTitle("menu.console", shortcut: .openConsole)
+    }
+
+    private func menuTitle(_ key: String, shortcut action: ShortcutAction) -> String {
+        let base = NSLocalizedString(key, comment: "")
+        guard let combo = ShortcutStore.shared.combo(for: action) else { return base }
+        return "\(base)  \(combo.displayString)"
+    }
+
+    @objc private func shortcutsChanged() {
+        refreshMenuState()
     }
 
     func menuDidClose(_ menu: NSMenu) {
@@ -255,19 +291,23 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     private func updateWindowStateItem(_ item: NSMenuItem) {
-        item.title = windowController.effectivePassthroughEnabled
-            ? NSLocalizedString("menu.windowState.passthrough", comment: "")
-            : NSLocalizedString("menu.windowState.interactive", comment: "")
+        item.title = menuTitle(
+            windowController.effectivePassthroughEnabled
+                ? "menu.windowState.passthrough"
+                : "menu.windowState.interactive",
+            shortcut: .togglePassthrough)
     }
 
     private func updateVisibilityItem() {
         guard let item = visibilityItem else { return }
         let visible = windowController.isWindowVisible
-        item.state = visible ? .on : .off
-        item.title = NSLocalizedString(visible ? "menu.windowShown" : "menu.windowHidden",
-                                       comment: "")
+        let key = visible ? "menu.windowShown" : "menu.windowHidden"
+        item.title = NSLocalizedString(key, comment: "")   // 供辅助功能读取；勾选态由开关视图表达
         item.isEnabled = windowController.displayMode == .desktop
             && (visible || windowController.currentURL != nil)
+        visibilityRow.title = menuTitle(key, shortcut: .toggleOverlay)
+        visibilityRow.isOn = visible
+        visibilityRow.isRowEnabled = item.isEnabled
     }
 
     /// 供 PINSHELL_SHOW_CONSOLE=1 启动时直接打开控制台（也用于自动化截图）。
@@ -276,9 +316,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     /// 官网深链：打开控制台与模板库，并安装指定模板。
-    func installTemplateFromLibrary(id: String) {
+    func installTemplateFromLibrary(id: String, catalogURL: URL) {
         windowController.dismissMenuBarPopover()
-        consoleController.installTemplateFromLibrary(id: id)
+        consoleController.installTemplateFromLibrary(id: id, catalogURL: catalogURL)
     }
 
     @objc private func openConsole(_ sender: Any?) {
@@ -290,6 +330,16 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     @objc private func toggleVisibility(_ sender: Any?) {
+        windowController.toggleVisibility()
+        updateVisibilityItem()
+    }
+
+    /// 开关的目标态与当前态不一致时才切换，避免重复点击时来回抖动。
+    private func setWindowVisibility(_ visible: Bool) {
+        guard visible != windowController.isWindowVisible else {
+            updateVisibilityItem()
+            return
+        }
         windowController.toggleVisibility()
         updateVisibilityItem()
     }

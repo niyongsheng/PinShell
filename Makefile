@@ -15,6 +15,15 @@ endif
 # 产物路径动态定位（universal 时位于 .build/apple/Products/Release）
 BIN_PATH := $(shell swift build -c $(CONFIG) $(SWIFT_ARCH) --show-bin-path)
 
+# SwiftPM 链接时会把部署目标写进 LC_BUILD_VERSION 的 sdk 字段（例如 13.0），
+# 而 AppKit 依据该字段判断是否启用 macOS 26 的 Liquid Glass 新设计：sdk < 26
+# 时 NSSwitch / NSSearchField / NSSlider 等标准控件退回旧版兼容外观。
+# 在链接时显式传入 -platform_version，让 Mach-O 从生成时就带真实 SDK 版本。
+SDK_VERSION := $(shell xcrun --show-sdk-version)
+MIN_MACOS   := $(shell /usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" Resources/Info.plist)
+LINK_PLATFORM := -Xlinker -platform_version -Xlinker macos \
+                 -Xlinker $(MIN_MACOS) -Xlinker $(SDK_VERSION)
+
 .PHONY: build app icon menubar-icon run install pkg universal clean site serve-site check-user
 
 # sudo make 会把 build/ 里的产物写成 root 所有，之后普通用户删不掉（make app 会报一堆 Permission denied）。
@@ -27,7 +36,7 @@ check-user:
 	}
 
 build: check-user ## 编译 release 二进制
-	swift build -c $(CONFIG) $(SWIFT_ARCH)
+	swift build -c $(CONFIG) $(SWIFT_ARCH) $(LINK_PLATFORM)
 
 app: check-user build ## 组装 PinShell.app（二进制/Info.plist/资源，ad-hoc 签名最后做）
 	@rm -rf "$(APP)" 2>/dev/null || { \
