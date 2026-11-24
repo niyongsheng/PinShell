@@ -3,10 +3,21 @@ import CoreGraphics
 import WebKit
 import PinShellCore
 
+/// 菜单栏弹出的锚点快照：状态栏按钮在屏幕坐标中的 frame + 所在屏幕的可见区域。
+struct StatusItemAnchor {
+    /// nil 表示拿不到按钮位置，几何计算回落到屏幕顶部中央。
+    let iconFrame: WindowFrame?
+    let visibleFrame: WindowFrame
+}
+
 /// 悬浮窗口控制器：面板规格、WebView 透明、HTML 加载/重载、
 /// 声明式窗口属性（meta/CLI/JS 桥）、穿透切换、frame 持久化、文件热重载。
 final class OverlayWindowController: NSObject, NSWindowDelegate {
     private(set) var panel: OverlayPanel!
+
+    /// 桌面悬浮层与菜单栏弹出面板的窗口层级。
+    private static let overlayLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.overlayWindow)))
+    private static let menuBarLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.statusWindow)))
 
     private let webView: DraggableWebView
     private let bridge: JSBridge
@@ -19,6 +30,39 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
     /// 页面通过 pinshell.setState / patchState 维护的共享状态（原生侧权威副本）。
     private(set) var panelState: JSONValue = .object([:])
     private(set) var stateRevision = 0
+
+    /// 当前展示方式（持久化在 AppState，单一事实来源）。
+    var displayMode: DisplayMode { AppState.displayMode }
+    /// StatusItemController 注入：返回状态栏按钮位置与所在屏幕的可见区域。
+    var statusItemAnchorProvider: (() -> StatusItemAnchor?)?
+    /// 菜单栏弹出期间的收起监听（只在展示期间安装）。
+    private var globalMouseMonitor: Any?
+    private var localKeyMonitor: Any?
+    private var workspaceObservers: [NSObjectProtocol] = []
+    /// 展示时刻：忽略菜单收起瞬间的 App 激活切换，避免刚弹出就被误收起。
+    private var popoverPresentedAt = Date.distantPast
+
+    /// 穿透只在桌面模式生效；菜单栏弹出必须始终可点击。
+    var effectivePassthroughEnabled: Bool {
+        displayMode == .desktop && AppState.passthroughEnabled
+    }
+
+    /// 菜单栏弹出模式禁用 ⌘ 拖窗（位置始终锚定图标）。
+    var allowsCommandDrag: Bool { displayMode == .desktop }
+
+    /// 内置占位页：首启兜底，不算“用户已选模板”。
+    static var placeholderURL: URL? {
+        Bundle.main.url(forResource: "Placeholder", withExtension: "html")
+    }
+
+    static func isPlaceholder(_ url: URL) -> Bool {
+        url.standardizedFileURL == placeholderURL?.standardizedFileURL
+    }
+
+    /// 是否有真实模板内容（内置 Placeholder 不算），用于决定左键是否直接开菜单。
+    var hasUserContent: Bool {
+        currentURL.map { !Self.isPlaceholder($0) } ?? false
+    }
 
     /// 控制通道事件出口（ControlHost 订阅后广播给 listen 客户端）
     var onControlEvent: ((ControlEvent) -> Void)?
@@ -61,10 +105,16 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         setupWebView()
         setupGrip()
         registerFrameObservers()
+        applyDisplayModeConfiguration()
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(screenParametersChanged),
+            name: NSApplication.didChangeScreenParametersNotification, object: nil)
     }
 
     deinit {
         fileWatcher?.stop()
+        removePopoverDismissMonitors()
+        NotificationCenter.default.removeObserver(self)
         userContentController.removeScriptMessageHandler(forName: "pinshell")
     }
 
@@ -78,7 +128,8 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
             defer: false
         )
         // .overlay 层级（kCGOverlayWindowLevel=15）：录屏可捕获；禁止 .desktop（多数录屏过滤）
-        panel.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.overlayWindow)))
+        // 菜单栏弹出时提升到 .statusBar（25），保证盖住普通窗口与全屏辅助层。
+        panel.level = displayMode == .desktop ? Self.overlayLevel : Self.menuBarLevel
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -120,11 +171,16 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
     var isWindowVisible: Bool { panel.isVisible }
 
     func showWindow() {
+        if displayMode == .menuBar {
+            presentMenuBarPopover()
+            return
+        }
         panel.orderFront(nil)   // 不用 orderFrontRegardless：会破坏 nonactivating 语义、抢焦点
         notifyStatusChanged()
     }
 
     func hideWindow() {
+        removePopoverDismissMonitors()
         panel.orderOut(nil)
         notifyStatusChanged()
     }
@@ -137,11 +193,162 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         }
     }
 
+    /// 菜单栏弹出期间的主动收起（打开控制台、弹窗前调用）；其他模式/已隐藏时无操作。
+    func dismissMenuBarPopover() {
+        guard displayMode == .menuBar, panel.isVisible else { return }
+        hideWindow()
+    }
+
+    // MARK: - 显示方式（桌面悬浮 / 菜单栏弹出）
+
+    func setDisplayMode(_ mode: DisplayMode) {
+        guard mode != displayMode else { return }
+        let wasVisible = panel.isVisible
+
+        if displayMode == .desktop, wasVisible {
+            // 离开桌面模式前落盘最后的桌面位置，之后弹出定位不再污染它。
+            framePersistWork?.cancel()
+            framePersistWork = nil
+            AppState.windowFrame = panel.frame
+        }
+        removePopoverDismissMonitors()
+        if wasVisible { panel.orderOut(nil) }   // 避免跨屏跳变的中间态
+
+        AppState.displayMode = mode
+        applyDisplayModeConfiguration()
+
+        if mode == .desktop {
+            restoreDesktopFrame()
+            if wasVisible { panel.orderFront(nil) }
+        } else if wasVisible {
+            // 从菜单触发时避开菜单收起，等下一轮 runloop 再贴到图标下方。
+            DispatchQueue.main.async { [weak self] in
+                self?.presentMenuBarPopover()
+            }
+        }
+        notifyStatusChanged()
+    }
+
+    private func applyDisplayModeConfiguration() {
+        panel.level = displayMode == .desktop ? Self.overlayLevel : Self.menuBarLevel
+        syncPassthroughUI()
+        // 页面尚未加载时无需注入；didFinish 会按有效穿透状态补一次。
+        if webView.url != nil {
+            webView.applyPassthrough(effectivePassthroughEnabled)
+        }
+    }
+
+    /// 回到桌面模式：优先恢复用户上次的桌面 frame；没有记录时用默认位置 + 模板声明。
+    private func restoreDesktopFrame() {
+        if let saved = restoreFrame() {
+            applyProgrammaticFrame(saved)
+            return
+        }
+        applyProgrammaticFrame(Self.defaultFrame())
+        if let url = currentURL {
+            applyDeclaredSpec(for: url)
+        }
+    }
+
+    private func presentMenuBarPopover() {
+        guard displayMode == .menuBar, currentURL != nil else { return }
+        popoverPresentedAt = Date()
+        anchorMenuBarPopover(requestedSize: nil)
+        panel.orderFront(nil)
+        installPopoverDismissMonitors()
+        notifyStatusChanged()
+    }
+
+    /// 顶部居中贴到状态栏图标下方；requestedSize 为 nil 时沿用当前窗口尺寸。
+    private func anchorMenuBarPopover(requestedSize: WindowSize?) {
+        guard displayMode == .menuBar else { return }
+        guard let anchor = statusItemAnchorProvider?() ?? fallbackAnchor() else { return }
+        let current = panel.frame
+        let size = requestedSize ?? WindowSize(width: Double(current.width),
+                                               height: Double(current.height))
+        let resolved = MenuBarPopoverGeometry.resolve(
+            size: size,
+            iconFrame: anchor.iconFrame,
+            visibleFrame: anchor.visibleFrame
+        )
+        let target = resolved.nsRect
+        guard !target.equalTo(panel.frame) else { return }
+        applyProgrammaticFrame(target)
+    }
+
+    private func fallbackAnchor() -> StatusItemAnchor? {
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return nil }
+        return StatusItemAnchor(iconFrame: nil, visibleFrame: WindowFrame(screen.visibleFrame))
+    }
+
+    @objc private func screenParametersChanged() {
+        guard displayMode == .menuBar, panel.isVisible else { return }
+        anchorMenuBarPopover(requestedSize: nil)
+    }
+
+    // MARK: - 菜单栏弹窗收起监听
+
+    private func installPopoverDismissMonitors() {
+        guard displayMode == .menuBar else { return }
+        removePopoverDismissMonitors()
+
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] _ in
+            DispatchQueue.main.async { self?.dismissMenuBarPopover() }
+        }
+
+        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, self.panel.isKeyWindow, event.keyCode == 53 else { return event }
+            self.dismissMenuBarPopover()
+            return nil
+        }
+
+        // 切 Space / 切到别的 App 时收起，避免面板挂在所有空间上。
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        workspaceObservers.append(workspaceCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.dismissMenuBarPopover()
+        })
+        workspaceObservers.append(workspaceCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let self else { return }
+            // 菜单收起会把焦点还给之前的 App；展示后短暂窗口内的激活切换不算用户切走。
+            guard Date().timeIntervalSince(self.popoverPresentedAt) > 0.5 else { return }
+            // 只对切到其它 App 收起；本 App 打开菜单/控制台时不要误伤（控制台会显式收起）。
+            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+                    as? NSRunningApplication,
+                  app.processIdentifier != ProcessInfo.processInfo.processIdentifier else {
+                return
+            }
+            self.dismissMenuBarPopover()
+        })
+    }
+
+    private func removePopoverDismissMonitors() {
+        if let monitor = globalMouseMonitor {
+            NSEvent.removeMonitor(monitor)
+            globalMouseMonitor = nil
+        }
+        if let monitor = localKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            localKeyMonitor = nil
+        }
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        for observer in workspaceObservers {
+            workspaceCenter.removeObserver(observer)
+        }
+        workspaceObservers.removeAll()
+    }
+
     /// 加载 HTML：
     /// - 解析 HTML meta 得到声明式窗口属性；
     /// - specOverride 为 CLI 显式参数（会话级，reload 继续生效；传 nil 清空）；
+    /// - present 为 false 时只加载不展示（菜单栏模式启动恢复上次模板）；
     /// - 复位上一个模板遗留的 opacity/radius，避免跨文件泄漏。
-    func loadHTML(_ url: URL, specOverride: WindowSpec? = nil) {
+    func loadHTML(_ url: URL, specOverride: WindowSpec? = nil, present: Bool = true) {
         let resolved = url.standardizedFileURL
         guard resolved.isRegularFile else { return }
         currentURL = resolved
@@ -152,7 +359,7 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         installBridgeScript(templateLanguage: metadata.resolvedLanguage)
         webView.loadLocalHTMLFile(resolved)
         AppState.lastHTMLURL = resolved
-        showWindow()
+        if present { showWindow() }
         updateFileWatcher()
         notifyStatusChanged()
     }
@@ -245,24 +452,38 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
     }
 
     private func applyDeclaredFrame(size: WindowSize?, position: WindowPosition?) {
-        guard let visible = (panel.screen ?? NSScreen.main)?.visibleFrame else { return }
-        let current = panel.frame
+        // 菜单栏弹出时位置由状态栏图标锚定，声明的位置不生效；尺寸仍需应用。
+        if displayMode == .menuBar {
+            if panel.isVisible {
+                anchorMenuBarPopover(requestedSize: size)
+            } else if let size {
+                resizeHiddenPanel(to: size)
+            }
+            return
+        }
+
+        guard let target = resolvedFrame(size: size, position: position),
+              !target.equalTo(panel.frame) else { return }
+        applyProgrammaticFrame(target)
+    }
+
+    /// 菜单栏模式下窗口隐藏时只预置尺寸，首次弹出由几何计算定位。
+    private func resizeHiddenPanel(to size: WindowSize) {
+        guard let target = resolvedFrame(size: size, position: nil),
+              !target.equalTo(panel.frame) else { return }
+        applyProgrammaticFrame(target)
+    }
+
+    /// 当前屏幕内的目标 frame；声明位置的解析规则只在这里定义。
+    private func resolvedFrame(size: WindowSize?, position: WindowPosition?) -> NSRect? {
+        guard let visible = (panel.screen ?? NSScreen.main)?.visibleFrame else { return nil }
         let resolved = WindowGeometry.resolve(
             size: size,
             position: position,
-            current: WindowFrame(x: current.origin.x,
-                                 y: current.origin.y,
-                                 width: current.size.width,
-                                 height: current.size.height),
-            screen: WindowFrame(x: visible.origin.x,
-                                y: visible.origin.y,
-                                width: visible.size.width,
-                                height: visible.size.height)
+            current: WindowFrame(panel.frame),
+            screen: WindowFrame(visible)
         )
-        let target = NSRect(x: CGFloat(resolved.x), y: CGFloat(resolved.y),
-                            width: CGFloat(resolved.width), height: CGFloat(resolved.height))
-        guard !target.equalTo(panel.frame) else { return }
-        applyProgrammaticFrame(target)
+        return resolved.nsRect
     }
 
     private func applyProgrammaticFrame(_ frame: NSRect) {
@@ -456,11 +677,12 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         notifyStatusChanged()
     }
 
-    /// 从 AppState 派生全部穿透 UI（窗口/拖拽手柄），init 与切换共用一条路径
+    /// 从 AppState + 展示方式派生全部穿透 UI（窗口/拖拽手柄），init 与切换共用一条路径。
+    /// 菜单栏弹出时强制交互，否则面板无法点击。
     private func syncPassthroughUI() {
-        let enabled = AppState.passthroughEnabled
+        let enabled = effectivePassthroughEnabled
         panel.ignoresMouseEvents = enabled   // 窗口级开关：穿透 + 禁拖动一次生效
-        grip.isHidden = enabled
+        grip.isHidden = enabled || displayMode == .menuBar
     }
 
     func togglePassthrough() {
@@ -469,24 +691,16 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
 
     /// 预设四角：保持当前尺寸，贴到所在屏幕可见区域角落（默认 24pt 边距）
     func moveToCorner(_ corner: WindowAnchor) {
+        guard displayMode == .desktop else { return }   // 菜单栏模式位置由图标锚定
         guard let visible = (panel.screen ?? NSScreen.main)?.visibleFrame else { return }
         let frame = WindowGeometry.resolve(
             size: nil,
             position: .anchor(corner),
-            current: Self.windowFrame(panel.frame),
-            screen: Self.windowFrame(visible)
+            current: WindowFrame(panel.frame),
+            screen: WindowFrame(visible)
         )
-        panel.setFrame(Self.nsRect(frame), display: true)
+        panel.setFrame(frame.nsRect, display: true)
         notifyStatusChanged()
-    }
-
-    private static func windowFrame(_ rect: NSRect) -> WindowFrame {
-        WindowFrame(x: Double(rect.origin.x), y: Double(rect.origin.y),
-                    width: Double(rect.width), height: Double(rect.height))
-    }
-
-    private static func nsRect(_ frame: WindowFrame) -> NSRect {
-        NSRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
     }
 
     // MARK: - 状态
@@ -504,7 +718,8 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
             "stateRevision": .number(Double(stateRevision)),
             "visible": .bool(panel.isVisible),
             "watching": .bool(watchEnabled && fileWatcher != nil),
-            "passthrough": .bool(AppState.passthroughEnabled),
+            "displayMode": .string(displayMode.rawValue),
+            "passthrough": .bool(effectivePassthroughEnabled),
             "opacity": .number(Double(panel.alphaValue)),
             "radius": .number(Double(currentRadius)),
             "frame": .object([
@@ -520,12 +735,13 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
 
     private var framePersistWork: DispatchWorkItem?
 
-    /// 拖动/缩放期间 didMove/didResize 以显示刷新率触发：防抖后一次性落盘
+    /// 拖动/缩放期间 didMove/didResize 以显示刷新率触发：防抖后一次性落盘。
+    /// 菜单栏弹出模式的位置由图标决定，不能写进桌面 frame。
     @objc private func persistFrame() {
-        guard !isApplyingProgrammaticFrame else { return }
+        guard displayMode == .desktop, !isApplyingProgrammaticFrame else { return }
         framePersistWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            guard let self else { return }
+            guard let self, self.displayMode == .desktop else { return }
             AppState.windowFrame = self.panel.frame
             self.notifyStatusChanged()
         }
@@ -553,9 +769,9 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
             size: size,
             position: .anchor(.bottomRight),
             current: WindowFrame(x: 0, y: 0, width: size.width, height: size.height),
-            screen: windowFrame(vf)
+            screen: WindowFrame(vf)
         )
-        return nsRect(frame)
+        return frame.nsRect
     }
 }
 

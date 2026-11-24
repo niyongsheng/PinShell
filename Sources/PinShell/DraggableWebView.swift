@@ -20,7 +20,8 @@ final class DraggableWebView: WKWebView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        if event.modifierFlags.contains(.command) {
+        // 菜单栏弹出模式位置锚定图标，⌘ 拖动交给 HTML 正常处理。
+        if event.modifierFlags.contains(.command), owner?.allowsCommandDrag ?? false {
             window?.performDrag(with: event)
             return
         }
@@ -58,8 +59,13 @@ final class DraggableWebView: WKWebView {
     document.documentElement.classList.remove('passthrough');
     """
 
+    /// 菜单栏弹出模式强制交互：读取控制器的有效穿透值而不是原始偏好。
+    private var effectivePassthrough: Bool {
+        owner?.effectivePassthroughEnabled ?? false
+    }
+
     @objc private func passthroughChanged(_ notification: Notification) {
-        applyPassthrough(AppState.passthroughEnabled)
+        applyPassthrough(effectivePassthrough)
     }
 
     func applyPassthrough(_ enabled: Bool) {
@@ -72,7 +78,7 @@ final class DraggableWebView: WKWebView {
 extension DraggableWebView: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         // 重载/换文件后同步穿透状态。关闭态无需注入：新页面初始本无 passthrough class
-        if AppState.passthroughEnabled {
+        if effectivePassthrough {
             applyPassthrough(true)
         }
         owner?.handlePageDidLoad()

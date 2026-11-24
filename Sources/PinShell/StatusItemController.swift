@@ -11,6 +11,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private lazy var consoleController = ConsoleController(windowController: windowController)
     private var windowStateItem: NSMenuItem!
     private var visibilityItem: NSMenuItem!
+    private var statusMenu: NSMenu!
+    private var positionItem: NSMenuItem!
+    private var displayModeItems: [DisplayMode: NSMenuItem] = [:]
+    private var isPresentingMenu = false
+    /// NSStatusBarButton 不会把右键转成 action，单独监听状态栏窗口的右键。
+    private var rightClickMonitor: Any?
     /// 下载安装包时惰性创建（只在主线程使用）
     private var updateInstaller: UpdateInstaller?
     private var installTask: Task<Void, Never>?
@@ -21,8 +27,17 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         super.init()
         configureItem()
         configureMenu()
+        installRightClickMonitor()
+        windowController.statusItemAnchorProvider = { [weak self] in
+            self?.currentStatusItemAnchor
+        }
         NotificationCenter.default.addObserver(self, selector: #selector(passthroughChanged(_:)),
                                                name: .pinshellPassthroughChanged, object: nil)
+    }
+
+    deinit {
+        if let rightClickMonitor { NSEvent.removeMonitor(rightClickMonitor) }
+        NotificationCenter.default.removeObserver(self)
     }
 
     private func configureItem() {
@@ -30,11 +45,31 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let image = NSImage(named: "MenuBarIcon") ?? NSImage(systemSymbolName: "pin.fill", accessibilityDescription: "PinShell")
         image?.isTemplate = true
         statusItem.button?.image = image
-        statusItem.button?.toolTip = "PinShell"
+
+        // 菜单不再常驻挂载：左键在菜单栏模式下切换模板弹出，右键临时挂载菜单。
+        // NSStatusBarButton 的 action 只走左键；右键由 installRightClickMonitor 接管。
+        restoreButtonRouting()
+        updateToolTip()
+    }
+
+    private func installRightClickMonitor() {
+        rightClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown]) { [weak self] event in
+            guard let self,
+                  self.statusItem.menu == nil,
+                  let button = self.statusItem.button,
+                  let window = button.window,
+                  event.window === window else { return event }
+            let point = button.convert(event.locationInWindow, from: nil)
+            guard button.bounds.contains(point) else { return event }
+            self.presentStatusMenu()
+            return nil
+        }
     }
 
     private func configureMenu() {
         let menu = NSMenu()
+        // 关闭自动校验，否则 menuWillOpen 里设置的置灰状态会被 AppKit 按 target/action 重新启用
+        menu.autoenablesItems = false
 
         let header = NSMenuItem(title: "PinShell", action: nil, keyEquivalent: "")
         header.isEnabled = false
@@ -49,8 +84,24 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
+        // 显示方式：全局切换（桌面悬浮 / 菜单栏弹出）
+        let displayModeRoot = NSMenuItem(title: NSLocalizedString("menu.displayMode", comment: ""),
+                                         action: nil, keyEquivalent: "")
+        let displayModeMenu = NSMenu()
+        for mode in DisplayMode.allCases {
+            let key = mode == .desktop ? "menu.displayMode.desktop" : "menu.displayMode.menuBar"
+            let item = NSMenuItem(title: NSLocalizedString(key, comment: ""),
+                                  action: #selector(selectDisplayMode(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = mode.rawValue
+            displayModeMenu.addItem(item)
+            displayModeItems[mode] = item
+        }
+        displayModeRoot.submenu = displayModeMenu
+        menu.addItem(displayModeRoot)
+
         // 位置：四角预设子菜单；窗口状态：交互 / 穿透
-        let position = NSMenuItem(title: NSLocalizedString("menu.position", comment: ""),
+        positionItem = NSMenuItem(title: NSLocalizedString("menu.position", comment: ""),
                                   action: nil, keyEquivalent: "")
         let positionMenu = NSMenu()
         let corners: [(corner: WindowAnchor, titleKey: String, shortcut: String)] = [
@@ -67,20 +118,18 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             item.target = self
             positionMenu.addItem(item)
         }
-        position.submenu = positionMenu
-        menu.addItem(position)
+        positionItem.submenu = positionMenu
+        menu.addItem(positionItem)
 
         windowStateItem = NSMenuItem(title: "", action: #selector(togglePassthrough(_:)), keyEquivalent: "t")
         windowStateItem.target = self
         menu.addItem(windowStateItem)
-        updateWindowStateItem(windowStateItem)
 
-        // 窗口显隐：开关项（勾选 = 显示），紧跟在窗口状态下方
-        visibilityItem = NSMenuItem(title: NSLocalizedString("menu.showWindow", comment: ""),
+        // 窗口显隐：开关项（勾选 = 显示），标题随状态显示「窗口显示 / 窗口隐藏」
+        visibilityItem = NSMenuItem(title: NSLocalizedString("menu.windowHidden", comment: ""),
                                     action: #selector(toggleVisibility(_:)), keyEquivalent: "h")
         visibilityItem.target = self
         menu.addItem(visibilityItem)
-        updateVisibilityItem()
 
         menu.addItem(.separator())
 
@@ -96,16 +145,117 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(quit)
 
         menu.delegate = self
-        statusItem.menu = menu
+        statusMenu = menu
+        refreshMenuState()
     }
 
-    /// 每次展开菜单时兜底刷新显隐开关（外部路径直接 orderOut 时也能保持一致）
+    /// 每次展开菜单时兜底刷新各项状态（外部路径直接 orderOut 时也能保持一致）
     func menuWillOpen(_ menu: NSMenu) {
+        refreshMenuState()
+    }
+
+    /// 菜单项状态的唯一刷新入口：构建、展开、切换显示方式后共用。
+    private func refreshMenuState() {
+        updateDisplayModeItems()
+        updateWindowStateItem(windowStateItem)
+        updateMenuAvailability()
+        updateToolTip()
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        if statusItem.menu === statusMenu {
+            statusItem.menu = nil
+        }
+        restoreButtonRouting()
+    }
+
+    // MARK: - 状态栏点击路由
+
+    @objc private func statusItemClicked(_ sender: Any?) {
+        let event = NSApp.currentEvent
+        let isSecondary = event?.type == .rightMouseUp
+            || event?.type == .rightMouseDown
+            || (event?.modifierFlags.contains(.control) ?? false)
+
+        if isSecondary {
+            presentStatusMenu()
+            return
+        }
+
+        // 菜单栏模式且已有真实模板（或面板已弹出）：左键切换弹出；
+        // 否则保持原有菜单入口，保证首启/空库时也能进控制台。
+        if windowController.displayMode == .menuBar,
+           windowController.hasUserContent || windowController.isWindowVisible {
+            windowController.toggleVisibility()
+            updateVisibilityItem()
+        } else {
+            presentStatusMenu()
+        }
+    }
+
+    /// 临时挂载菜单再模拟点击：按钮挂着 menu 时 action 不会触发。
+    /// 菜单（popUpMenu 层级）会盖在弹出面板之上；面板保留，切换显示方式后可直接迁移。
+    private func presentStatusMenu() {
+        guard !isPresentingMenu else { return }
+        isPresentingMenu = true
+        statusItem.menu = statusMenu
+        statusItem.button?.performClick(nil)
+        statusItem.menu = nil
+        isPresentingMenu = false
+        restoreButtonRouting()
+    }
+
+    /// 摘掉菜单后重新声明 button 路由（AppKit 可能重配 button）。
+    private func restoreButtonRouting() {
+        guard let button = statusItem.button else { return }
+        button.target = self
+        button.action = #selector(statusItemClicked(_:))
+        _ = button.sendAction(on: [.leftMouseUp])
+    }
+
+    /// 状态栏按钮在屏幕坐标中的位置 + 所在屏幕的可见区域。
+    private var currentStatusItemAnchor: StatusItemAnchor? {
+        guard let button = statusItem.button, let window = button.window else { return nil }
+        let icon = window.convertToScreen(button.convert(button.bounds, to: nil))
+        let screen = NSScreen.screens.first { $0.frame.intersects(icon) }
+            ?? window.screen ?? NSScreen.main
+        guard let screen else { return nil }
+        return StatusItemAnchor(
+            iconFrame: WindowFrame(icon),
+            visibleFrame: WindowFrame(screen.visibleFrame))
+    }
+
+    // MARK: - 显示方式
+
+    @objc private func selectDisplayMode(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let mode = DisplayMode(rawValue: raw) else { return }
+        windowController.setDisplayMode(mode)
+        refreshMenuState()
+    }
+
+    private func updateDisplayModeItems() {
+        for (mode, item) in displayModeItems {
+            item.state = windowController.displayMode == mode ? .on : .off
+        }
+    }
+
+    /// 菜单栏模式下位置/穿透/窗口显隐都由菜单栏图标接管，菜单项置灰。
+    private func updateMenuAvailability() {
+        let isDesktop = windowController.displayMode == .desktop
+        positionItem?.isEnabled = isDesktop
+        windowStateItem?.isEnabled = isDesktop
         updateVisibilityItem()
     }
 
+    private func updateToolTip() {
+        let key = windowController.displayMode == .desktop
+            ? "menu.tooltip.desktop" : "menu.tooltip.menuBar"
+        statusItem.button?.toolTip = NSLocalizedString(key, comment: "")
+    }
+
     private func updateWindowStateItem(_ item: NSMenuItem) {
-        item.title = AppState.passthroughEnabled
+        item.title = windowController.effectivePassthroughEnabled
             ? NSLocalizedString("menu.windowState.passthrough", comment: "")
             : NSLocalizedString("menu.windowState.interactive", comment: "")
     }
@@ -114,7 +264,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         guard let item = visibilityItem else { return }
         let visible = windowController.isWindowVisible
         item.state = visible ? .on : .off
-        item.isEnabled = visible || windowController.currentURL != nil
+        item.title = NSLocalizedString(visible ? "menu.windowShown" : "menu.windowHidden",
+                                       comment: "")
+        item.isEnabled = windowController.displayMode == .desktop
+            && (visible || windowController.currentURL != nil)
     }
 
     /// 供 PINSHELL_SHOW_CONSOLE=1 启动时直接打开控制台（也用于自动化截图）。
@@ -122,7 +275,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         openConsole(nil)
     }
 
+    /// 官网深链：打开控制台与模板库，并安装指定模板。
+    func installTemplateFromLibrary(id: String) {
+        windowController.dismissMenuBarPopover()
+        consoleController.installTemplateFromLibrary(id: id)
+    }
+
     @objc private func openConsole(_ sender: Any?) {
+        windowController.dismissMenuBarPopover()
         consoleController.show()
     }
     @objc private func passthroughChanged(_ notification: Notification) {
@@ -198,6 +358,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     private func showUpdateAlert(_ release: UpdateChecker.ReleaseInfo) {
+        windowController.dismissMenuBarPopover()   // 状态栏层级面板会盖住模态弹窗
         let alert = NSAlert()
         alert.messageText = String(format: NSLocalizedString("update.availableTitle", comment: ""), release.versionLabel)
         alert.informativeText = release.excerpt() + "\n\n" + NSLocalizedString("update.installHint", comment: "")
@@ -246,6 +407,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     private func showInstallError(_ error: Error, release: UpdateChecker.ReleaseInfo) {
+        windowController.dismissMenuBarPopover()
         let alert = NSAlert()
         alert.messageText = NSLocalizedString("update.installFailed", comment: "")
         alert.informativeText = error.localizedDescription
@@ -264,6 +426,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     private func showMessageAlert(title: String, message: String) {
+        windowController.dismissMenuBarPopover()
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message

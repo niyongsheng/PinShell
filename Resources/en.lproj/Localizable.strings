@@ -1,6 +1,7 @@
 /* 菜单 */
 "menu.console" = "Console";
-"menu.showWindow" = "Show Window";
+"menu.windowShown" = "Window Shown";
+"menu.windowHidden" = "Window Hidden";
 "menu.windowState.interactive" = "Window State: Interactive";
 "menu.windowState.passthrough" = "Window State: Passthrough";
 "menu.position" = "Window Position";
@@ -10,6 +11,11 @@
 "menu.position.bottomRight" = "Bottom Right";
 "menu.checkForUpdates" = "Check for Updates…";
 "menu.quit" = "Quit PinShell";
+"menu.displayMode" = "Display Mode";
+"menu.displayMode.desktop" = "Desktop Overlay";
+"menu.displayMode.menuBar" = "Menu Bar Popover";
+"menu.tooltip.desktop" = "PinShell · Click for menu";
+"menu.tooltip.menuBar" = "PinShell · Click to show, right-click for menu";
 
 /* 更新检查 */
 "update.availableTitle" = "PinShell v%@ is available";
@@ -120,13 +126,13 @@
 "console.mcp.navSubtitle" = "Stdio · AI agent";
 "console.mcp.ready" = "Stdio · ready";
 "console.mcp.config" = "Manual Configuration";
+"console.mcp.config.subtitle" = "Paste the configuration below into your MCP client (Doubao, Qwen, WorkBuddy) to connect to PinShell.";
 "console.mcp.tools" = "Available Tools";
 "console.mcp.prompts" = "Available Prompts";
 "console.mcp.copyConfig" = "Copy Config";
 "console.mcp.expand" = "Expand";
 "console.mcp.collapse" = "Collapse";
 "console.mcp.clients.title" = "Client Auto-Configuration";
-"console.mcp.clients.subtitle" = "Detects installed MCP clients and writes the PinShell server configuration for you.";
 "console.mcp.clients.auto" = "Auto-configure";
 "console.mcp.clients.reveal" = "Show Config File";
 "console.mcp.clients.remove" = "Remove Config";
@@ -139,7 +145,7 @@
 "console.mcp.clients.staleHint" = "Configured command is %@. Choose Auto-configure to update it.";
 "console.mcp.clients.errorTitle" = "Couldn’t configure %@";
 "console.mcp.clients.errorJSON" = "The config file is not valid JSON, so it was left unchanged:\n%@";
-"console.mcp.clients.errorStructure" = "Unexpected mcpServers format, so the file was left unchanged:\n%@";
+"console.mcp.clients.errorStructure" = "Unexpected configuration structure, so the file was left unchanged:\n%@";
 "console.mcp.clients.errorUnreadable" = "Couldn’t read the config file (permissions or encoding issue), so it was left unchanged:\n%@";
 "console.mcp.clients.hint" = "Restart the client after configuring for the change to take effect.";
 
@@ -147,9 +153,23 @@
 "console.about.title" = "About";
 "console.about.subtitle" = "A bright window for AI: code as paper, a corner of the screen as its place — to converse, to present, to echo.";
 "console.about.version" = "Version %@";
-"console.about.afdian" = "Afdian";
+"console.about.findUs" = "About Us";
 "console.about.website" = "Website";
 "console.about.github" = "GitHub";
+"console.about.email" = "Email";
+"console.about.rowHint" = "Click to open, right-click to copy the link";
+"console.about.copyLink" = "Copy Link";
+"console.about.copyEmail" = "Copy Email Address";
+"console.about.copied" = "Copied";
+"console.about.supportText" = "PinShell is completely free and open source, with no ads. If you enjoy this app, here are a few ways to support its development.";
+"console.about.share" = "Share";
+"console.about.star" = "Star";
+"console.about.sponsor" = "Sponsor";
+"console.about.feedback" = "Send Feedback…";
+"console.about.feedbackHint" = "Open an issue on GitHub";
+"console.about.privacy" = "Privacy";
+"console.about.analytics" = "Anonymous Analytics";
+"console.about.privacyText" = "Sends anonymous launch analytics via Aptabase, with no personal information.";
 "console.about.copyright" = "Apache License 2.0 · © 2026 niyongsheng";
 
 /* 控制台 · 模板编辑弹窗 */
@@ -185,7 +205,6 @@
 
 /* Online template library */
 "library.title" = "Online Template Library";
-"library.subtitle" = "Fetched from the official site. Downloads and updates are always manual.";
 "library.refresh" = "Refresh";
 "library.search" = "Search templates";
 "library.retry" = "Try Again";
@@ -243,3 +262,4 @@
 "library.error.stateReadOnly" = "The template library state is read-only.";
 "library.error.backupFailed" = "Could not back up the existing template.";
 "library.error.payload" = "The downloaded template failed verification: %@";
+"library.error.templateNotFound" = "Template %@ was not found in the library. Refresh and try again.";

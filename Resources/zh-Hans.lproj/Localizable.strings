@@ -1,6 +1,7 @@
 /* 菜单 */
 "menu.console" = "控制台";
-"menu.showWindow" = "显示窗口";
+"menu.windowShown" = "窗口显示";
+"menu.windowHidden" = "窗口隐藏";
 "menu.windowState.interactive" = "窗口状态：交互";
 "menu.windowState.passthrough" = "窗口状态：穿透";
 "menu.position" = "窗口位置";
@@ -10,6 +11,11 @@
 "menu.position.bottomRight" = "右下角";
 "menu.checkForUpdates" = "检查更新…";
 "menu.quit" = "退出 PinShell";
+"menu.displayMode" = "显示方式";
+"menu.displayMode.desktop" = "桌面悬浮";
+"menu.displayMode.menuBar" = "菜单栏弹出";
+"menu.tooltip.desktop" = "PinShell · 点击打开菜单";
+"menu.tooltip.menuBar" = "PinShell · 点击显示模板，右键打开菜单";
 
 /* 更新检查 */
 "update.availableTitle" = "发现新版本 v%@";
@@ -120,13 +126,13 @@
 "console.mcp.navSubtitle" = "Stdio · AI agent";
 "console.mcp.ready" = "Stdio · 已就绪";
 "console.mcp.config" = "手动接入配置";
+"console.mcp.config.subtitle" = "将以下配置粘贴到 MCP 客户端(豆包、千问、WorkBuddy)，即可接入 PinShell 服务。";
 "console.mcp.tools" = "可用工具";
 "console.mcp.prompts" = "可用提示词";
 "console.mcp.copyConfig" = "复制配置";
 "console.mcp.expand" = "展开";
 "console.mcp.collapse" = "收起";
 "console.mcp.clients.title" = "客户端自动配置";
-"console.mcp.clients.subtitle" = "检测本机已安装的 MCP 客户端，一键写入 PinShell 服务配置。";
 "console.mcp.clients.auto" = "自动配置";
 "console.mcp.clients.reveal" = "查看配置文件";
 "console.mcp.clients.remove" = "移除配置";
@@ -139,7 +145,7 @@
 "console.mcp.clients.staleHint" = "配置指向 %@，选择“自动配置”更新。";
 "console.mcp.clients.errorTitle" = "无法写入 %@ 配置";
 "console.mcp.clients.errorJSON" = "配置文件不是有效的 JSON，未做修改：\n%@";
-"console.mcp.clients.errorStructure" = "mcpServers 字段格式异常，未做修改：\n%@";
+"console.mcp.clients.errorStructure" = "配置结构异常，未做修改：\n%@";
 "console.mcp.clients.errorUnreadable" = "无法读取配置文件（权限或编码问题），未做修改：\n%@";
 "console.mcp.clients.hint" = "写入后重启对应客户端即可生效。";
 
@@ -147,9 +153,23 @@
 "console.about.title" = "关于";
 "console.about.subtitle" = "予 AI 一扇明窗，以代码为笺，于屏隅之间，晤谈、呈示、回响。";
 "console.about.version" = "版本 %@";
-"console.about.afdian" = "爱发电";
-"console.about.website" = "官网";
+"console.about.findUs" = "关于我们";
+"console.about.website" = "网站";
 "console.about.github" = "GitHub";
+"console.about.email" = "电子邮件";
+"console.about.rowHint" = "点击打开，右键复制链接";
+"console.about.copyLink" = "复制链接";
+"console.about.copyEmail" = "复制邮箱地址";
+"console.about.copied" = "已复制";
+"console.about.supportText" = "PinShell 完全免费、开源，无广告。如果你喜欢这款应用，可以通过以下方式支持后续开发。";
+"console.about.share" = "分享";
+"console.about.star" = "收藏";
+"console.about.sponsor" = "赞助";
+"console.about.feedback" = "发送反馈…";
+"console.about.feedbackHint" = "在 GitHub 上提交 Issue";
+"console.about.privacy" = "隐私";
+"console.about.analytics" = "匿名使用统计";
+"console.about.privacyText" = "通过 Aptabase 发送匿名启动统计，不含任何个人信息。";
 "console.about.copyright" = "Apache License 2.0 · © 2026 niyongsheng";
 
 /* 控制台 · 模板编辑弹窗 */
@@ -185,7 +205,6 @@
 
 /* 在线模板库 */
 "library.title" = "在线模板库";
-"library.subtitle" = "从官网获取模板；下载与更新始终由你手动触发。";
 "library.refresh" = "刷新";
 "library.search" = "搜索模板";
 "library.retry" = "重试";
@@ -243,3 +262,4 @@
 "library.error.stateReadOnly" = "模板库状态为只读。";
 "library.error.backupFailed" = "无法备份现有模板。";
 "library.error.payload" = "下载的模板未通过校验：%@";
+"library.error.templateNotFound" = "模板库中未找到 %@，请刷新后重试。";
