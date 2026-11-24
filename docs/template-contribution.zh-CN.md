@@ -2,9 +2,9 @@
 
 **简体中文** · [English](./template-contribution.md)
 
-PinShell 的在线模板库由 [`website/templates`](../website/templates) 生成。本文档是贡献模板的
+PinShell 的官方在线模板库由 [`website/templates`](../website/templates) 生成。本文档是贡献模板的
 约定：目录结构、`template.json`、HTML 与多语言规则、设计令牌、Agent 事件协议、本地校验和
-评审清单。合并到 `main` 后，模板会自动发布到官网和 App 的在线模板库。
+评审清单。合并到 `main` 后，模板会自动发布到官网和 App 的官方在线模板库。
 
 > 学习格式最快的方式是复制一个小模板：
 > [`goal-progress`](../website/templates/goal-progress)（紧凑、实时数据）或
@@ -12,7 +12,7 @@ PinShell 的在线模板库由 [`website/templates`](../website/templates) 生�
 
 ## 1. 模板是什么
 
-模板是一个自包含的 HTML 文档，运行在 PinShell 始终置顶的透明面板中。用户从在线模板库安装后，
+模板是一个自包含的 HTML 文档，运行在 PinShell 始终置顶的透明面板中。用户从官方在线模板库安装后，
 文件位于：
 
 ```text
@@ -155,7 +155,7 @@ website/templates/
 | --- | --- |
 | 编码 | UTF-8，≤ 512 KB。 |
 | `<html lang>` | 必须存在，且等于 i18n 的 `default` 语言。 |
-| i18n 块 | 文档中恰好有一个 `<script type="application/json" id="pinshell:i18n">`。 |
+| i18n 块 | 必须有一个 `<script type="application/json" id="pinshell:i18n">` 块；构建器读取文档中第一个匹配的块。 |
 | `default` | 必须是 `zh-Hans`。 |
 | `fallback` | 必须是 `en`。 |
 | `languages` | 必须声明 `zh-Hans` 和 `en`；每个声明的语言都要有非空的 `meta.name` 与 `meta.description`。 |
@@ -168,8 +168,8 @@ i18n `meta` 是模板库名称和简介的**唯一数据源**。请同时用默�
 
 ### 4.2 窗口元数据
 
-PinShell 会在页面加载前应用这些元数据，并在显示或重载时重新应用。CLI 参数可以在当前会话中
-覆盖它们。
+PinShell 会在页面加载前应用这些窗口属性（尺寸、位置、穿透、透明度、圆角），并在显示或重载时
+重新应用。CLI 参数可以在当前会话中覆盖它们。`pinshell:order` 只用于模板库排序，不是窗口属性。
 
 | Meta 标签 | 取值 | 说明 |
 | --- | --- | --- |
@@ -211,8 +211,9 @@ PS.locale;                       // 解析后的 BCP-47 语言标签
 - 默认语言的文案写在 HTML 里；`zh-Hans` 条目通常只需要 `meta`。
 - 在浏览器里给载荷 URL 追加 `?lang=en`（或 `?lang=zh-Hans`）即可预览对应语言。
 - JSON 字符串中的 `</script` 必须转义为 `<\/script`，否则 HTML 块会提前结束。
-- 在 App 中，辅助脚本按 `window.pinshell.templateLanguage` → `window.pinshell.languages`
-  → 系统偏好 的顺序选择语言。`PS.lang` 保留旧版短形式（`zh-Hans` / `en`）。
+- 在 App 中，辅助脚本按 `?lang=` → `window.pinshell.templateLanguage` →
+  `window.pinshell.languages` / `language` → 系统偏好 的顺序选择语言。`PS.lang` 保留旧版短形式
+  （`zh-Hans` / `en`）。
 - 如果模板用 `<canvas>` 绘制文字，请在绘制时读取 `PS.locale`；辅助脚本只处理 DOM 文本和
   属性。
 
@@ -286,9 +287,9 @@ const bridge = window.pinshell || { emit() {}, on() {}, log() {} };
 
 | API | 方向 | 用途 |
 | --- | --- | --- |
-| `bridge.emit(name, data)` | 页面 → Agent | 发送可 JSON 序列化的事件。请加命名空间，如 `todo:changed`。 |
+| `bridge.emit(name, data)` | 页面 → Agent | 发送可 JSON 序列化的事件。请加命名空间，如 `todo-list:changed`。 |
 | `bridge.on(name, callback)` | Agent → 页面 | 处理通过 `pinshell_emit` 或 `PinShell emit` 推入的事件。 |
-| `bridge.ready()` / `input()` / `submit()` / `cancel()` | 页面 → Agent | `ui:ready` / `ui:input` / `ui:submit` / `ui:cancel` 的简写。 |
+| `bridge.ready()` / `input()` / `submit()` / `cancel()` / `message()` | 页面 → Agent | `ui:ready` / `ui:input` / `ui:submit` / `ui:cancel` / `ui:message` 的简写。 |
 | `bridge.setSize(w, h)` | 页面 → App | 调整窗口尺寸。不要和用户的手动调整打架。 |
 | `bridge.setPosition(anchor \| x, y)` | 页面 → App | 移动窗口。 |
 | `bridge.setPassthrough(enabled)` | 页面 → App | 切换鼠标穿透。 |
@@ -363,7 +364,7 @@ cp "website/public/templates/<id>/<version>/<id>.html" \
   "$HOME/Library/Application Support/PinShell/templates/"
 ```
 
-然后打开 **控制台（⌘K）→ 模板**，或执行 `PinShell show <html 路径>`。注意：直接从源码目录
+然后打开 **控制台（⌃⌥C）→ 本地** 并选中新模板，或执行 `PinShell show <html 路径>`。注意：直接从源码目录
 打开 `website/templates/<id>/<id>.html` 是找不到 sidecar 的；请使用构建后的预览，或临时把
 sidecar 复制到旁边（不要提交）。
 
@@ -390,9 +391,10 @@ sidecar 复制到旁边（不要提交）。
 - **`minAppVersion`** 不得高于已经发布的 App 版本。在 App 发版前提前提高它，会让线上模板
   要求一个用户还下载不到的 App 版本。如果模板需要新的 PinShell 能力，请等对应 App 版本发布
   后再提交。
-- **十款 `1.0.0` 的第一方模板**在 `Resources/legacy-templates.json` 中记录了冻结哈希，用于
-  1.4 → 1.5 的迁移。这些文件处于 `1.0.0` 时不要修改；先递增版本。如果你要修改已有的第一方
-  模板，请先与维护者沟通。
+- **从 App 1.4 迁移的十款模板**在 `Resources/legacy-templates.json` 中保留了 `1.0.0` 的冻结
+  哈希，用于 1.5 升级。不要修改该文件，也不要重新引入哈希不同的 `1.0.0` 载荷。这十款模板现已
+  升到 `1.0.0` 之后的版本（例如 `1.1.x`）；每次发布改动都要递增 `version`。如果你要修改已有的
+  第一方模板，请先与维护者沟通。
 - **分类**定义在 `website/site.json`。要新增分类，请单独提交一个带中英文名称的 PR；不要在
   模板清单里发明分类。
 
@@ -410,8 +412,8 @@ sidecar 复制到旁边（不要提交）。
 评审重点：校验通过、离线自包含、双语完整、正确使用设计令牌、无障碍与减少动态效果、长时间运行
 的性能、安全性（无追踪、无远程代码、无凭据），以及内容质量与授权。
 
-合并后，Pages workflow 会重新构建官网和 `library.json`。App 的在线模板库会在下次刷新时看到
-新模板；除非模板要求一个尚未发布的 App 版本，否则不需要发布新的 App 版本。用户始终自行决定
+合并后，Pages workflow 会重新构建官网和 `library.json`。App 的官方在线模板库会在下次刷新时
+看到新模板；除非模板要求一个尚未发布的 App 版本，否则不需要发布新的 App 版本。用户始终自行决定
 是否安装或更新；PinShell 不会自动安装模板库中的模板。
 
 ## 10. 附录：最小可用模板

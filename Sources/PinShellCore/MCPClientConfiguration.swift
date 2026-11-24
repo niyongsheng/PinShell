@@ -25,7 +25,6 @@ public enum MCPClient: String, CaseIterable, Sendable {
         ["command": executable.path, "args": ["mcp"]]
     }
 
-    /// 标准 MCP 客户端配置对象。
     public static func serverConfiguration(executable: URL) -> [String: Any] {
         ["mcpServers": [serverName: serverEntry(executable: executable)]]
     }

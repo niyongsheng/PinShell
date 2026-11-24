@@ -20,8 +20,8 @@ https://github.com/user-attachments/assets/e41163ae-ab77-47e9-a174-7bc201597627
 - Always-on-top HTML overlay across Spaces, with click-through, opacity, radius, and hot reload.
 - Two display modes: a **Desktop Overlay** pinned to the screen, or a **Menu Bar Popover** anchored below the menu-bar icon (left-click to show, right-click for the menu).
 - MCP server and CLI share one control socket; pages can push events back to the agent.
-- Control console (⌘K): templates, live preview, template editor, MCP info, About.
-- Online template library: eleven first-party templates (badges, goals, todo, system monitor, desktop pet, pomodoro, decision maker, vinyl radio, gomoku, stock board, workday calendar) with per-template versions, checksums, and install/update/ignore actions in the console. The workday calendar is bundled on first install so the app stays usable without the online library; install the others from the console.
+- Control console (⌃⌥C): the template library, local templates with live preview and editor, General settings, MCP setup, shortcuts, and About.
+- Online template library: eleven first-party templates (badges, goals, todo list, system monitor, desktop pet, pomodoro, decision maker, vinyl radio, gomoku, stock board, workday calendar) with per-template versions, checksums, and install/update/ignore actions in the console. Add other HTTPS libraries in **Console → General → Template Libraries**; all sources merge into one library page. The workday calendar is bundled on first install so the app stays usable without the online library; install the others from the console.
 - Menu-bar only, no Dock icon; update check against GitHub Releases, with in-app installer download (SHA-256 verified) handed off to the system Installer.
 
 ## Install
@@ -54,17 +54,19 @@ Launch PinShell, then use the menu-bar icon:
 
 | Menu item | Shortcut | Action |
 |---|---|---|
-| Console | ⌘K | Open the console |
+| Console | ⌃⌥C | Open the console |
 | Display Mode ▸ | | Choose Desktop Overlay or Menu Bar Popover |
-| Window Position ▸ | ⌘0 | Place the overlay in a screen corner (⌘0 = bottom-right) |
-| Window State: Interactive / Passthrough | ⌘T | Toggle click-through |
-| Window Shown / Window Hidden | ⌘H | Toggle the overlay (checked = shown) |
+| Window Position ▸ | | Place the overlay in a screen corner |
+| Window State: Interactive / Passthrough | ⌃⌥T | Toggle click-through |
+| Window Shown / Window Hidden | ⌃⌥P | Toggle the overlay (switch on = shown) |
 | Check for Updates… | ⌘U | Check GitHub Releases; download and install updates |
 | Quit PinShell | ⌘Q | Quit |
 
+Global shortcuts work in any app and can be changed in **Console → Shortcuts**; the Check for Updates and Quit shortcuts only apply while the menu is open.
+
 In **Desktop Overlay** mode, click and type inside the overlay; hold **⌘** and drag to move it; resize from the bottom-right grip (min 80×40). Passthrough sends mouse events to the app below.
 
-In **Menu Bar Popover** mode, left-click the icon to show or hide the template below it, and right-click (or Control-click) for this menu. The template stays anchored to the icon: window position, click-through, ⌘-drag and resizing are disabled. Launching PinShell or switching back from another app does not open the panel until you click the icon; applying a template or an explicit CLI/MCP `show` opens it.
+In **Menu Bar Popover** mode, left-click the icon to show or hide the template below it (with no template loaded, left-click opens this menu), and right-click (or Control-click) for this menu. The template stays anchored to the icon: window position, click-through, ⌘-drag and resizing are disabled. Launching PinShell or switching back from another app does not open the panel until you click the icon; applying a template or an explicit CLI/MCP `show` opens it.
 
 ## MCP
 
@@ -81,11 +83,11 @@ Open **Console → MCP** to copy the config, or add it manually:
 }
 ```
 
-Tools cover window/content (`pinshell_html`, `pinshell_show`), page interaction (`pinshell_eval`, `pinshell_emit`, `pinshell_poll_events`, `pinshell_await_event`, `pinshell_state`), and templates. MCP prompts package common workflows; the server and CLI share `~/Library/Application Support/PinShell/control.sock`.
+Tools cover window and content (`pinshell_html`, `pinshell_show`, `pinshell_set`, `pinshell_status`, `pinshell_close`), page interaction (`pinshell_eval`, `pinshell_emit`, `pinshell_poll_events`, `pinshell_await_event`, `pinshell_state`), and templates (`pinshell_templates` and `pinshell_template_*`). MCP prompts package common workflows; the server and CLI share `~/Library/Application Support/PinShell/control.sock`.
 
 ### Desktop pet
 
-Install `desktop-pet.html` from **Console (⌘K) → Online Template Library** first. It keeps itself alive with moods, idle behaviors, petting, and sleep, and an agent can drive it over the event channel. Page events are queued for the next agent poll; the pet cannot start a turn.
+Install `desktop-pet.html` from **Console (⌃⌥C) → Online Template Library** first. It keeps itself alive with moods, idle behaviors, petting, and sleep, and an agent can drive it over the event channel. Page events are queued for the next agent poll; the pet cannot start a turn.
 
 ```bash
 PinShell emit pet:hello '{"name":"Claude"}'
@@ -128,13 +130,13 @@ Window metadata (applied before load, re-applied on show/reload):
 <meta name="pinshell:order" content="10">
 ```
 
-Position accepts `top-left`, `top`, `top-right`, `left`, `center`, `right`, `bottom-left`, `bottom`, `bottom-right`, or `x,y`. CLI flags override metadata for the session.
+Position accepts `top-left`, `top`, `top-right`, `left`, `center`, `right`, `bottom-left`, `bottom`, `bottom-right`, or `x,y`. CLI flags override metadata for the session. `pinshell:order` is not a window property; it only controls the template library sort order.
 
 Templates live in PinShell's templates folder, where `design-tokens.css` and `pinshell-i18n.js` are seeded by the app. Reuse those shared tokens for the design system.
 
 ## Templates
 
-The online library is generated from [`website/templates`](./website/templates). To build a template, see the [template contribution guide](./docs/template-contribution.md).
+The official online library is generated from [`website/templates`](./website/templates). To build a template, see the [template contribution guide](./docs/template-contribution.md).
 
 ## License
 

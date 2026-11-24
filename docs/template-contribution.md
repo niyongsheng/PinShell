@@ -2,11 +2,11 @@
 
 **English** · [简体中文](./template-contribution.zh-CN.md)
 
-PinShell's online template library is generated from [`website/templates`](../website/templates).
+PinShell's official online template library is generated from [`website/templates`](../website/templates).
 This guide is the contract for contributing a template: file layout, `template.json`, HTML and
 i18n rules, design tokens, the agent event protocol, local validation, and the review checklist.
-A pull request merged to `main` publishes the template to the website and to the app's online
-library automatically.
+A pull request merged to `main` publishes the template to the website and to the app's official
+online library automatically.
 
 > The fastest way to learn the format is to copy a small existing template:
 > [`goal-progress`](../website/templates/goal-progress) (compact, live data) or
@@ -15,7 +15,7 @@ library automatically.
 ## 1. What a template is
 
 A template is a single, self-contained HTML document rendered in PinShell's always-on-top,
-transparent panel. Users install it from the online library into:
+transparent panel. Users install it from the official online library into:
 
 ```text
 ~/Library/Application Support/PinShell/templates/
@@ -159,7 +159,7 @@ The build enforces all of the following:
 | --- | --- |
 | Encoding | UTF-8, ≤ 512 KB. |
 | `<html lang>` | Present and equal to the i18n `default` language. |
-| i18n block | Exactly one `<script type="application/json" id="pinshell:i18n">` in the document. |
+| i18n block | One `<script type="application/json" id="pinshell:i18n">` block; the builder reads the first matching block. |
 | `default` | Must be `zh-Hans`. |
 | `fallback` | Must be `en`. |
 | `languages` | Must declare both `zh-Hans` and `en`; every declared language needs non-empty `meta.name` and `meta.description`. |
@@ -173,8 +173,9 @@ for agents that read the HTML.
 
 ### 4.2 Window metadata
 
-PinShell applies these before the page loads and re-applies them on show or reload. CLI flags may
-override them for a single session.
+PinShell applies the window properties (size, position, passthrough, opacity, radius) before the
+page loads and re-applies them on show or reload. CLI flags may override them for a single session.
+`pinshell:order` is only read as the library sort key.
 
 | Meta tag | Values | Notes |
 | --- | --- | --- |
@@ -216,9 +217,9 @@ Rules:
 - Default copy lives in the markup; the `zh-Hans` entry usually needs only `meta`.
 - Preview a language in a browser by appending `?lang=en` (or `?lang=zh-Hans`) to the payload URL.
 - Escape `</script` inside JSON strings as `<\/script`; otherwise the HTML block ends early.
-- In the app, the helper resolves the language from `window.pinshell.templateLanguage`, then
-  `window.pinshell.languages`, then the system preference. `PS.lang` keeps the legacy short form
-  (`zh-Hans` / `en`).
+- In the app, the helper resolves the language from `?lang=`, then
+  `window.pinshell.templateLanguage`, then `window.pinshell.languages` / `language`, then the
+  system preference. `PS.lang` keeps the legacy short form (`zh-Hans` / `en`).
 - If the template renders text into a `<canvas>`, query `PS.locale` when drawing; the helper only
   handles DOM text and attributes.
 
@@ -298,9 +299,9 @@ const bridge = window.pinshell || { emit() {}, on() {}, log() {} };
 
 | API | Direction | Purpose |
 | --- | --- | --- |
-| `bridge.emit(name, data)` | page → agent | Send a JSON-serializable event. Namespace it, e.g. `todo:changed`. |
+| `bridge.emit(name, data)` | page → agent | Send a JSON-serializable event. Namespace it, e.g. `todo-list:changed`. |
 | `bridge.on(name, callback)` | agent → page | Handle an event pushed with `pinshell_emit` or `PinShell emit`. |
-| `bridge.ready()` / `input()` / `submit()` / `cancel()` | page → agent | Shorthands for `ui:ready` / `ui:input` / `ui:submit` / `ui:cancel`. |
+| `bridge.ready()` / `input()` / `submit()` / `cancel()` / `message()` | page → agent | Shorthands for `ui:ready` / `ui:input` / `ui:submit` / `ui:cancel` / `ui:message`. |
 | `bridge.setSize(w, h)` | page → app | Resize the window. Do not fight the user's manual resize. |
 | `bridge.setPosition(anchor \| x, y)` | page → app | Move the window. |
 | `bridge.setPassthrough(enabled)` | page → app | Toggle click-through. |
@@ -377,7 +378,8 @@ cp "website/public/templates/<id>/<version>/<id>.html" \
   "$HOME/Library/Application Support/PinShell/templates/"
 ```
 
-Then open **Console (⌘K) → Templates**, or run `PinShell show <path-to-html>`. Note that opening
+Then open **Console (⌃⌥C) → Local** and select the new template, or run
+`PinShell show <path-to-html>`. Note that opening
 `website/templates/<id>/<id>.html` directly from the source tree will not find the sidecars; use
 the built preview or temporarily copy the sidecars next to it (do not commit them).
 
@@ -406,10 +408,11 @@ Before opening a PR, verify:
 - **`minAppVersion`** must be a shipped app version or lower. Raising it while the app release is
   still pending makes the online catalog require an app that users cannot download yet. If your
   template needs a new PinShell feature, land it after that app release ships.
-- **The ten first-party templates at `1.0.0`** have frozen hashes in
-  `Resources/legacy-templates.json` for the 1.4 → 1.5 migration. Do not modify those files while
-  they are at `1.0.0`; bump the version first, and coordinate with the maintainers if you are
-  changing an existing first-party template.
+- **The ten templates migrated from app 1.4** keep frozen `1.0.0` hashes in
+  `Resources/legacy-templates.json` for the 1.5 upgrade. Do not edit that file or reintroduce a
+  `1.0.0` payload whose hash differs. Those ten templates have since moved past `1.0.0` (for
+  example, `1.1.x`); bump `version` for every published change, and coordinate with the maintainers
+  if you are changing an existing first-party template.
 - **Categories** live in `website/site.json`. To add one, send a separate PR with bilingual
   names; do not invent a category in a template manifest.
 
@@ -429,8 +432,8 @@ Review focuses on: passing validation, self-contained offline behavior, complete
 correct use of design tokens, accessibility and reduced motion, performance in a long-running
 panel, security (no tracking, no remote code, no credentials), and content quality and licensing.
 
-After merge, the Pages workflow rebuilds the website and `library.json`. The app's online library
-picks it up on its next refresh; no app release is needed unless the template requires an app
+After merge, the Pages workflow rebuilds the website and `library.json`. The app's official online
+library picks it up on its next refresh; no app release is needed unless the template requires an app
 version that has not shipped yet. Users always choose whether to install or update; PinShell
 never installs a library template automatically.
 

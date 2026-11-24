@@ -35,7 +35,7 @@ sizes/hashes, and exits non-zero on problems. CI runs it on every PR.
   `author.name` is required; `author.url` is optional and must be HTTPS.
 - `templates/<id>/<id>.html` — flat single-file template. Must keep the `pinshell:i18n` block
   (default `zh-Hans`, fallback `en`) and may reference `design-tokens.css` / `pinshell-i18n.js`.
-- `src/pages/` — bilingual home, gallery, detail, and 404 shells.
+- `src/pages/` — bilingual home, gallery, FAQ, detail, and 404 shells.
 - `src/partials/` — shared nav/footer/head fragments.
 - `src/assets/` — CSS, JS, favicons, OG images, manifest.
 - `Sources/TemplateCatalogBuilder/` — SwiftPM executable that reuses `PinShellCore` parsing and
@@ -54,13 +54,16 @@ sizes/hashes, and exits non-zero on problems. CI runs it on every PR.
 `minAppVersion` must not be newer than `Resources/Info.plist`'s current version. Templates that need
 newer PinShell features are published after that app release ships.
 
-The ten migrated templates are pinned to version `1.0.0` and must keep the sha256 recorded in
-`Resources/legacy-templates.json`; app 1.4 users' unmodified copies are adopted as `1.0.0` on the
-first launch of 1.5. Bump the version before editing those files.
+`Resources/legacy-templates.json` keeps the frozen `1.0.0` sha256 values for the ten templates
+migrated from app 1.4; app 1.4 users' unmodified copies are adopted as `1.0.0` on the first launch
+of 1.5. Do not edit that file. Those ten source templates have since moved past `1.0.0` (for
+example, `1.1.x`), so bump `version` and add a changelog entry for every published change.
 
 ## Catalog contract
 
-`public/library.json` is the app's only remote input. Key fields per template:
+`public/library.json` is the official catalog the app reads by default. Users can add other HTTPS
+sources that serve the same schema in **Console → General → Template Libraries**. Key fields per
+template:
 
 - `languages.<tag>.name/description` — extracted from the HTML i18n block
 - `author.name/url` — attribution shown in the app and detail page
@@ -77,6 +80,7 @@ templates folder; they are not part of the payload hash.
 ## Deploy
 
 One-time repo setup: **Settings → Pages → Source: GitHub Actions**, then set **Custom domain** to
-`pinshell.looplooptech.com`. After that, pushes to `main` that touch `website/**`, the sidecars,
-`Resources/Info.plist`, or the logo rebuild and deploy the site. The generated `CNAME` file pins the
-custom domain.
+`pinshell.looplooptech.com`. After that, pushes to `main` that touch `website/**`,
+`Sources/PinShellCore/**`, `Resources/templates/**`, `Resources/Info.plist`, `Resources/logo.svg`,
+`Package.swift`, or the Pages workflow rebuild and deploy the site. The generated `CNAME` file pins
+the custom domain.

@@ -18,10 +18,10 @@ https://github.com/user-attachments/assets/e41163ae-ab77-47e9-a174-7bc201597627
 ## 功能
 
 - 始终置顶的 HTML 悬浮层，可跨所有「空间」（Spaces）显示；支持鼠标穿透、透明度、圆角和热重载。
-- 两种显示方式：**桌面悬浮**固定在屏幕上，或 **菜单栏弹出**锚定在菜单栏图标下方（左键显示/收起，右键打开菜单）。
+- 两种显示方式：**桌面悬浮**固定在屏幕上，或 **顶栏弹出**锚定在菜单栏图标下方（左键显示/收起，右键打开菜单）。
 - MCP 服务端与 CLI 共用同一个控制 socket；页面可以把事件推回给 Agent。
-- 控制台（⌘K）：模板、实时预览、模板编辑器、MCP 信息与「关于」。
-- 在线模板库：十一款第一方模板（轮播徽章、目标进度、待办事项、系统状态、桌面宠物、番茄时钟、小决定、黑胶电台、五子棋、股票看板、工作日历），带独立版本、校验与忽略更新；首次安装内置工作日历，即使无法访问在线模板库也能直接使用，其余模板可在控制台安装。
+- 控制台（⌃⌥C）：模板库、带实时预览与编辑器的本地模板、通用设置、MCP、快捷键与「关于」。
+- 在线模板库：十一款第一方模板（轮播徽章、目标进度、待办事项、系统状态、桌面宠物、番茄时钟、小决定、黑胶电台、五子棋、股票看板、工作日历），带独立版本、校验与忽略更新。可在 **控制台 → 通用 → 模板库来源** 添加其他 HTTPS 模板库，所有来源会合并到同一个模板库页。首次安装内置工作日历，即使无法访问在线模板库也能直接使用，其余模板可在控制台安装。
 - 仅驻留菜单栏，不显示 Dock 图标；支持从 GitHub Releases 检查更新，应用内下载安装包（SHA-256 校验）并交给系统安装器完成升级。
 
 ## 安装
@@ -54,17 +54,19 @@ make serve-site # 构建并在 http://127.0.0.1:8000 预览
 
 | 菜单项 | 快捷键 | 操作 |
 |---|---|---|
-| 控制台 | ⌘K | 打开控制台 |
-| 显示方式 ▸ | | 选择「桌面悬浮」或「菜单栏弹出」 |
-| 窗口位置 ▸ | ⌘0 | 将悬浮层放到屏幕角落（⌘0 为右下角） |
-| 窗口状态：交互 / 穿透 | ⌘T | 切换鼠标穿透 |
-| 窗口显示 / 窗口隐藏 | ⌘H | 开关悬浮层显隐（勾选为显示） |
+| 控制台 | ⌃⌥C | 打开控制台 |
+| 显示方式 ▸ | | 选择「桌面悬浮」或「顶栏弹出」 |
+| 窗口位置 ▸ | | 将悬浮层放到屏幕角落 |
+| 窗口状态：交互 / 穿透 | ⌃⌥T | 切换鼠标穿透 |
+| 窗口显示 / 窗口隐藏 | ⌃⌥P | 开关悬浮层显隐（开关打开为显示） |
 | 检查更新… | ⌘U | 检查 GitHub Releases 更新，下载并安装新版本 |
 | 退出 PinShell | ⌘Q | 退出 |
 
+全局快捷键在任意应用中生效，可在 **控制台 → 快捷键** 中修改；检查更新与退出的快捷键仅在菜单展开时有效。
+
 **桌面悬浮**模式下，你可以直接在悬浮层内点击和输入；按住 **⌘** 拖动可移动窗口，拖动右下角手柄可调整大小（最小 80×40）。开启鼠标穿透后，鼠标事件会发送给下方的应用。
 
-**菜单栏弹出**模式下，左键点击图标显示/收起图标下方的模板，右键（或 Control+点击）打开菜单。此时位置、穿透、⌘ 拖动和缩放都不可用。启动 PinShell 或从其它 App 切回来都不会自动弹出，需要点击图标；在控制台应用模板或 CLI/MCP 显式 `show` 时会自动弹出。
+**顶栏弹出**模式下，左键点击图标显示/收起图标下方的模板（尚未加载模板时，左键会打开菜单），右键（或 Control+点击）打开菜单。此时位置、穿透、⌘ 拖动和缩放都不可用。启动 PinShell 或从其它 App 切回来都不会自动弹出，需要点击图标；在控制台应用模板或 CLI/MCP 显式 `show` 时会自动弹出。
 
 ## MCP
 
@@ -81,11 +83,11 @@ make serve-site # 构建并在 http://127.0.0.1:8000 预览
 }
 ```
 
-工具覆盖窗口与内容（`pinshell_html`、`pinshell_show`）、页面交互（`pinshell_eval`、`pinshell_emit`、`pinshell_poll_events`、`pinshell_await_event`、`pinshell_state`）以及模板。MCP prompts 封装常见工作流；服务端与 CLI 共用 `~/Library/Application Support/PinShell/control.sock`。
+工具覆盖窗口与内容（`pinshell_html`、`pinshell_show`、`pinshell_set`、`pinshell_status`、`pinshell_close`）、页面交互（`pinshell_eval`、`pinshell_emit`、`pinshell_poll_events`、`pinshell_await_event`、`pinshell_state`）以及模板（`pinshell_templates` 与 `pinshell_template_*`）。MCP prompts 封装常见工作流；服务端与 CLI 共用 `~/Library/Application Support/PinShell/control.sock`。
 
 ### 桌面宠物
 
-请先从 **控制台（⌘K）→ 在线模板库** 安装 `desktop-pet.html`。它自己会换情绪、做小动作、被摸头、打瞌睡，agent 还能通过事件通道遥控它；页面事件是队列式的，不能反向发起会话。
+请先从 **控制台（⌃⌥C）→ 在线模板库** 安装 `desktop-pet.html`。它自己会换情绪、做小动作、被摸头、打瞌睡，agent 还能通过事件通道遥控它；页面事件是队列式的，不能反向发起会话。
 
 ```bash
 PinShell emit pet:hello '{"name":"Claude"}'
@@ -128,13 +130,13 @@ PinShell mcp
 <meta name="pinshell:order" content="10">
 ```
 
-`position` 支持 `top-left`、`top`、`top-right`、`left`、`center`、`right`、`bottom-left`、`bottom`、`bottom-right`，或 `x,y`。CLI 参数会在当前会话中覆盖元数据。
+`position` 支持 `top-left`、`top`、`top-right`、`left`、`center`、`right`、`bottom-left`、`bottom`、`bottom-right`，或 `x,y`。CLI 参数会在当前会话中覆盖元数据。`pinshell:order` 不是窗口属性，只用于模板库排序。
 
 模板位于 PinShell 的模板文件夹，App 会把 `design-tokens.css` 与 `pinshell-i18n.js` 播种到那里。可复用这些共享设计系统。
 
 ## 模板
 
-在线模板库由 [`website/templates`](./website/templates) 生成。制作模板请参考[模板贡献规范](./docs/template-contribution.zh-CN.md)。
+官方在线模板库由 [`website/templates`](./website/templates) 生成。制作模板请参考[模板贡献规范](./docs/template-contribution.zh-CN.md)。
 
 ## 许可证
 
