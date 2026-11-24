@@ -8,11 +8,13 @@ import Foundation
 /// - Claude Code: `~/.claude.json` 顶层 `mcpServers`（user scope）
 /// - Codex: `~/.codex/config.toml` 的 `[mcp_servers.pinshell]`
 /// - Cursor: `~/.cursor/mcp.json`
+/// - OpenCode: `~/.config/opencode/opencode.json` 的 `mcp.servers.pinshell`
 /// - Pi: `~/.pi/agent/mcp.json`
 public enum MCPClient: String, CaseIterable, Sendable {
     case claudeCode
     case codex
     case cursor
+    case opencode
     case pi
 
     /// 写入配置时使用的服务名。
@@ -46,6 +48,7 @@ public enum MCPClient: String, CaseIterable, Sendable {
         case .claudeCode: return "Claude Code"
         case .codex: return "Codex"
         case .cursor: return "Cursor"
+        case .opencode: return "OpenCode"
         case .pi: return "Pi"
         }
     }
@@ -70,6 +73,28 @@ public enum MCPClient: String, CaseIterable, Sendable {
                 .appendingPathComponent(".cursor", isDirectory: true)
                 .appendingPathComponent("mcp.json")
 
+        case .opencode:
+            // OPENCODE_CONFIG 显式指定配置文件时优先；否则用 XDG 全局配置目录。
+            if let custom = context.environment["OPENCODE_CONFIG"],
+               !custom.isEmpty {
+                return context.expand(custom)
+            }
+            let base: URL
+            if let xdg = context.environment["XDG_CONFIG_HOME"], !xdg.isEmpty {
+                base = context.expand(xdg)
+            } else {
+                base = context.home.appendingPathComponent(".config", isDirectory: true)
+            }
+            let directory = base.appendingPathComponent("opencode", isDirectory: true)
+            let json = directory.appendingPathComponent("opencode.json")
+            let jsonc = directory.appendingPathComponent("opencode.jsonc")
+            let manager = context.fileManager
+            if !manager.fileExists(atPath: json.path),
+               manager.fileExists(atPath: jsonc.path) {
+                return jsonc
+            }
+            return json
+
         case .pi:
             let directory = context.environment["PI_CODING_AGENT_DIR"]
                 .flatMap { $0.isEmpty ? nil : context.expand($0) }
@@ -83,31 +108,35 @@ public enum MCPClient: String, CaseIterable, Sendable {
     /// 是否检测到该客户端（配置文件/配置目录/可执行文件任一存在）。
     public func isDetected(in context: MCPClientContext = .current) -> Bool {
         let manager = context.fileManager
+        let configFile = configURL(in: context)
+        let configDirectory = configFile.deletingLastPathComponent()
         switch self {
         case .claudeCode:
-            return manager.fileExists(atPath: configURL(in: context).path)
+            return manager.fileExists(atPath: configFile.path)
                 || manager.fileExists(atPath: context.home
                     .appendingPathComponent(".claude", isDirectory: true).path)
                 || context.findExecutable("claude")
 
         case .codex:
-            return manager.fileExists(atPath: configURL(in: context).path)
-                || manager.fileExists(atPath: configURL(in: context)
-                    .deletingLastPathComponent().path)
+            return manager.fileExists(atPath: configFile.path)
+                || manager.fileExists(atPath: configDirectory.path)
                 || context.findExecutable("codex")
 
         case .cursor:
-            return manager.fileExists(atPath: configURL(in: context)
-                    .deletingLastPathComponent().path)
+            return manager.fileExists(atPath: configDirectory.path)
                 || manager.fileExists(atPath: "/Applications/Cursor.app")
                 || manager.fileExists(atPath: context.home
                     .appendingPathComponent("Applications/Cursor.app").path)
                 || context.findExecutable("cursor-agent")
 
+        case .opencode:
+            return manager.fileExists(atPath: configFile.path)
+                || manager.fileExists(atPath: configDirectory.path)
+                || context.findExecutable("opencode")
+
         case .pi:
-            return manager.fileExists(atPath: configURL(in: context).path)
-                || manager.fileExists(atPath: configURL(in: context)
-                    .deletingLastPathComponent().path)
+            return manager.fileExists(atPath: configFile.path)
+                || manager.fileExists(atPath: configDirectory.path)
                 || manager.fileExists(atPath: context.home
                     .appendingPathComponent(".pi", isDirectory: true).path)
                 || context.findExecutable("pi")
@@ -124,6 +153,9 @@ public enum MCPClient: String, CaseIterable, Sendable {
             configuredCommand = Self.codexCommand(
                 in: (try? String(contentsOf: url, encoding: .utf8)) ?? ""
             )
+        case .opencode:
+            configuredCommand = Self.openCodeCommand(at: url,
+                                                     fileManager: context.fileManager)
         default:
             configuredCommand = Self.jsonCommand(at: url, fileManager: context.fileManager)
         }
@@ -145,6 +177,8 @@ public enum MCPClient: String, CaseIterable, Sendable {
         switch self {
         case .codex:
             try installTOML(at: url, executable: executable, context: context)
+        case .opencode:
+            try installOpenCodeJSON(at: url, executable: executable, context: context)
         default:
             try installJSON(at: url, executable: executable, context: context)
         }
@@ -156,6 +190,8 @@ public enum MCPClient: String, CaseIterable, Sendable {
         switch self {
         case .codex:
             try uninstallTOML(at: url, context: context)
+        case .opencode:
+            try uninstallOpenCodeJSON(at: url, context: context)
         default:
             try uninstallJSON(at: url, context: context)
         }
@@ -200,6 +236,113 @@ public enum MCPClient: String, CaseIterable, Sendable {
         }
         root["mcpServers"] = servers
         try Self.writeJSONObject(root, to: url, context: context)
+    }
+
+    // MARK: OpenCode JSON
+
+    /// OpenCode 的本地 MCP 条目：
+    /// `mcp.servers.pinshell = { "type": "local", "command": [exe, "mcp"] }`。
+    /// 旧版配置把服务直挂在 `mcp` 下，检测到同名条目时原地更新，避免出现两份。
+    private func installOpenCodeJSON(at url: URL, executable: URL,
+                                     context: MCPClientContext) throws {
+        let url = Self.resolvedWriteURL(url, context: context)
+        var root = try Self.loadJSONObject(at: url, fileManager: context.fileManager) ?? [:]
+
+        var mcp: [String: Any]
+        if let existing = root["mcp"] {
+            guard let dictionary = existing as? [String: Any] else {
+                throw MCPClientConfigError.invalidStructure(url)
+            }
+            mcp = dictionary
+        } else {
+            mcp = [:]
+        }
+
+        let entry: [String: Any] = [
+            "type": "local",
+            "command": [executable.path, "mcp"],
+        ]
+
+        if let legacyValue = mcp[Self.serverName] {
+            guard let legacy = legacyValue as? [String: Any] else {
+                throw MCPClientConfigError.invalidStructure(url)
+            }
+            if Self.openCodeEntryMatches(legacy, executable: executable) { return }
+            mcp[Self.serverName] = entry
+        } else {
+            var servers: [String: Any]
+            if let existing = mcp["servers"] {
+                guard let dictionary = existing as? [String: Any] else {
+                    throw MCPClientConfigError.invalidStructure(url)
+                }
+                servers = dictionary
+            } else {
+                servers = [:]
+            }
+            if let existing = servers[Self.serverName] as? [String: Any],
+               Self.openCodeEntryMatches(existing, executable: executable) {
+                return
+            }
+            servers[Self.serverName] = entry
+            mcp["servers"] = servers
+        }
+
+        root["mcp"] = mcp
+        try Self.writeJSONObject(root, to: url, context: context)
+    }
+
+    private func uninstallOpenCodeJSON(at url: URL,
+                                       context: MCPClientContext) throws {
+        let url = Self.resolvedWriteURL(url, context: context)
+        guard context.fileManager.fileExists(atPath: url.path),
+              var root = try Self.loadJSONObject(at: url, fileManager: context.fileManager),
+              var mcp = root["mcp"] as? [String: Any] else {
+            return
+        }
+
+        var changed = false
+        if var servers = mcp["servers"] as? [String: Any],
+           servers.removeValue(forKey: Self.serverName) != nil {
+            mcp["servers"] = servers
+            changed = true
+        }
+        if mcp.removeValue(forKey: Self.serverName) != nil {
+            changed = true
+        }
+        guard changed else { return }
+
+        root["mcp"] = mcp
+        try Self.writeJSONObject(root, to: url, context: context)
+    }
+
+    private static func openCodeEntryMatches(_ entry: [String: Any],
+                                             executable: URL) -> Bool {
+        entry["type"] as? String == "local"
+            && entry["command"] as? [String] == [executable.path, "mcp"]
+    }
+
+    private static func openCodeCommand(at url: URL,
+                                        fileManager: FileManager) -> String? {
+        guard let root = try? loadJSONObject(at: url, fileManager: fileManager),
+              let mcp = root["mcp"] as? [String: Any] else {
+            return nil
+        }
+        if let servers = mcp["servers"] as? [String: Any],
+           let command = openCodeCommand(in: servers) {
+            return command
+        }
+        // 兼容旧版直接挂在 mcp 下的写法。
+        return openCodeCommand(in: mcp)
+    }
+
+    private static func openCodeCommand(in servers: [String: Any]) -> String? {
+        guard let entry = servers[serverName] as? [String: Any],
+              let command = entry["command"] as? [String],
+              let executable = command.first,
+              !executable.isEmpty else {
+            return nil
+        }
+        return executable
     }
 
     private static func loadJSONObject(at url: URL,
@@ -573,7 +716,7 @@ public enum MCPClientConfigError: Error, LocalizedError, Equatable {
         case .invalidJSON(let url):
             return "Not a valid JSON file: \(url.path)"
         case .invalidStructure(let url):
-            return "Unexpected mcpServers format: \(url.path)"
+            return "Unexpected configuration structure: \(url.path)"
         case .unreadable(let url):
             return "Cannot read config file: \(url.path)"
         }

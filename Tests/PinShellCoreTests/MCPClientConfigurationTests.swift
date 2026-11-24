@@ -151,6 +151,139 @@ final class MCPClientConfigurationTests: XCTestCase {
         XCTAssertFalse(MCPClient.pi.status(executable: executable, in: ctx).configured)
     }
 
+    // MARK: - OpenCode
+
+    func testOpenCodeUsesGlobalConfigPath() throws {
+        let ctx = context(home)
+        XCTAssertEqual(MCPClient.opencode.configURL(in: ctx).path,
+                       home.appendingPathComponent(".config/opencode/opencode.json").path)
+
+        try MCPClient.opencode.install(executable: executable, in: ctx)
+
+        let root = try jsonObject(at: MCPClient.opencode.configURL(in: ctx))
+        let mcp = try XCTUnwrap(root["mcp"] as? [String: Any])
+        let servers = try XCTUnwrap(mcp["servers"] as? [String: Any])
+        let entry = try XCTUnwrap(servers["pinshell"] as? [String: Any])
+        XCTAssertEqual(entry["type"] as? String, "local")
+        XCTAssertEqual(entry["command"] as? [String], [executable.path, "mcp"])
+
+        let status = MCPClient.opencode.status(executable: executable, in: ctx)
+        XCTAssertTrue(status.detected)
+        XCTAssertTrue(status.configured)
+        XCTAssertTrue(status.commandMatches)
+        XCTAssertFalse(status.needsUpdate)
+    }
+
+    func testOpenCodeInstallPreservesOtherConfiguration() throws {
+        let ctx = context(home)
+        let url = MCPClient.opencode.configURL(in: ctx)
+        let existing: [String: Any] = [
+            "$schema": "https://opencode.ai/config.json",
+            "theme": "system",
+            "mcp": [
+                "servers": [
+                    "other": ["type": "local", "command": ["/bin/echo", "hi"]]
+                ]
+            ]
+        ]
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        try writeJSON(existing, to: url)
+
+        try MCPClient.opencode.install(executable: executable, in: ctx)
+
+        let root = try jsonObject(at: url)
+        XCTAssertEqual(root["$schema"] as? String, "https://opencode.ai/config.json")
+        XCTAssertEqual(root["theme"] as? String, "system")
+        let mcp = try XCTUnwrap(root["mcp"] as? [String: Any])
+        let servers = try XCTUnwrap(mcp["servers"] as? [String: Any])
+        XCTAssertNotNil(servers["other"])
+        XCTAssertNotNil(servers["pinshell"])
+    }
+
+    func testOpenCodeUpdatesLegacyDirectEntryInPlace() throws {
+        let ctx = context(home)
+        let url = MCPClient.opencode.configURL(in: ctx)
+        let existing: [String: Any] = [
+            "mcp": [
+                "pinshell": [
+                    "type": "local",
+                    "command": ["/old/PinShell", "mcp"]
+                ]
+            ]
+        ]
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        try writeJSON(existing, to: url)
+
+        try MCPClient.opencode.install(executable: executable, in: ctx)
+
+        let root = try jsonObject(at: url)
+        let mcp = try XCTUnwrap(root["mcp"] as? [String: Any])
+        XCTAssertNil(mcp["servers"])
+        let entry = try XCTUnwrap(mcp["pinshell"] as? [String: Any])
+        XCTAssertEqual(entry["command"] as? [String], [executable.path, "mcp"])
+        XCTAssertTrue(MCPClient.opencode.status(executable: executable, in: ctx).commandMatches)
+    }
+
+    func testOpenCodeUninstallRemovesOnlyPinShell() throws {
+        let ctx = context(home)
+        let url = MCPClient.opencode.configURL(in: ctx)
+        try MCPClient.opencode.install(executable: executable, in: ctx)
+        var root = try jsonObject(at: url)
+        var mcp = try XCTUnwrap(root["mcp"] as? [String: Any])
+        var servers = try XCTUnwrap(mcp["servers"] as? [String: Any])
+        servers["other"] = ["type": "local", "command": ["/bin/echo", "hi"]]
+        mcp["servers"] = servers
+        root["mcp"] = mcp
+        try writeJSON(root, to: url)
+
+        try MCPClient.opencode.uninstall(in: ctx)
+
+        let updated = try jsonObject(at: url)
+        let updatedMcp = try XCTUnwrap(updated["mcp"] as? [String: Any])
+        let updatedServers = try XCTUnwrap(updatedMcp["servers"] as? [String: Any])
+        XCTAssertNil(updatedServers["pinshell"])
+        XCTAssertNotNil(updatedServers["other"])
+        XCTAssertFalse(MCPClient.opencode.status(executable: executable, in: ctx).configured)
+    }
+
+    func testOpenCodeConfigPathHonorsEnvironment() {
+        let xdg = MCPClientContext(home: home,
+                                   environment: ["XDG_CONFIG_HOME": "/tmp/opencode-config"],
+                                   executableSearchPaths: [])
+        XCTAssertEqual(MCPClient.opencode.configURL(in: xdg).path,
+                       "/tmp/opencode-config/opencode/opencode.json")
+
+        let custom = MCPClientContext(home: home,
+                                      environment: ["OPENCODE_CONFIG": "/tmp/custom/opencode.json"],
+                                      executableSearchPaths: [])
+        XCTAssertEqual(MCPClient.opencode.configURL(in: custom).path,
+                       "/tmp/custom/opencode.json")
+    }
+
+    func testOpenCodePrefersExistingJSONC() throws {
+        let ctx = context(home)
+        let directory = home.appendingPathComponent(".config/opencode")
+        try FileManager.default.createDirectory(at: directory,
+                                                withIntermediateDirectories: true)
+        let jsonc = directory.appendingPathComponent("opencode.jsonc")
+        try Data("{\"mcp\": {}}".utf8).write(to: jsonc)
+
+        XCTAssertEqual(MCPClient.opencode.configURL(in: ctx).path, jsonc.path)
+    }
+
+    func testOpenCodeStatusReportsStaleExecutable() throws {
+        let ctx = context(home)
+        let oldExecutable = URL(fileURLWithPath: "/tmp/old/PinShell")
+        try MCPClient.opencode.install(executable: oldExecutable, in: ctx)
+
+        let status = MCPClient.opencode.status(executable: executable, in: ctx)
+        XCTAssertTrue(status.configured)
+        XCTAssertFalse(status.commandMatches)
+        XCTAssertTrue(status.needsUpdate)
+    }
+
     // MARK: - Codex
 
     func testCodexInstallAppendsTOMLSection() throws {

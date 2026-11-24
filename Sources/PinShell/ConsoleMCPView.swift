@@ -109,14 +109,6 @@ final class ConsoleMCPView: NSView {
             initiallyExpanded: true)
         let stack = card.content
 
-        let subtitle = NSTextField(wrappingLabelWithString:
-            NSLocalizedString("console.mcp.clients.subtitle", comment: ""))
-        subtitle.font = ConsoleTheme.Font.caption
-        subtitle.textColor = .secondaryLabelColor
-
-        stack.addArrangedSubview(subtitle)
-        subtitle.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-
         for (index, client) in MCPClient.allCases.enumerated() {
             let row = buildClientRow(client)
             clientRows.append(row)
@@ -355,6 +347,13 @@ final class ConsoleMCPView: NSView {
             accessories: [copyConfigButton])
         let stack = card.content
 
+        let subtitle = NSTextField(wrappingLabelWithString:
+            NSLocalizedString("console.mcp.config.subtitle", comment: ""))
+        subtitle.font = ConsoleTheme.Font.caption
+        subtitle.textColor = .secondaryLabelColor
+        stack.addArrangedSubview(subtitle)
+        subtitle.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+
         configLabel.isSelectable = true
         configLabel.font = ConsoleTheme.Font.monoCode
         configLabel.textColor = .labelColor
@@ -514,8 +513,7 @@ final class ConsoleMCPView: NSView {
     }
 
     private func copy(_ text: String, button: NSButton, restore: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        copyStringToPasteboard(text)
         button.title = NSLocalizedString("console.events.copied", comment: "")
         copyResetWork?.cancel()
         let work = DispatchWorkItem { button.title = restore }
