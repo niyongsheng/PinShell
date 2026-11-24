@@ -6,6 +6,7 @@ struct SiteStrings {
     let downloadHTML: String
     let installApp: String
     let installHint: String
+    let installFallback: String
     let highlights: String
     let changelog: String
     let metadata: String
@@ -31,8 +32,9 @@ struct SiteStrings {
             return SiteStrings(
                 backToGallery: "All templates",
                 downloadHTML: "Download bundle",
-                installApp: "Install PinShell",
-                installHint: "Open PinShell, press ⌘K, then choose Online Template Library to install and receive updates.",
+                installApp: "Install in PinShell",
+                installHint: "Opens PinShell and installs this template on this Mac.",
+                installFallback: "Not installed yet? Get PinShell",
                 highlights: "Highlights",
                 changelog: "Release notes",
                 metadata: "Details",
@@ -50,8 +52,9 @@ struct SiteStrings {
         return SiteStrings(
             backToGallery: "全部模板",
             downloadHTML: "下载模板包",
-            installApp: "安装 PinShell",
-            installHint: "打开 PinShell，按 ⌘K，在“在线模板库”中一键安装并接收更新。",
+            installApp: "安装到 PinShell",
+            installHint: "点击后会自动打开 PinShell 并安装该模板。",
+            installFallback: "尚未安装？先安装 PinShell",
             highlights: "亮点",
             changelog: "更新日志",
             metadata: "详情",
@@ -206,8 +209,11 @@ enum PageRenderer {
                     payloadHref: relativeHref(from: detailPath, to: payloadPath),
                     bundleHref: relativeHref(from: detailPath, to: bundlePath),
                     backHref: relativeHref(from: detailPath, to: galleryPath),
-                    installHref: relativeHref(from: detailPath,
-                                              to: isEN ? "en/index.html" : "index.html") + "#install")
+                    installHref: installDeepLink(
+                        templateID: template.entry.id,
+                        catalogURL: siteURL + "/library.json"),
+                    appInstallHref: relativeHref(
+                        from: detailPath, to: isEN ? "en/index.html" : "index.html") + "#install")
                 try renderPage(
                     source: paths.source.appendingPathComponent(
                         isEN ? "pages/en/templates/detail.html" : "pages/zh/templates/detail.html"),
@@ -401,6 +407,12 @@ enum PageRenderer {
         """
     }
 
+    /// 官网按钮 → 自定义 scheme；PinShell 会校验 catalog 域名后从受信任目录安装。
+    private static func installDeepLink(templateID: String, catalogURL: String) -> String {
+        PinShellDeepLink.installURL(templateID: templateID, catalogURL: catalogURL)?
+            .absoluteString ?? ""
+    }
+
     private static func detailBody(_ template: BuiltTemplate,
                                    language: String,
                                    site: SiteConfig,
@@ -408,7 +420,8 @@ enum PageRenderer {
                                    payloadHref: String,
                                    bundleHref: String,
                                    backHref: String,
-                                   installHref: String) -> String {
+                                   installHref: String,
+                                   appInstallHref: String) -> String {
         let entry = template.entry
         let isEN = LanguageTag.matches(language, "en")
         let name = entry.localizedName(preferredLanguages: [language])
@@ -477,7 +490,7 @@ enum PageRenderer {
               <a class="button primary" href="\(escapeAttribute(bundleHref))" download>\(escapeHTML(strings.downloadHTML))</a>
               <a class="button secondary" href="\(escapeAttribute(installHref))">\(escapeHTML(strings.installApp))</a>
             </div>
-            <p class="fine">\(escapeHTML(strings.installHint))</p>
+            <p class="fine">\(escapeHTML(strings.installHint)) <a class="text-link" href="\(escapeAttribute(appInstallHref))">\(escapeHTML(strings.installFallback))</a></p>
           </header>
           <div class="detail-grid">
             <div class="stage-wrap">

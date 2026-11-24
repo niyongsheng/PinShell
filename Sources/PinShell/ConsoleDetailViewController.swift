@@ -32,7 +32,8 @@ final class ConsoleDetailViewController: NSViewController {
     /// MCP 页在首次打开时才构建，避免打开控制台就创建整套卡片。
     private var mcpView: ConsoleMCPView?
     private var libraryView: ConsoleLibraryView?
-    private let aboutView = ConsoleAboutView()
+    /// 关于页在首次打开时才构建，与 MCP 页一致。
+    private var aboutView: ConsoleAboutView?
 
     // 模板详情
     private let previewCard = ConsoleCard(
@@ -157,7 +158,7 @@ final class ConsoleDetailViewController: NSViewController {
 
         buildTemplatePage()
         buildEmptyPage()
-        for page in [templatePage, emptyPage, aboutView] {
+        for page in [templatePage, emptyPage] {
             page.translatesAutoresizingMaskIntoConstraints = false
             contentContainer.addSubview(page)
             NSLayoutConstraint.activate([
@@ -169,7 +170,6 @@ final class ConsoleDetailViewController: NSViewController {
         }
         templatePage.isHidden = true
         emptyPage.isHidden = false
-        aboutView.isHidden = true
     }
 
     private func buildStatusBar() -> NSView {
@@ -402,11 +402,27 @@ final class ConsoleDetailViewController: NSViewController {
     private func show(_ page: Page) {
         currentPage = page
         if page == .mcp { ensureMCPView() }
+        if page == .about { ensureAboutView() }
         templatePage.isHidden = page != .template
         emptyPage.isHidden = page != .empty
         mcpView?.isHidden = page != .mcp
         libraryView?.isHidden = page != .library
-        aboutView.isHidden = page != .about
+        aboutView?.isHidden = page != .about
+    }
+
+    private func ensureAboutView() {
+        guard aboutView == nil else { return }
+        let view = ConsoleAboutView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        contentContainer.addSubview(view)
+        NSLayoutConstraint.activate([
+            view.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
+            view.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+            view.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            view.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
+        ])
+        view.isHidden = true
+        aboutView = view
     }
 
     private func ensureMCPView() {
@@ -521,6 +537,12 @@ final class ConsoleDetailViewController: NSViewController {
         ensureLibraryView(service: service)
         show(.library)
         libraryView?.activate()
+    }
+
+    /// 官网深链：确保模板库页存在并安装指定模板。
+    func installTemplateFromLibrary(id: String, service: TemplateLibraryService) async {
+        ensureLibraryView(service: service)
+        await libraryView?.installTemplate(id: id)
     }
 
     func refreshLibrary() {

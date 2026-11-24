@@ -60,6 +60,7 @@ final class TemplateLibraryService {
         case stateReadOnly
         case backupFailed
         case payloadInvalid(String)
+        case templateNotFound(String)
 
         var errorDescription: String? {
             switch self {
@@ -83,6 +84,10 @@ final class TemplateLibraryService {
                 return String(
                     format: NSLocalizedString("library.error.payload", comment: ""),
                     message)
+            case .templateNotFound(let id):
+                return String(
+                    format: NSLocalizedString("library.error.templateNotFound", comment: ""),
+                    id)
             }
         }
     }
@@ -107,6 +112,8 @@ final class TemplateLibraryService {
     private let appDirectory: URL
     private weak var windowController: OverlayWindowController?
     private var installTask: Task<Result<Void, Error>, Never>?
+    /// 进行中的 catalog 请求；`ensureLoaded` / `installTemplate` 共享同一次加载。
+    private var refreshTask: Task<Void, Never>?
     private var didPrepare = false
     private var observer: NSObjectProtocol?
 
@@ -180,25 +187,42 @@ final class TemplateLibraryService {
         switch loadState {
         case .idle, .failed:
             await refresh()
-        case .loading, .loaded:
-            rebuildRows()
-            onChange?()
+        case .loading:
+            if let refreshTask { await refreshTask.value }
+        case .loaded:
+            if let refreshTask {
+                await refreshTask.value
+            } else {
+                rebuildRows()
+                onChange?()
+            }
         }
     }
 
+    /// 加载 catalog；已有请求在途时等待同一次请求，避免重复拉取与重复 hash 扫描。
     func refresh(force: Bool = false) async {
-        guard !isRefreshing else { return }
+        if let refreshTask {
+            await refreshTask.value
+            return
+        }
         isRefreshing = true
         if loadState == .idle {
             loadState = .loading
         }
         onChange?()
-        defer {
-            isRefreshing = false
-            onChange?()
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.performRefresh(force: force)
         }
-        prepareIfNeeded()
+        refreshTask = task
+        await task.value
+        refreshTask = nil
+        isRefreshing = false
+        onChange?()
+    }
 
+    private func performRefresh(force: Bool) async {
+        prepareIfNeeded()
         do {
             let snapshot = try await client.fetch(catalogURL: catalogURL,
                                                   forceRefresh: force)
@@ -229,6 +253,33 @@ final class TemplateLibraryService {
             return id ?? ""
         }
         return category.name(preferredLanguages: LanguageTag.templatePreferredLanguages)
+    }
+
+    /// 按 id 查询目录行；catalog 未加载或模板不存在时返回 nil。
+    func row(id: String) -> Row? {
+        rows.first(where: { $0.entry.id == id })
+    }
+
+    /// 官网深链入口：按 id 安装目录中的最新版本。
+    /// 已是最新则直接返回；本地有修改时先备份再安装，不静默覆盖用户改动。
+    func installTemplate(id: String) async throws {
+        await ensureLoaded()
+        if row(id: id) == nil, snapshot != nil {
+            await refresh(force: true)
+        }
+        guard let snapshot, !snapshot.isReadOnly else {
+            throw ServiceError.catalogUnavailable
+        }
+        guard let row = row(id: id) else {
+            throw ServiceError.templateNotFound(id)
+        }
+        if row.evaluation.installState == .installed && !row.evaluation.updateAvailable {
+            return
+        }
+        let conflict: ConflictDecision = conflictDecisionNeeded(for: row)
+            ? .backupAndInstall
+            : .replace
+        try await install(row, conflict: conflict)
     }
 
     func conflictDecisionNeeded(for row: Row) -> Bool {

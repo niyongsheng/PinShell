@@ -18,6 +18,17 @@
 	<string>PinShell</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.pinshell.app.install</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>pinshell</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleShortVersionString</key>
 	<string>1.5.0</string>
 	<key>CFBundleVersion</key>

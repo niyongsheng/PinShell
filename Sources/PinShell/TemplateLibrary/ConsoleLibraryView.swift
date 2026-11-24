@@ -23,7 +23,6 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
     private lazy var header = PageHeader(
         symbol: "square.grid.2x2",
         title: NSLocalizedString("library.title", comment: ""),
-        subtitle: NSLocalizedString("library.subtitle", comment: ""),
         accessory: refreshButton)
 
     private let searchField = NSSearchField()
@@ -89,6 +88,16 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
         Task { @MainActor in
             await service.ensureLoaded()
             self.refresh()
+        }
+    }
+
+    /// 官网深链：打开模板库后直接安装指定模板。
+    func installTemplate(id: String) async {
+        activate()
+        do {
+            try await service.installTemplate(id: id)
+        } catch {
+            presentConsoleErrorAlert(error, in: window)
         }
     }
 
@@ -441,8 +450,8 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate {
         case .done:
             phase = NSLocalizedString("library.phase.done", comment: "")
         }
-        let name = service.rows.first(where: { $0.entry.id == progress.templateID })?
-            .localizedName ?? progress.templateID
+        let name = service.row(id: progress.templateID)?.localizedName
+            ?? progress.templateID
         progressLabel.stringValue = "\(phase) · \(name)"
         cancelButton.isHidden = progress.phase == .done
         if progress.phase == .done {

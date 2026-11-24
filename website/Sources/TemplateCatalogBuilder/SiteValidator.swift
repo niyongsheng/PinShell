@@ -141,7 +141,8 @@ enum SiteValidator {
         let lower = raw.lowercased()
         if lower.hasPrefix("#") { return false }
         for scheme in ["http://", "https://", "mailto:", "tel:", "data:",
-                       "javascript:", "//"] where lower.hasPrefix(scheme) {
+                       "javascript:", "\(PinShellDeepLink.scheme):", "//"]
+        where lower.hasPrefix(scheme) {
             return false
         }
         return true

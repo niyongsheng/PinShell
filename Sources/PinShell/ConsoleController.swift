@@ -287,6 +287,15 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         window.toolbar?.validateVisibleItems()
     }
 
+    /// 官网深链：打开控制台与模板库，并安装指定模板。
+    func installTemplateFromLibrary(id: String) {
+        show()
+        sidebar.selectLibrary()
+        Task { @MainActor in
+            await detail.installTemplateFromLibrary(id: id, service: libraryService)
+        }
+    }
+
     private func libraryChanged() {
         sidebar.updateLibraryBadge(libraryService.updateCount)
         detail.refreshLibrary()

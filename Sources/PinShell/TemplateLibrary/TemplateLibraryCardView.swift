@@ -366,16 +366,7 @@ final class TemplateLibraryCardView: NSView {
     }
 
     private func showErrorAlert(_ error: Error) {
-        let alert = NSAlert()
-        alert.messageText = NSLocalizedString("library.error.title", comment: "")
-        alert.informativeText = error.localizedDescription
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: NSLocalizedString("console.error.ok", comment: ""))
-        if let window {
-            alert.beginSheetModal(for: window)
-        } else {
-            alert.runModal()
-        }
+        presentConsoleErrorAlert(error, in: window)
     }
 }
 
