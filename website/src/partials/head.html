@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{TITLE}}</title>
   <meta name="description" content="{{DESCRIPTION}}">
-  <meta name="color-scheme" content="light">
+  <meta name="color-scheme" content="light dark">
   {{ROBOTS}}
   <link rel="canonical" href="{{CANONICAL}}">
   <link rel="alternate" hreflang="zh-Hans" href="{{ALT_ZH}}">
@@ -27,6 +27,24 @@
   <meta name="twitter:image" content="{{OG_IMAGE}}">
   <meta name="twitter:image:alt" content="{{TITLE}}">
   <meta name="theme-color" content="#f5f5f7">
+  <script>
+    // 在样式表之前决定主题，避免深色模式下的白屏闪烁。
+    (function () {
+      var theme = null;
+      try {
+        var saved = localStorage.getItem('pinshell-site-theme');
+        if (saved === 'light' || saved === 'dark') theme = saved;
+      } catch (error) {}
+      if (!theme) {
+        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      var root = document.documentElement;
+      root.setAttribute('data-theme', theme);
+      root.style.colorScheme = theme;
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', theme === 'dark' ? '#000000' : '#f5f5f7');
+    })();
+  </script>
   <link rel="icon" href="{{ROOT}}assets/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="{{ROOT}}assets/favicon-32.png" sizes="32x32">
   <link rel="apple-touch-icon" href="{{ROOT}}assets/apple-touch-icon.png">

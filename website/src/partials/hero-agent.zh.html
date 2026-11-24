@@ -1,0 +1,44 @@
+<div class="agent-menubar" aria-hidden="true">
+  <span class="agent-menubar-brand"><svg viewBox="0 0 1024 1024" aria-hidden="true"><path d="M844.8 332.8c0-182.857143-149.942857-332.8-332.8-332.8S179.2 149.942857 179.2 332.8c0 171.885714 128 310.857143 296.228571 329.142857V920L512 1024L548.571429 920V661.942857c164.571429-18.285714 296.228571-157.257143 296.228571-329.142857z m-263.314286-182.857143l-128 25.6-109.714285 113.371429-10.971429 109.714285H288.914286V259.657143L438.857143 109.714286H581.485714v40.228571z"/></svg>PinShell</span>
+  <span class="agent-menubar-status"><i></i>MCP<time>14:32</time></span>
+</div>
+
+<div class="agent-scene" aria-hidden="true">
+  <div class="agent-terminal">
+    <div class="agent-terminal-bar">
+      <span class="agent-terminal-dots"><i></i><i></i><i></i></span>
+      <span class="agent-terminal-title">agent — ~/notes</span>
+      <span class="agent-terminal-status"><i></i>MCP</span>
+    </div>
+    <div class="agent-terminal-body">
+      <p class="term-line term-cmd"><span class="term-prompt">❯</span> 把今天的待办事项列出来，完成的勾掉</p>
+      <p class="term-line term-call"><span class="term-mark">⏺</span> <span class="term-tool">pinshell_templates</span></p>
+      <p class="term-line term-result"><span class="term-elbow">⎿</span> 11 个已安装模板</p>
+      <p class="term-line term-call"><span class="term-mark">⏺</span> <span class="term-tool">pinshell_template_show</span><span class="term-args">("todo-list")</span></p>
+      <p class="term-line term-result"><span class="term-elbow">⎿</span> 窗口已置顶 · 320 × 420</p>
+      <p class="term-line term-call"><span class="term-mark">⏺</span> <span class="term-tool">pinshell_await_event</span><span class="term-args">("todo-list:changed")</span></p>
+      <p class="term-line term-result"><span class="term-elbow">⎿</span> 等待面板交互…</p>
+      <p class="term-line term-event"><span class="term-arrow">←</span> todo-list:changed <span class="term-args">{"total": 3, "done": 2}</span></p>
+      <p class="term-line term-call"><span class="term-mark">⏺</span> <span class="term-tool">pinshell_eval</span><span class="term-args">("render()")</span></p>
+      <p class="term-line term-result term-last"><span class="term-elbow">⎿</span> 2/3 完成 · 界面已刷新<span class="term-caret"></span></p>
+    </div>
+  </div>
+
+  <div class="agent-panel">
+    <div class="agent-panel-top">
+      <span class="agent-panel-app">PinShell <em>overlay</em></span>
+      <span class="agent-panel-live"><i></i>MCP · LIVE</span>
+    </div>
+    <div class="agent-panel-head">
+      <strong>今日待办</strong>
+      <span>2 / 3</span>
+    </div>
+    <ul class="agent-tasks">
+      <li class="is-done"><span class="agent-check">✓</span><span>产品评审纪要</span></li>
+      <li class="is-done"><span class="agent-check">✓</span><span>修复登录超时</span></li>
+      <li class="is-active"><span class="agent-check"></span><span>写周报</span></li>
+    </ul>
+    <div class="agent-progress"><i></i></div>
+    <p class="agent-panel-foot"><i></i>Agent 正在处理：写周报</p>
+  </div>
+</div>

@@ -8,8 +8,8 @@
   "githubURL": "https://github.com/niyongsheng/PinShell",
   "issuesURL": "https://github.com/niyongsheng/PinShell/issues",
   "releasesURL": "https://github.com/niyongsheng/PinShell/releases",
-  "featured": ["desktop-pet", "todo", "system-monitor", "ai-radio", "gomoku", "stock-board"],
-  "hero": ["desktop-pet", "system-monitor", "decision-maker"],
+  "communityURL": "https://qm.qq.com/q/PGZ4SIY8Io",
+  "featured": ["desktop-pet", "todo-list", "system-monitor", "ai-radio", "gomoku", "stock-board"],
   "languages": [
     {
       "id": "zh-Hans",

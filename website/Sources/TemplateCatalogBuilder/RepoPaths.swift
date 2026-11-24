@@ -21,9 +21,9 @@ struct SiteConfig: Codable, Equatable {
     var githubURL: String
     var issuesURL: String
     var releasesURL: String
+    /// 社群入口（QQ 群邀请链接），用于 FAQ 帮助卡。
+    var communityURL: String
     var featured: [String]
-    /// 首页 hero 舞台的模板与顺序；缺省时取 featured 前三。
-    var hero: [String]?
     var languages: [SiteLanguage]
     var categories: [TemplateLibraryCategory]
 

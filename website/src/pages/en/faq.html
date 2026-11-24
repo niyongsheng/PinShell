@@ -1,0 +1,64 @@
+<!-- include: head.html -->
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <!-- include: nav.en.html -->
+
+  <main id="main" class="faq-page">
+    <header class="gallery-head">
+      <p class="eyebrow">FAQ</p>
+      <h1>Frequently asked questions</h1>
+      <p class="lead">How to move and resize the window, where your data goes — answers to the common questions about PinShell.</p>
+    </header>
+
+    <section class="section faq-section">
+      <div class="faq-layout">
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary><span>Is PinShell free?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+            <div class="faq-answer"><p>Yes — free and open source under Apache 2.0, with no account, subscription, or in-app purchase. The first-party templates in the online library are free too, and update independently.</p></div>
+          </details>
+          <details class="faq-item">
+            <summary><span>Is my usage data uploaded anywhere?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+            <div class="faq-answer"><p>No. PinShell has no account system and no telemetry. Pages run locally from <code>file://</code>, and the MCP server and CLI talk over a local <code>control.sock</code>. Template files are downloaded from this site only when you install one; some templates (stocks, AI radio) call public data APIs on their own.</p></div>
+          </details>
+          <details class="faq-item">
+            <summary><span>How do I make my own template?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+            <div class="faq-answer"><p>No coding needed: copy the configuration from Console → MCP and paste it into an MCP-capable client such as Doubao, Qwen, DeepSeek Harness, or WorkBuddy, and let the AI set it up. Then just describe the panel or change you want in the conversation — the AI creates, edits, and manages templates, with the window updating live.</p></div>
+          </details>
+          <details class="faq-item">
+            <summary><span>How do I contribute a template to the website?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+            <div class="faq-answer"><p>Add <code>template.json</code> and <code>&lt;id&gt;.html</code> under <code>website/templates/&lt;id&gt;/</code>, follow the <a href="{{GITHUB_URL}}/blob/main/docs/template-contribution.md">template contribution guide</a> for the manifest, localization, and design-token rules, and run the local validation. Then open a PR against <code>niyongsheng/PinShell</code> titled <code>feat(template): add &lt;id&gt;</code>. Once merged, it is published automatically to the website and the App template library.</p></div>
+          </details>
+          <details class="faq-item">
+            <summary><span>How do I move or resize the overlay?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+            <div class="faq-answer"><p>In Desktop Overlay mode, hold <code>⌘</code> and drag anywhere in the window to move it; drag the handle in the bottom-right corner to resize. You can also snap the window to a screen corner from the PinShell menu bar icon → Window Position. In Menu Bar Popover mode the window stays anchored to the menu bar icon and cannot be moved freely.</p></div>
+          </details>
+          <details class="faq-item">
+            <summary><span>What is the difference between Desktop Overlay and Menu Bar Popover?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+            <div class="faq-answer"><p>Desktop Overlay keeps the window above your desktop, free to move, resize, and click through. Menu Bar Popover attaches the template to the menu bar icon: click to show, click outside to dismiss, with a fixed position. Switch between them anytime from the PinShell menu bar icon → Display Mode.</p></div>
+          </details>
+          <details class="faq-item">
+            <summary><span>macOS says the developer cannot be verified, or the app is damaged?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+            <div class="faq-answer"><p>The package is ad-hoc signed and not yet notarized. Go to System Settings → Privacy &amp; Security and click “Open Anyway”, or run <code>xattr -dr com.apple.quarantine ~/Downloads/PinShell-*.pkg</code> on the package before installing.</p></div>
+          </details>
+        </div>
+        <aside class="faq-help">
+          <p class="faq-help-eyebrow">GitHub Issues</p>
+          <h3>Still have questions?</h3>
+          <p>Include your macOS version, app version, steps to reproduce, and logs in a GitHub issue — we'll follow up as soon as we can.</p>
+          <div class="faq-actions">
+            <a class="help-button" href="{{ISSUES_URL}}" target="_blank" rel="noopener">
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
+              Open an issue
+            </a>
+            <a class="help-button" href="{{COMMUNITY_URL}}" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-8.4 8.4 9.6 9.6 0 0 1-3.9-.8L3 20.5l1.4-4.6a8.2 8.2 0 0 1-1.4-4.4a8.4 8.4 0 0 1 8.4-8.4h.2A8.4 8.4 0 0 1 21 11.5z"></path><path d="M8.6 11.5h.01M12.2 11.5h.01M15.8 11.5h.01" stroke-width="2.2"></path></svg>
+              Join QQ group
+            </a>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <!-- include: footer.en.html -->

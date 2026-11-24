@@ -111,6 +111,7 @@ enum PageRenderer {
 
         let homePaths = [zh.id: "index.html", en.id: "en/index.html"]
         let galleryPaths = [zh.id: "templates/index.html", en.id: "en/templates/index.html"]
+        let faqPaths = [zh.id: "faq/index.html", en.id: "en/faq/index.html"]
 
         for language in languages {
             let isEN = LanguageTag.matches(language.id, "en")
@@ -124,6 +125,8 @@ enum PageRenderer {
             let homePath = homePaths[language.id] ?? (isEN ? "en/index.html" : "index.html")
             let galleryPath = galleryPaths[language.id]
                 ?? (isEN ? "en/templates/index.html" : "templates/index.html")
+            let faqPath = faqPaths[language.id]
+                ?? (isEN ? "en/faq/index.html" : "faq/index.html")
 
             let homeTokens = commonTokens(
                 language: language, pagePath: homePath, site: site, siteURL: siteURL,
@@ -133,15 +136,6 @@ enum PageRenderer {
                 langSwitchPath: otherHomePath(language.id, homePaths: homePaths, languages: languages),
                 jsonLD: homeJSONLD)
             var homeExtra = homeTokens
-            homeExtra["HERO_PANELS"] = (site.hero ?? site.featured)
-                .prefix(3)
-                .compactMap { id in catalog.templates.first { $0.entry.id == id } }
-                .enumerated()
-                .map { index, template in
-                    heroPanel(template, index: index, language: language.id,
-                              root: rootPrefix(for: homePath))
-                }
-                .joined()
             homeExtra["FEATURED_CARDS"] = catalog.templates
                 .filter { site.featured.contains($0.entry.id) }
                 .prefix(6)
@@ -186,6 +180,21 @@ enum PageRenderer {
                 destination: output.appendingPathComponent(galleryPath),
                 partials: partials,
                 tokens: galleryExtra)
+
+            let faqTokens = commonTokens(
+                language: language, pagePath: faqPath, site: site, siteURL: siteURL,
+                title: isEN ? "FAQ — PinShell" : "常见问题 — PinShell",
+                description: isEN
+                    ? "Answers about moving and resizing the PinShell overlay, click-through, display modes, installation, templates, and privacy."
+                    : "PinShell 常见问题：悬浮窗移动与缩放、穿透、显示方式、安装、模板与数据隐私。",
+                langSwitchPath: otherFaqPath(language.id, faqPaths: faqPaths, languages: languages),
+                jsonLD: "")
+            try renderPage(
+                source: paths.source.appendingPathComponent(
+                    isEN ? "pages/en/faq.html" : "pages/zh/faq.html"),
+                destination: output.appendingPathComponent(faqPath),
+                partials: partials,
+                tokens: faqTokens)
 
             for template in catalog.templates {
                 let detailPath = isEN
@@ -274,10 +283,13 @@ enum PageRenderer {
             "GITHUB_URL": site.githubURL,
             "ISSUES_URL": site.issuesURL,
             "RELEASES_URL": site.releasesURL,
+            "COMMUNITY_URL": site.communityURL,
             "LANG_SWITCH_URL": langSwitchPath,
             "LANG_SWITCH_LABEL": otherLanguage == "en" ? "EN" : "中文",
             // 模板区下的页面在服务端直接标记当前导航项；404 等页面不标。
             "NAV_TEMPLATES_CURRENT": pagePath.contains("templates/")
+                ? #" aria-current="page""# : "",
+            "NAV_FAQ_CURRENT": pagePath.contains("faq/")
                 ? #" aria-current="page""# : "",
             "YEAR": String(Calendar.current.component(.year, from: Date())),
         ]
@@ -370,38 +382,19 @@ enum PageRenderer {
         let description = entry.localizedDescription(preferredLanguages: [language])
         let width = entry.preview?.width ?? Int(template.metadata.size?.width ?? 0)
         let height = entry.preview?.height ?? Int(template.metadata.size?.height ?? 0)
+        let radius = template.metadata.radius ?? 0
         let author = entry.author?.name ?? ""
         let search = "\(name) \(description) \(category) \(author) \(entry.id) \((entry.tags ?? []).joined(separator: " "))"
             .lowercased()
         return """
         <a class="template-card" href="\(escapeAttribute(detailHref))" data-category="\(escapeAttribute(entry.category ?? ""))" data-search="\(escapeAttribute(search))">
-          <div class="preview-stage" data-src="\(escapeAttribute(previewHref))" data-w="\(width)" data-h="\(height)">
+          <div class="preview-stage" data-src="\(escapeAttribute(previewHref))" data-w="\(width)" data-h="\(height)" data-radius="\(radius)">
             <div class="preview-poster"><span class="poster-mark"></span><strong>\(escapeHTML(name))</strong><small>\(width)×\(height)</small></div>
           </div>
           <div class="card-copy">
             <div class="card-meta"><span class="version">v\(escapeHTML(entry.version))</span><span>\(escapeHTML(category))</span><span>\(width)×\(height)</span></div>
             <h3>\(escapeHTML(name))</h3>
             <p>\(escapeHTML(description))</p>
-          </div>
-        </a>
-        """
-    }
-
-    private static func heroPanel(_ template: BuiltTemplate,
-                                  index: Int,
-                                  language: String,
-                                  root: String) -> String {
-        let entry = template.entry
-        let name = entry.localizedName(preferredLanguages: [language])
-        let width = entry.preview?.width ?? 320
-        let height = entry.preview?.height ?? 200
-        let href = root + "templates/\(entry.id)/"
-        let src = root + "templates/\(entry.id)/\(entry.version)/\(entry.file)?lang=\(language)"
-        return """
-        <a class="hero-window hero-window-\(index + 1)" href="\(escapeAttribute(href))" aria-label="\(escapeAttribute(name))">
-          <div class="window-bar"><span></span><span></span><span></span></div>
-          <div class="preview-stage" data-src="\(escapeAttribute(src))" data-w="\(width)" data-h="\(height)" data-eager="true">
-            <div class="preview-poster"><span class="poster-mark"></span><strong>\(escapeHTML(name))</strong></div>
           </div>
         </a>
         """
@@ -431,6 +424,7 @@ enum PageRenderer {
         let category = categoryName(entry.category, site: site, language: language)
         let width = entry.preview?.width ?? 320
         let height = entry.preview?.height ?? 200
+        let radius = template.metadata.radius ?? 0
         let allLanguages = entry.languages?.keys.map { String($0) } ?? []
         var orderedLanguages: [String] = []
         for tag in [entry.defaultLanguage, entry.fallbackLanguage].compactMap({ $0 }) {
@@ -494,7 +488,7 @@ enum PageRenderer {
           </header>
           <div class="detail-grid">
             <div class="stage-wrap">
-              <div class="preview-stage detail-stage" data-src="\(escapeAttribute(payloadHref + "?lang=\(language)"))" data-w="\(width)" data-h="\(height)" data-interactive="true" style="--preview-aspect: \(width) / \(height)">
+              <div class="preview-stage detail-stage" data-src="\(escapeAttribute(payloadHref + "?lang=\(language)"))" data-w="\(width)" data-h="\(height)" data-radius="\(radius)" data-interactive="true" style="--preview-aspect: \(width) / \(height)">
                 <div class="preview-poster"><span class="poster-mark"></span><strong>\(escapeHTML(name))</strong><small>\(width)×\(height)</small></div>
               </div>
               <p class="stage-caption">\(escapeHTML(strings.interactiveHint))</p>
@@ -590,6 +584,7 @@ enum PageRenderer {
         var entries: [(String, String)] = [
             ("", "en/"),
             ("templates/", "en/templates/"),
+            ("faq/", "en/faq/"),
         ]
         for template in catalog.templates {
             entries.append(("templates/\(template.entry.id)/",
@@ -663,6 +658,15 @@ enum PageRenderer {
         let other = LanguageTag.matches(language, "en") ? "zh-Hans" : "en"
         guard let target = galleryPaths[other] else { return "" }
         let from = galleryPaths[language] ?? "templates/index.html"
+        return relativeHref(from: from, to: target)
+    }
+
+    private static func otherFaqPath(_ language: String,
+                                     faqPaths: [String: String],
+                                     languages: [SiteLanguage]) -> String {
+        let other = LanguageTag.matches(language, "en") ? "zh-Hans" : "en"
+        guard let target = faqPaths[other] else { return "" }
+        let from = faqPaths[language] ?? "faq/index.html"
         return relativeHref(from: from, to: target)
     }
 

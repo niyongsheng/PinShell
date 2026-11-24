@@ -4,6 +4,60 @@
   const root = document.documentElement;
   root.classList.add('js');
 
+  // Theme: follow the system until the visitor makes an explicit choice.
+  const themeKey = 'pinshell-site-theme';
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  const themeButtons = Array.from(document.querySelectorAll('[data-theme-toggle]'));
+  const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
+
+  const storedTheme = () => {
+    try {
+      const value = localStorage.getItem(themeKey);
+      return value === 'light' || value === 'dark' ? value : null;
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const applyTheme = (theme) => {
+    const isDark = theme === 'dark';
+    root.setAttribute('data-theme', theme);
+    root.style.colorScheme = theme;
+    if (themeMeta) themeMeta.setAttribute('content', isDark ? '#000000' : '#f5f5f7');
+    themeButtons.forEach((button) => {
+      button.setAttribute('aria-pressed', String(isDark));
+      const label = isDark ? button.dataset.labelLight : button.dataset.labelDark;
+      if (label) {
+        button.setAttribute('aria-label', label);
+        button.setAttribute('title', label);
+      }
+    });
+  };
+
+  const currentTheme = root.getAttribute('data-theme');
+  applyTheme(currentTheme === 'dark' || currentTheme === 'light'
+    ? currentTheme
+    : (systemDark.matches ? 'dark' : 'light'));
+
+  themeButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+      try {
+        localStorage.setItem(themeKey, next);
+      } catch (error) {}
+    });
+  });
+
+  const onSystemThemeChange = (event) => {
+    if (!storedTheme()) applyTheme(event.matches ? 'dark' : 'light');
+  };
+  if (typeof systemDark.addEventListener === 'function') {
+    systemDark.addEventListener('change', onSystemThemeChange);
+  } else if (typeof systemDark.addListener === 'function') {
+    systemDark.addListener(onSystemThemeChange);
+  }
+
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
   const saveData = Boolean(connection && connection.saveData);
@@ -54,6 +108,22 @@
     iframe.style.width = `${width}px`;
     iframe.style.height = `${height}px`;
     iframe.style.transform = `translate(-50%, -50%) scale(${scale})`;
+  };
+
+  // 模板的圆角和投影画在窗口内部（面板铺满视口）。预览 iframe 的视口是直角
+  // 矩形，铺满面板的外投影会被裁成方形，在四角留下「双圆角」痕迹。
+  // 把生成器已解析的模板窗口圆角套到 iframe 上，让裁切边界和面板圆角重合。
+  const applyWindowShape = (stage) => {
+    const iframe = stage.querySelector('iframe');
+    if (!iframe) return;
+    const radius = Number(stage.dataset.radius) || 0;
+    if (!(radius > 0)) {
+      iframe.style.borderRadius = '';
+      iframe.classList.remove('is-rounded');
+      return;
+    }
+    iframe.style.borderRadius = `${radius}px`;
+    iframe.classList.add('is-rounded');
   };
 
   const previewTitle = (stage) => {
@@ -115,7 +185,10 @@
   document.addEventListener('load', (event) => {
     if (event.target && event.target.tagName === 'IFRAME') {
       const stage = event.target.closest('.preview-stage');
-      if (stage) fit(stage);
+      if (stage) {
+        applyWindowShape(stage);
+        fit(stage);
+      }
     }
   }, true);
 

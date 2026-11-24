@@ -198,25 +198,17 @@ enum CatalogBuilder {
                 entry: entry))
         }
 
-        // 首页策展列表：未知 ID、重复项或超出 hero 槽位的配置会让窗口静默缺失，构建期直接失败。
+        // 首页策展列表：未知 ID 或重复项会让卡片静默缺失，构建期直接失败。
         let builtIDs = Set(built.map(\.entry.id))
-        let curatedLists = [
-            ("featured", site.featured),
-            ("hero", site.hero ?? Array(site.featured.prefix(3))),
-        ]
-        for (name, ids) in curatedLists {
-            guard !ids.isEmpty else {
-                throw BuilderError(message: "site.json \(name) must list at least one template")
-            }
-            guard Set(ids).count == ids.count else {
-                throw BuilderError(message: "site.json \(name) contains duplicate template ids")
-            }
-            if let unknown = ids.first(where: { !builtIDs.contains($0) }) {
-                throw BuilderError(message: "site.json \(name) references unknown template \(unknown)")
-            }
+        let featured = site.featured
+        guard !featured.isEmpty else {
+            throw BuilderError(message: "site.json featured must list at least one template")
         }
-        if let hero = site.hero, hero.count > 3 {
-            throw BuilderError(message: "site.json hero supports at most 3 templates")
+        guard Set(featured).count == featured.count else {
+            throw BuilderError(message: "site.json featured contains duplicate template ids")
+        }
+        if let unknown = featured.first(where: { !builtIDs.contains($0) }) {
+            throw BuilderError(message: "site.json featured references unknown template \(unknown)")
         }
 
         let index = TemplateLibraryIndex(

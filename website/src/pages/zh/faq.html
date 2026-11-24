@@ -1,0 +1,64 @@
+<!-- include: head.html -->
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <!-- include: nav.zh.html -->
+
+  <main id="main" class="faq-page">
+    <header class="gallery-head">
+      <p class="eyebrow">FAQ</p>
+      <h1>常见问题</h1>
+      <p class="lead">窗口怎么移动和缩放、数据去了哪里——关于 PinShell 的常见疑问都在这里。</p>
+    </header>
+
+    <section class="section faq-section">
+      <div class="faq-layout">
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary><span>PinShell 免费吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+            <div class="faq-answer"><p>免费且开源，许可为 Apache 2.0。没有账号、订阅或内购；官网模板库中的第一方模板也全部免费，并可独立更新。</p></div>
+          </details>
+          <details class="faq-item">
+            <summary><span>使用数据会上传吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+            <div class="faq-answer"><p>不会。PinShell 没有账号体系和遥测，页面在本机以 <code>file://</code> 运行，MCP 与 CLI 通过本机 <code>control.sock</code> 通信。只有主动安装模板时才会从官网下载模板文件；股票看板、AI 电台等模板会自行请求公开数据接口。</p></div>
+          </details>
+          <details class="faq-item">
+            <summary><span>怎样制作自己的模板？</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+            <div class="faq-answer"><p>不用写代码：在控制台 → MCP 页复制配置，粘贴到豆包、千问、DeepSeek Harness、WorkBuddy 等支持 MCP 的客户端，让 AI 自动完成配置。之后在会话里描述想要的界面或改动，AI 会创建、修改和管理模板，窗口即时预览。</p></div>
+          </details>
+          <details class="faq-item">
+            <summary><span>如何贡献模板到官网？</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+            <div class="faq-answer"><p>在 <code>website/templates/&lt;id&gt;/</code> 下添加 <code>template.json</code> 与 <code>&lt;id&gt;.html</code>，按<a href="{{GITHUB_URL}}/blob/main/docs/template-contribution.zh-CN.md">模板贡献规范</a>完成清单、多语言与设计令牌要求，跑通本地校验后向 <code>niyongsheng/PinShell</code> 提交 PR（标题 <code>feat(template): add &lt;id&gt;</code>）。合并后会自动发布到官网和 App 在线模板库。</p></div>
+          </details>
+          <details class="faq-item">
+            <summary><span>如何移动或缩放悬浮窗？</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+            <div class="faq-answer"><p>桌面悬浮模式下，按住 <code>⌘</code> 拖动窗口任意位置即可移动；拖动窗口右下角的调整手柄可以改变大小。也可以在菜单栏 PinShell 图标 →「窗口位置」中把窗口贴到屏幕四角。顶栏弹出模式下，窗口位置始终跟随菜单栏图标，不能自由拖动。</p></div>
+          </details>
+          <details class="faq-item">
+            <summary><span>「桌面悬浮」和「顶栏弹出」有什么区别？</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+            <div class="faq-answer"><p>桌面悬浮把窗口常驻在桌面之上，可自由移动、缩放与穿透；顶栏弹出把模板挂在菜单栏图标下方，点击图标展开、点击外部收起，位置固定。两种方式都可以从菜单栏 PinShell 图标 →「显示方式」随时切换。</p></div>
+          </details>
+          <details class="faq-item">
+            <summary><span>macOS 提示「无法验证开发者」或「已损坏，无法打开」？</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+            <div class="faq-answer"><p>安装包使用 ad-hoc 签名，尚未完成公证。请前往「系统设置 → 隐私与安全性」点击「仍要打开」，或先执行 <code>xattr -dr com.apple.quarantine ~/Downloads/PinShell-*.pkg</code> 再安装。</p></div>
+          </details>
+        </div>
+        <aside class="faq-help">
+          <p class="faq-help-eyebrow">GitHub Issues</p>
+          <h3>还有疑问？</h3>
+          <p>带上系统版本、应用版本、复现步骤和日志提交 Issue，我们会尽快跟进。</p>
+          <div class="faq-actions">
+            <a class="help-button" href="{{ISSUES_URL}}" target="_blank" rel="noopener">
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
+              提交 Issue
+            </a>
+            <a class="help-button" href="{{COMMUNITY_URL}}" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-8.4 8.4 9.6 9.6 0 0 1-3.9-.8L3 20.5l1.4-4.6a8.2 8.2 0 0 1-1.4-4.4a8.4 8.4 0 0 1 8.4-8.4h.2A8.4 8.4 0 0 1 21 11.5z"></path><path d="M8.6 11.5h.01M12.2 11.5h.01M15.8 11.5h.01" stroke-width="2.2"></path></svg>
+              加入 QQ 群
+            </a>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <!-- include: footer.zh.html -->
