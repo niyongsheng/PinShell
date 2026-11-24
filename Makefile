@@ -44,6 +44,8 @@ app: check-user build ## 组装 PinShell.app（二进制/Info.plist/资源，ad-
 	cp Resources/MenuBarIcon.png "$(APP)/Contents/Resources/MenuBarIcon.png"
 	cp Resources/MenuBarIcon@2x.png "$(APP)/Contents/Resources/MenuBarIcon@2x.png"
 	cp -R Resources/templates "$(APP)/Contents/Resources/templates"
+	# 首装内置模板：与官网模板源保持同一份文件
+	cp website/templates/work-calendar/work-calendar.html "$(APP)/Contents/Resources/templates/work-calendar.html"
 	cp Resources/legacy-templates.json "$(APP)/Contents/Resources/legacy-templates.json"
 	cp -R Resources/en.lproj "$(APP)/Contents/Resources/en.lproj"
 	cp -R Resources/zh-Hans.lproj "$(APP)/Contents/Resources/zh-Hans.lproj"

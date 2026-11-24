@@ -1,0 +1,1237 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<script type="application/json" id="pinshell:i18n">
+{
+  "default": "zh-Hans",
+  "fallback": "en",
+  "languages": {
+    "zh-Hans": {
+      "meta": {
+        "name": "工作日历",
+        "description": "农历、节假日与调休的工作日历：农历日、法定与传统节日、调休班次、订阅 .ics 工作日历，Agent 可推送日程"
+      }
+    },
+    "en": {
+      "meta": {
+        "name": "Workday Calendar",
+        "description": "Minimal workday calendar with lunar dates, Chinese festivals, workday shifts and .ics calendar subscription"
+      },
+      "ui": {
+        "prev": "Previous month",
+        "next": "Next month",
+        "today": "Today",
+        "dayOff": "Day off",
+        "workday": "Workday",
+        "monthView": "Month view",
+        "settings": "Calendar settings",
+        "sheetTitle": "Workday calendar feed",
+        "feedHint": "Paste an .ics URL for a holiday or workday calendar. Events, holidays and shift days are read from it.",
+        "urlPlaceholder": "https://example.com/holiday.ics",
+        "sync": "Sync",
+        "remove": "Remove",
+        "close": "Close",
+        "neverSynced": "Not synced yet",
+        "synced": "Synced {n} entries · {when}",
+        "syncFailed": "Sync failed: {msg}",
+        "offline": "Subscriptions sync inside the app only",
+        "noEvents": "No events",
+        "eventCount": "{n} events",
+        "weekShort": "W{week}",
+        "lunarFooter": "{year} · {month}{day}"
+      }
+    }
+  }
+}
+</script>
+<title>工作日历</title>
+<meta name="description" content="农历、节假日与调休的工作日历：农历日、法定与传统节日、调休班次、订阅 .ics 工作日历，Agent 可推送日程">
+<meta name="pinshell:size" content="320x400">
+<meta name="pinshell:position" content="top">
+<meta name="pinshell:radius" content="18">
+<meta name="pinshell:order" content="11">
+<link rel="stylesheet" href="design-tokens.css">
+<!--
+  AGENT PROTOCOL · work-calendar
+
+  Agent -> page (pinshell_emit / PinShell emit):
+    calendar:set    { month?: "YYYY-MM", selected?: "YYYY-MM-DD",
+                      weekStart?: "mon" | "sun",
+                      holidays?: { "YYYY-MM-DD": { name, kind } }   // kind: holiday | workday | event
+                      events?:   { "YYYY-MM-DD": 1 | { count, title } } }
+                    字段级替换：只处理传入的字段，holidays / events 每次传入即整表替换，传 {} 清空。
+                    优先级：holidays > 订阅源 > 内置节假日。
+    calendar:feed   { url?: "https://….ics", refresh?: true }  设置或立即刷新订阅
+    calendar:today  {}                                         回到今天
+
+  Page -> agent (pinshell_poll_events / pinshell_await_event):
+    calendar:ready     { version, month, today, weekStart, feed, lunar }
+    calendar:navigate  { month }
+    calendar:select    { date, holiday, events }
+    calendar:dismiss   {}                       按下 Esc（Agent 可用 pinshell_close 收起）
+    calendar:feed      { status: "ok" | "error", count, message }
+
+  农历与干支由系统 Intl 的 chinese 日历提供；内置 2025–2027 法定节假日放假/调休表，
+  更远年份请订阅 .ics 或通过 calendar:set 推送。滚动滚轮可翻月，顶栏圆点按钮回到今天。
+-->
+<style>
+  * { box-sizing: border-box; }
+
+  :root {
+    color-scheme: light dark;
+
+    /* 节日/放假与调休：语义色，非交互强调色 */
+    --day-holiday: #ffb340;
+    --day-work: #ff9f0a;
+    --work-border: rgba(255, 159, 10, 0.35);
+    --rest-border: rgba(255, 179, 64, 0.38);
+    --cell-gap: 1px;
+
+    /* 深色玻璃面板（默认） */
+    --panel-tint: rgba(41, 151, 255, 0.075);
+    --panel-top: rgba(34, 34, 37, 0.94);
+    --panel-bottom: rgba(19, 19, 21, 0.96);
+    --panel-border: rgba(255, 255, 255, 0.09);
+    --panel-inner: rgba(255, 255, 255, 0.06);
+
+    --ink: #ffffff;
+    --ink-muted: #cccccc;
+    --ink-soft: rgba(255, 255, 255, 0.72);
+    --ink-strong: rgba(255, 255, 255, 0.78);
+    --ink-faint: rgba(255, 255, 255, 0.62);
+    --ink-weak: rgba(255, 255, 255, 0.55);
+    --ink-faintest: rgba(255, 255, 255, 0.5);
+
+    --hover: rgba(255, 255, 255, 0.06);
+    --hairline: rgba(255, 255, 255, 0.06);
+    --selected-ring: rgba(255, 255, 255, 0.24);
+    --today-ring: rgba(41, 151, 255, 0.55);
+    --dot: rgba(255, 255, 255, 0.55);
+    --today-dot: var(--ps-primary-on-dark);
+    --accent-soft: var(--ps-primary-on-dark);
+
+    --veil: rgba(0, 0, 0, 0.52);
+    --sheet-bg: var(--ps-surface-tile-2);
+    --sheet-border: rgba(255, 255, 255, 0.12);
+    --field-bg: rgba(255, 255, 255, 0.06);
+    --field-border: rgba(255, 255, 255, 0.14);
+    --btn-bg: rgba(255, 255, 255, 0.07);
+    --danger: #ff8a80;
+  }
+
+  /* 浅色：磨砂白玻璃 + 同一套语义色，强调色改用浅色面可用的 Action Blue */
+  @media (prefers-color-scheme: light) {
+    :root {
+      --day-holiday: #b25000;
+      --day-work: #9a4a00;
+      --work-border: rgba(154, 74, 0, 0.35);
+      --rest-border: rgba(178, 80, 0, 0.38);
+
+      --panel-tint: rgba(0, 102, 204, 0.055);
+      --panel-top: rgba(255, 255, 255, 0.94);
+      --panel-bottom: rgba(242, 242, 245, 0.96);
+      --panel-border: rgba(0, 0, 0, 0.09);
+      --panel-inner: rgba(255, 255, 255, 0.9);
+
+      --ink: var(--ps-ink);
+      --ink-muted: rgba(29, 29, 31, 0.62);
+      --ink-soft: rgba(29, 29, 31, 0.72);
+      --ink-strong: rgba(29, 29, 31, 0.8);
+      --ink-faint: rgba(29, 29, 31, 0.58);
+      --ink-weak: rgba(29, 29, 31, 0.52);
+      --ink-faintest: rgba(29, 29, 31, 0.48);
+
+      --hover: rgba(0, 0, 0, 0.055);
+      --hairline: rgba(0, 0, 0, 0.08);
+      --selected-ring: rgba(0, 0, 0, 0.2);
+      --today-ring: rgba(0, 102, 204, 0.45);
+      --dot: rgba(0, 0, 0, 0.38);
+      --today-dot: var(--ps-primary);
+      --accent-soft: var(--ps-primary);
+
+      --veil: rgba(0, 0, 0, 0.26);
+      --sheet-bg: rgba(255, 255, 255, 0.98);
+      --sheet-border: rgba(0, 0, 0, 0.12);
+      --field-bg: rgba(0, 0, 0, 0.045);
+      --field-border: rgba(0, 0, 0, 0.14);
+      --btn-bg: rgba(0, 0, 0, 0.06);
+      --danger: #c0362c;
+    }
+  }
+
+  body {
+    color: var(--ink);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .panel {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    padding: 12px 12px 10px;
+    background:
+      radial-gradient(120% 70% at 50% -18%, var(--panel-tint), transparent 60%),
+      linear-gradient(180deg, var(--panel-top), var(--panel-bottom));
+    border: 1px solid var(--panel-border);
+    border-radius: var(--ps-radius-lg);
+    -webkit-backdrop-filter: blur(26px) saturate(1.5);
+    backdrop-filter: blur(26px) saturate(1.5);
+    box-shadow: inset 0 1px 0 var(--panel-inner);
+    overflow: hidden;
+  }
+
+  /* ---------- 表头 ---------- */
+  header {
+    flex: none;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px;
+    height: 24px;
+    margin-bottom: 7px;
+  }
+  .month {
+    min-width: 0;
+    font-size: 16px; font-weight: 600; letter-spacing: -0.3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .nav { display: flex; align-items: center; gap: 1px; flex: none; }
+
+  .icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 22px; min-width: 22px;
+    padding: 0 4px;
+    font: inherit; font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+    color: var(--ink-muted);
+    background: transparent;
+    border: 0; border-radius: var(--ps-radius-xs);
+    cursor: pointer;
+    transition: background 0.16s ease, color 0.16s ease;
+  }
+  .icon-btn:hover { background: var(--hover); color: var(--ink); }
+  .icon-btn:active { transform: var(--ps-press-scale); }
+  .icon-btn:focus-visible { outline: 2px solid var(--ps-primary-focus); outline-offset: 1px; }
+  .icon-btn svg { width: 9px; height: 9px; display: block; }
+
+  /* ---------- 星期行 ---------- */
+  .weekdays, .grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+  .weekdays {
+    flex: none;
+    height: 15px;
+    align-items: center;
+    margin-bottom: 3px;
+  }
+  .weekdays span {
+    text-align: center;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+    color: var(--ink-muted);
+    opacity: 0.7;
+  }
+
+  /* ---------- 日期网格 ---------- */
+  .grid {
+    flex: 1;
+    min-height: 0;
+    grid-auto-rows: minmax(0, 1fr);
+    gap: var(--cell-gap) 0;
+  }
+
+  .cell {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0; margin: 0;
+    font: inherit;
+    background: transparent;
+    border: 0; border-radius: var(--ps-radius-sm);
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .cell:hover { background: var(--hover); }
+  .cell:focus-visible { outline: 2px solid var(--ps-primary-focus); outline-offset: -1px; }
+
+  .badge {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    gap: 0;
+  }
+  .dnum {
+    font-size: 14.5px; font-weight: 500; line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.2px;
+    color: var(--ink);
+  }
+  .sub {
+    max-width: 38px;
+    font-size: 9.5px; font-weight: 450; line-height: 1.15;
+    color: var(--ink-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sub.holiday { color: var(--day-holiday); font-weight: 600; }
+  .sub.event { color: var(--accent-soft); font-weight: 600; }
+  .sub.work {
+    color: var(--day-work); font-weight: 700;
+    border: 1px solid var(--work-border);
+    border-radius: 3px;
+    padding: 0 2px;
+    font-size: 9px;
+  }
+  .sub.rest {
+    color: var(--day-holiday); font-weight: 700;
+    border: 1px solid var(--rest-border);
+    border-radius: 3px;
+    padding: 0 2px;
+    font-size: 9px;
+  }
+  .sub.month { color: var(--ink-soft); }
+
+  .cell.today .badge { background: var(--ps-primary); }
+  .cell.today .dnum { color: #fff; font-weight: 650; }
+  .cell.today .sub { color: rgba(255, 255, 255, 0.82); }
+  .cell.today.selected .badge { box-shadow: 0 0 0 2px var(--today-ring); }
+
+  .cell.selected:not(.today) .badge { box-shadow: inset 0 0 0 1px var(--selected-ring); }
+
+  .cell.other { opacity: 0.38; }
+  .cell.other:hover { opacity: 0.72; }
+
+  .dot {
+    position: absolute;
+    left: 50%; bottom: 1px;
+    width: 3px; height: 3px;
+    margin-left: -1.5px;
+    border-radius: 50%;
+    background: var(--dot);
+  }
+  .cell.today .dot { background: var(--today-dot); }
+  .dot.many { width: 7px; height: 2px; margin-left: -3.5px; border-radius: 1px; }
+
+  /* ---------- 页脚 ---------- */
+  footer {
+    flex: none;
+    display: flex; flex-direction: column;
+    gap: 2px;
+    margin-top: 5px;
+    padding-top: 6px;
+    border-top: 1px solid var(--hairline);
+  }
+  .foot-row {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 10px;
+    font-size: 10.5px;
+    color: var(--ink-muted);
+  }
+  .foot-left {
+    display: inline-flex; align-items: baseline; gap: 5px;
+    min-width: 0;
+    color: var(--ink-faint);
+  }
+  .today-link {
+    padding: 0; border: 0; background: transparent;
+    font: inherit; font-size: 10.5px; font-weight: 600;
+    color: var(--ink-strong);
+    cursor: pointer; border-radius: var(--ps-radius-xs);
+  }
+  .today-link:hover { color: var(--ink); text-decoration: underline; }
+  .today-link:focus-visible { outline: 2px solid var(--ps-primary-focus); outline-offset: 2px; }
+  .sep { opacity: 0.45; }
+  .foot-right {
+    flex: none;
+    white-space: nowrap;
+    color: var(--ink-weak);
+    font-variant-numeric: tabular-nums;
+  }
+  .agenda {
+    display: flex; align-items: center; gap: 5px;
+    min-width: 0;
+    font-size: 10.5px;
+    color: var(--ink-faintest);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .agenda.has { color: var(--ink-soft); }
+  .agenda .mark {
+    flex: none;
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--accent-soft);
+  }
+  .agenda span.txt { overflow: hidden; text-overflow: ellipsis; }
+
+  /* ---------- 订阅设置浮层 ---------- */
+  .sheet-wrap {
+    position: absolute; inset: 0;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 12px;
+    background: var(--veil);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    border-radius: var(--ps-radius-lg);
+    z-index: 3;
+  }
+  .sheet-wrap[data-open="true"] { display: flex; }
+  .sheet {
+    width: 100%;
+    padding: 13px 14px 12px;
+    background: var(--sheet-bg);
+    border: 1px solid var(--sheet-border);
+    border-radius: var(--ps-radius-md);
+    box-shadow: var(--ps-shadow-float);
+  }
+  .sheet h2 {
+    margin: 0 0 6px;
+    font-size: 13px; font-weight: 650; letter-spacing: -0.1px;
+    color: var(--ink);
+  }
+  .sheet p.hint {
+    margin: 0 0 8px;
+    font-size: 9.5px; line-height: 1.45;
+    color: var(--ink-muted);
+  }
+  .sheet input {
+    width: 100%;
+    height: 26px;
+    padding: 0 8px;
+    font: inherit; font-size: 10.5px;
+    color: var(--ink);
+    background: var(--field-bg);
+    border: 1px solid var(--field-border);
+    border-radius: var(--ps-radius-xs);
+    user-select: text; -webkit-user-select: text;
+  }
+  .sheet input:focus-visible { outline: 2px solid var(--ps-primary-focus); outline-offset: 0; }
+  .sheet .status {
+    margin-top: 7px;
+    font-size: 9.5px; line-height: 1.4;
+    color: var(--ink-muted);
+    min-height: 13px;
+  }
+  .sheet .status[data-tone="error"] { color: var(--danger); }
+  .sheet .row { display: flex; gap: 6px; margin-top: 9px; }
+  .sheet .row button {
+    flex: 1;
+    height: 24px;
+    font: inherit; font-size: 10.5px; font-weight: 600;
+    color: var(--ink-muted);
+    background: var(--btn-bg);
+    border: 0; border-radius: var(--ps-radius-xs);
+    cursor: pointer;
+  }
+  .sheet .row button.primary { background: var(--ps-primary); color: #fff; }
+  .sheet .row button:hover { filter: brightness(1.12); }
+  .sheet .row button:active { transform: var(--ps-press-scale); }
+  .sheet .row button:focus-visible { outline: 2px solid var(--ps-primary-focus); outline-offset: 1px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .icon-btn, .cell { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="panel" id="panel" role="application" aria-roledescription="calendar" aria-label="月视图日历" data-i18n-aria-label="monthView">
+  <header>
+    <div class="month" id="monthLabel">2026年11月</div>
+    <div class="nav">
+      <button type="button" class="icon-btn" id="todayBtn" title="今天" aria-label="今天" data-i18n-title="today" data-i18n-aria-label="today">
+        <svg viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="3.4" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="5" cy="5" r="1.1" fill="currentColor"/></svg>
+      </button>
+      <button type="button" class="icon-btn" id="prev" title="上个月" aria-label="上个月" data-i18n-title="prev" data-i18n-aria-label="prev">
+        <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M6.4 1.2 3 5l3.4 3.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+      <button type="button" class="icon-btn" id="next" title="下个月" aria-label="下个月" data-i18n-title="next" data-i18n-aria-label="next">
+        <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M3.6 1.2 7 5 3.6 8.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+      <button type="button" class="icon-btn" id="settings" title="日历设置" aria-label="日历设置" data-i18n-title="settings" data-i18n-aria-label="settings">•••</button>
+    </div>
+  </header>
+
+  <div class="weekdays" id="weekdays" aria-hidden="true"></div>
+  <div class="grid" id="grid" role="grid" aria-label="日期"></div>
+
+  <footer>
+    <div class="foot-row">
+      <div class="foot-left">
+        <button type="button" class="today-link" id="today" data-i18n="today">今天</button>
+        <span class="sep">·</span>
+        <span id="weekNo">第47周</span>
+      </div>
+      <div class="foot-right" id="lunarFooter">丙午马年 十月十六</div>
+    </div>
+    <div class="foot-row">
+      <div class="agenda" id="agenda" data-empty="true">没有日程</div>
+    </div>
+  </footer>
+
+  <div class="sheet-wrap" id="sheetWrap" data-open="false" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet">
+      <h2 id="sheetTitle" data-i18n="sheetTitle">订阅工作日历</h2>
+      <p class="hint" data-i18n="feedHint">粘贴节假日 / 工作日历的 .ics 链接。日程、节假日与班次都会从它读取。</p>
+      <label for="feedUrl" hidden>URL</label>
+      <input id="feedUrl" type="url" spellcheck="false" autocomplete="off"
+             placeholder="https://example.com/holiday.ics" data-i18n-placeholder="urlPlaceholder">
+      <div class="status" id="feedStatus">尚未同步</div>
+      <div class="row">
+        <button type="button" class="primary" id="feedSync" data-i18n="sync">同步</button>
+        <button type="button" id="feedRemove" data-i18n="remove">移除</button>
+        <button type="button" id="sheetClose" data-i18n="close">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="pinshell-i18n.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var bridge = window.pinshell || { emit: function () {}, on: function () {}, fetch: null };
+  var PSapi = (typeof PS !== 'undefined' && PS) ? PS : null;
+  var locale = (PSapi && PSapi.locale) || navigator.language || 'zh-Hans';
+
+  var PREF_WEEKSTART = 'pinshell.work-calendar.weekStart';
+  var PREF_FEED = 'pinshell.work-calendar.feed';
+  var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  var MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+  var FEED_TTL = 12 * 3600 * 1000;      // 12 小时后自动刷新
+  var MAX_EVENTS = 400;                 // 订阅条目上限
+
+  function t(key, fallback, vars) {
+    if (PSapi && typeof PSapi.t === 'function') return PSapi.t(key, fallback, vars);
+    return fallback;
+  }
+
+  /* ================= 日期工具 ================= */
+  function ymd(d) {
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+  function parseDate(s) {
+    if (typeof s !== 'string' || !DATE_RE.test(s)) return null;
+    var p = s.split('-');
+    var d = new Date(+p[0], +p[1] - 1, +p[2], 12, 0, 0, 0);
+    return (isNaN(d.getTime()) || d.getMonth() !== +p[1] - 1) ? null : d;
+  }
+  function parseMonth(s) {
+    if (typeof s !== 'string') return null;
+    if (DATE_RE.test(s)) return parseDate(s);
+    if (!MONTH_RE.test(s)) return null;
+    var p = s.split('-');
+    return new Date(+p[0], +p[1] - 1, 1, 12, 0, 0, 0);
+  }
+  function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1, 12, 0, 0, 0); }
+  function addMonths(d, n) { return new Date(d.getFullYear(), d.getMonth() + n, 1, 12, 0, 0, 0); }
+  function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n, 12, 0, 0, 0); }
+  function ymOf(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2); }
+
+  function isoWeek(date) {                       // ISO-8601 周数
+    var d = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+    var day = (d.getDay() + 6) % 7;               // 周一 = 0
+    d.setDate(d.getDate() - day + 3);             // 本周周四
+    var firstThursday = new Date(d.getFullYear(), 0, 4, 12);
+    var fday = (firstThursday.getDay() + 6) % 7;
+    firstThursday.setDate(firstThursday.getDate() - fday + 3);
+    return 1 + Math.round((d - firstThursday) / (7 * 86400000));
+  }
+
+  /* ================= 法定节假日（2025–2027） =================
+     来源：国务院办公厅 2025 / 2026 / 2027 年部分节假日安排通知。
+     区间为闭区间；off = 放假，work = 调休上班。只内置近三年，
+     更远年份请订阅 .ics 工作日历，或用 calendar:set 推送。 */
+  var STATUTORY_RANGES = [
+    // 2025
+    ['2025-01-01', '2025-01-01', 'off'],   // 元旦
+    ['2025-01-28', '2025-02-04', 'off'],   // 春节
+    ['2025-01-26', '2025-01-26', 'work'],
+    ['2025-02-08', '2025-02-08', 'work'],
+    ['2025-04-04', '2025-04-06', 'off'],   // 清明
+    ['2025-05-01', '2025-05-05', 'off'],   // 劳动节
+    ['2025-04-27', '2025-04-27', 'work'],
+    ['2025-05-31', '2025-06-02', 'off'],   // 端午
+    ['2025-10-01', '2025-10-08', 'off'],   // 国庆 + 中秋
+    ['2025-09-28', '2025-09-28', 'work'],
+    ['2025-10-11', '2025-10-11', 'work'],
+
+    // 2026
+    ['2026-01-01', '2026-01-03', 'off'],   // 元旦
+    ['2026-01-04', '2026-01-04', 'work'],
+    ['2026-02-15', '2026-02-23', 'off'],   // 春节
+    ['2026-02-14', '2026-02-14', 'work'],
+    ['2026-02-28', '2026-02-28', 'work'],
+    ['2026-04-04', '2026-04-06', 'off'],   // 清明
+    ['2026-05-01', '2026-05-05', 'off'],   // 劳动节
+    ['2026-05-09', '2026-05-09', 'work'],
+    ['2026-06-19', '2026-06-21', 'off'],   // 端午
+    ['2026-09-25', '2026-09-27', 'off'],   // 中秋
+    ['2026-10-01', '2026-10-07', 'off'],   // 国庆
+    ['2026-09-20', '2026-09-20', 'work'],
+    ['2026-10-10', '2026-10-10', 'work'],
+
+    // 2027
+    ['2027-01-01', '2027-01-03', 'off'],   // 元旦
+    ['2027-02-05', '2027-02-13', 'off'],   // 春节
+    ['2027-01-31', '2027-01-31', 'work'],
+    ['2027-02-14', '2027-02-14', 'work'],
+    ['2027-04-03', '2027-04-05', 'off'],   // 清明
+    ['2027-05-01', '2027-05-05', 'off'],   // 劳动节
+    ['2027-05-08', '2027-05-08', 'work'],
+    ['2027-06-09', '2027-06-09', 'off'],   // 端午
+    ['2027-09-15', '2027-09-15', 'off'],   // 中秋
+    ['2027-10-01', '2027-10-07', 'off'],   // 国庆
+    ['2027-09-26', '2027-09-26', 'work'],
+    ['2027-10-09', '2027-10-09', 'work']
+  ];
+
+  var statutoryDays = (function () {
+    var days = Object.create(null);
+    STATUTORY_RANGES.forEach(function (range) {
+      var start = parseDate(range[0]);
+      var end = parseDate(range[1]);
+      if (!start || !end || end < start) return;
+      for (var d = start; d <= end; d = addDays(d, 1)) days[ymd(d)] = range[2];
+    });
+    return days;
+  })();
+
+  function statutoryOf(date) { return statutoryDays[ymd(date)] || null; }
+
+  /* ================= 农历（系统 Intl 的 chinese 日历） ================= */
+  var lunarLongFmt = new Intl.DateTimeFormat('zh-Hans-CN-u-ca-chinese', { year: 'numeric', month: 'long', day: 'numeric' });
+  var lunarShortFmt = new Intl.DateTimeFormat('zh-Hans-CN-u-ca-chinese', { month: 'long', day: 'numeric' });
+  var lunarNumFmt = new Intl.DateTimeFormat('zh-Hans-CN-u-ca-chinese', { month: 'numeric', day: 'numeric' });
+  var lunarCache = Object.create(null);
+
+  var MONTH_NAMES = ['正月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '冬月', '腊月'];
+  var ZODIAC = { 子: '鼠', 丑: '牛', 寅: '虎', 卯: '兔', 辰: '龙', 巳: '蛇', 午: '马', 未: '羊', 申: '猴', 酉: '鸡', 戌: '狗', 亥: '猪' };
+
+  function partsOf(fmt, date) {
+    var out = {};
+    fmt.formatToParts(date).forEach(function (p) { if (p.type !== 'literal') out[p.type] = p.value; });
+    return out;
+  }
+
+  function lunarOf(date) {
+    var key = ymd(date);
+    var hit = lunarCache[key];
+    if (hit) return hit;
+    var long = partsOf(lunarLongFmt, date);
+    var num = partsOf(lunarNumFmt, date);
+    var monthName = long.month || '';
+    var leap = monthName.charAt(0) === '闰';
+    var monthNum = (MONTH_NAMES.indexOf(leap ? monthName.slice(1) : monthName) + 1) || 0;
+    var info = {
+      monthName: monthName,
+      monthNum: monthNum,
+      dayNum: +num.day || 0,
+      dayName: long.day || '',
+      yearName: long.yearName || '',
+      zodiac: ZODIAC[(long.yearName || '').charAt(1)] || '',
+      leap: leap
+    };
+    lunarCache[key] = info;
+    return info;
+  }
+
+    /* ================= 内置节日（兜底，不含放假安排） ================= */
+  function qingmingDay(year) {                   // 清明：1900–2099 通用近似式
+    var y = year >= 2000 ? year - 2000 : year - 1900;
+    var c = year >= 2000 ? 4.81 : 5.59;
+    return Math.floor(y * 0.2422 + c) - Math.floor(y / 4);
+  }
+
+  function builtinFestival(date) {
+    var y = date.getFullYear(), m = date.getMonth() + 1, d = date.getDate();
+    var l = lunarOf(date);
+
+    if (m === 4 && d === qingmingDay(y)) return { name: '清明', kind: 'holiday' };
+
+    if (!l.leap) {
+      if (l.monthNum === 1 && l.dayNum === 1) return { name: '春节', kind: 'holiday' };
+      if (l.monthNum === 1 && l.dayNum === 15) return { name: '元宵', kind: 'event' };
+      if (l.monthNum === 2 && l.dayNum === 2) return { name: '龙抬头', kind: 'event' };
+      if (l.monthNum === 5 && l.dayNum === 5) return { name: '端午', kind: 'holiday' };
+      if (l.monthNum === 7 && l.dayNum === 7) return { name: '七夕', kind: 'event' };
+      if (l.monthNum === 7 && l.dayNum === 15) return { name: '中元', kind: 'event' };
+      if (l.monthNum === 8 && l.dayNum === 15) return { name: '中秋', kind: 'holiday' };
+      if (l.monthNum === 9 && l.dayNum === 9) return { name: '重阳', kind: 'event' };
+      if (l.monthNum === 12 && l.dayNum === 8) return { name: '腊八', kind: 'event' };
+      if (l.monthNum === 12 && l.dayNum === 23) return { name: '小年', kind: 'event' };
+      // 除夕：次日为正月初一
+      var next = addDays(date, 1);
+      var nl = lunarOf(next);
+      if (nl.monthNum === 1 && nl.dayNum === 1 && !nl.leap) return { name: '除夕', kind: 'holiday' };
+    }
+
+    if (m === 1 && d === 1) return { name: '元旦', kind: 'holiday' };
+    if (m === 2 && d === 14) return { name: '情人节', kind: 'event' };
+    if (m === 3 && d === 8) return { name: '妇女节', kind: 'event' };
+    if (m === 3 && d === 12) return { name: '植树节', kind: 'event' };
+    if (m === 4 && d === 1) return { name: '愚人节', kind: 'event' };
+    if (m === 5 && d === 1) return { name: '劳动节', kind: 'holiday' };
+    if (m === 5 && d === 4) return { name: '青年节', kind: 'event' };
+    if (m === 5 && date.getDay() === 0 && d >= 8 && d <= 14) return { name: '母亲节', kind: 'event' };
+    if (m === 6 && d === 1) return { name: '儿童节', kind: 'event' };
+    if (m === 6 && date.getDay() === 0 && d >= 15 && d <= 21) return { name: '父亲节', kind: 'event' };
+    if (m === 7 && d === 1) return { name: '建党节', kind: 'event' };
+    if (m === 8 && d === 1) return { name: '建军节', kind: 'event' };
+    if (m === 9 && d === 10) return { name: '教师节', kind: 'event' };
+    if (m === 10 && d === 1) return { name: '国庆节', kind: 'holiday' };
+    if (m === 10 && d === 31) return { name: '万圣夜', kind: 'event' };
+    if (m === 11 && d === 1) return { name: '万圣节', kind: 'event' };
+    if (m === 11 && date.getDay() === 4 && d >= 22 && d <= 28) return { name: '感恩节', kind: 'event' };
+    if (m === 12 && d === 24) return { name: '平安夜', kind: 'event' };
+    if (m === 12 && d === 25) return { name: '圣诞', kind: 'event' };
+    return null;
+  }
+
+  /* ================= 状态 ================= */
+  var TODAY = ymd(new Date());
+  var view = startOfMonth(new Date());
+  var selected = TODAY;
+  var weekStart = readWeekStart();
+  var overrides = Object.create(null);     // Agent 推送
+  var agendaMap = Object.create(null);     // Agent 推送的日程（与节假日分开，便于整表替换 / 清空）
+  var feed = loadFeed();                    // { url, updatedAt, days }
+  var syncState = { status: 'idle', message: '', at: feed && feed.updatedAt };
+
+  function readWeekStart() {
+    try {
+      var saved = localStorage.getItem(PREF_WEEKSTART);
+      if (saved === 'mon') return 1;
+      if (saved === 'sun') return 0;
+    } catch (e) {}
+    return /^zh/i.test(locale) ? 1 : 0;
+  }
+
+  function loadFeed() {
+    try {
+      var raw = localStorage.getItem(PREF_FEED);
+      if (!raw) return { url: '', updatedAt: 0, days: Object.create(null) };
+      var data = JSON.parse(raw);
+      if (!data || typeof data !== 'object') throw 0;
+      return {
+        url: typeof data.url === 'string' ? data.url : '',
+        updatedAt: +data.updatedAt || 0,
+        days: (data.days && typeof data.days === 'object') ? data.days : Object.create(null)
+      };
+    } catch (e) {
+      return { url: '', updatedAt: 0, days: Object.create(null) };
+    }
+  }
+
+  function saveFeed() {
+    try {
+      localStorage.setItem(PREF_FEED, JSON.stringify({
+        url: feed.url, updatedAt: feed.updatedAt, days: feed.days
+      }));
+    } catch (e) {}
+  }
+
+  var monthLabel = document.getElementById('monthLabel');
+  var weekdaysRow = document.getElementById('weekdays');
+  var grid = document.getElementById('grid');
+  var weekNo = document.getElementById('weekNo');
+  var lunarFooter = document.getElementById('lunarFooter');
+  var agenda = document.getElementById('agenda');
+  var sheetWrap = document.getElementById('sheetWrap');
+  var feedUrlInput = document.getElementById('feedUrl');
+  var feedStatus = document.getElementById('feedStatus');
+
+  /* ================= 数据合并 ================= */
+  function normalizeKind(v) {
+    return (v === 'holiday' || v === 'workday' || v === 'event') ? v : 'event';
+  }
+
+  function entryFor(key, date) {
+    var o = overrides[key];
+    if (o && typeof o === 'object') {
+      return { name: String(o.name || '').slice(0, 12), kind: normalizeKind(o.kind), source: 'agent' };
+    }
+    var f = feed.days[key];
+    if (f && typeof f === 'object') {
+      return { name: String(f.name || '').slice(0, 12), kind: normalizeKind(f.kind), source: 'feed' };
+    }
+
+    var stat = statutoryOf(date);
+    if (stat === 'work') return { name: '补班', kind: 'workday', source: 'builtin' };
+    var b = builtinFestival(date);
+    if (b) return { name: b.name, kind: stat === 'off' ? 'holiday' : b.kind, source: 'builtin' };
+    if (stat === 'off') return { name: '', kind: 'holiday', source: 'builtin' };
+    return null;
+  }
+
+  function eventCount(key, date) {
+    var count = 0;
+    var a = agendaMap[key];
+    if (a && typeof a.count === 'number') count = a.count;
+    var f = feed.days[key];
+    if (f && typeof f.count === 'number') count = Math.max(count, f.count);
+    if (count === 0) {
+      var entry = entryFor(key, date);
+      if (entry && entry.source === 'feed' && entry.kind === 'event') count = 1;
+    }
+    return count > 0 ? Math.min(count, 9) : 0;
+  }
+
+  function agendaTitles(key) {
+    var list = [];
+    var a = agendaMap[key];
+    if (a && Array.isArray(a.titles)) list = list.concat(a.titles);
+    var f = feed.days[key];
+    if (f && Array.isArray(f.titles)) list = list.concat(f.titles);
+    return list.filter(function (s) { return typeof s === 'string' && s.trim(); }).map(function (s) { return s.trim().slice(0, 24); });
+  }
+
+  /* ================= 渲染 ================= */
+  var weekdayShort = new Intl.DateTimeFormat(locale, { weekday: 'short' });
+  var weekdayLong = new Intl.DateTimeFormat(locale, { weekday: 'long' });
+  var monthFmt = new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'long' });
+  var dayFmt = new Intl.DateTimeFormat(locale, { month: 'numeric', day: 'numeric' });
+  var REF_SUNDAY = new Date(2024, 0, 7, 12);
+
+  function renderWeekdays() {
+    weekdaysRow.textContent = '';
+    for (var i = 0; i < 7; i++) {
+      var index = (weekStart + i) % 7;
+      var span = document.createElement('span');
+      span.textContent = weekdayShort.format(new Date(REF_SUNDAY.getTime() + index * 86400000));
+      weekdaysRow.appendChild(span);
+    }
+  }
+
+  function cellSub(key, date) {
+    var entry = entryFor(key, date);
+    var l = lunarOf(date);
+    if (entry && entry.kind === 'workday') {
+      return { text: '班', cls: 'sub work', label: entry.name || t('workday', '上班') };
+    }
+    if (entry && entry.kind === 'holiday') {
+      if (entry.name) return { text: entry.name, cls: 'sub holiday', label: entry.name };
+      return { text: '休', cls: 'sub rest', label: t('dayOff', '放假') };
+    }
+    if (entry && entry.source === 'builtin' && entry.kind === 'event' && entry.name) {
+      return { text: entry.name, cls: 'sub event', label: entry.name };
+    }
+    if (l.dayNum === 1) return { text: l.monthName, cls: 'sub month', label: l.monthName };
+    return { text: l.dayName, cls: 'sub', label: l.dayName };
+  }
+
+  function render() {
+    monthLabel.textContent = monthFmt.format(view);
+
+    var offset = (view.getDay() - weekStart + 7) % 7;
+    var frag = document.createDocumentFragment();
+
+    for (var i = 0; i < 42; i++) {
+      var d = new Date(view.getFullYear(), view.getMonth(), 1 - offset + i, 12, 0, 0, 0);
+      var key = ymd(d);
+      var cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'cell';
+      cell.dataset.date = key;
+      cell.setAttribute('role', 'gridcell');
+
+      if (d.getMonth() !== view.getMonth()) cell.classList.add('other');
+      if (key === TODAY) cell.classList.add('today');
+      if (key === selected) {
+        cell.classList.add('selected');
+        cell.setAttribute('aria-selected', 'true');
+      }
+
+      var badge = document.createElement('span');
+      badge.className = 'badge';
+      var dnum = document.createElement('span');
+      dnum.className = 'dnum';
+      dnum.textContent = String(d.getDate());
+      badge.appendChild(dnum);
+
+      var sub = cellSub(key, d);
+      var subEl = document.createElement('span');
+      subEl.className = sub.cls;
+      subEl.textContent = sub.text;
+      badge.appendChild(subEl);
+      cell.appendChild(badge);
+
+      var count = eventCount(key, d);
+      if (count > 0) {
+        var dot = document.createElement('span');
+        dot.className = 'dot' + (count > 1 ? ' many' : '');
+        cell.appendChild(dot);
+      }
+
+      var label = dayFmt.format(d) + ' ' + weekdayLong.format(d) + ' ' + sub.label;
+      if (count > 0) label += '，' + t('eventCount', '{n} 项日程', { n: count });
+      cell.setAttribute('aria-label', label);
+
+      frag.appendChild(cell);
+    }
+
+    grid.textContent = '';
+    grid.appendChild(frag);
+    renderFooter();
+  }
+
+  function renderFooter() {
+    weekNo.textContent = t('weekShort', '第{week}周', { week: isoWeek(parseDate(selected) || new Date()) });
+
+    var d = parseDate(selected) || new Date();
+    var l = lunarOf(d);
+    if (/^zh/i.test(locale)) {
+      lunarFooter.textContent = l.yearName + (l.zodiac ? l.zodiac + '年' : '年') + ' ' + l.monthName + l.dayName;
+    } else {
+      lunarFooter.textContent = t('lunarFooter', '{year} · {month}{day}', {
+        year: l.yearName + (l.zodiac || ''), month: l.monthName, day: l.dayName
+      });
+    }
+
+    var titles = agendaTitles(selected);
+    var entry = entryFor(selected, d);
+    agenda.textContent = '';
+    if (titles.length === 0) {
+      var quiet = document.createElement('span');
+      quiet.className = 'txt';
+      var empty = t('noEvents', '没有日程');
+      quiet.textContent = (entry && entry.kind === 'holiday')
+        ? (entry.name || t('dayOff', '放假')) + ' · ' + empty
+        : empty;
+      agenda.appendChild(quiet);
+      agenda.dataset.empty = 'true';
+      agenda.classList.remove('has');
+    } else {
+      var mark = document.createElement('span');
+      mark.className = 'mark';
+      var txt = document.createElement('span');
+      txt.className = 'txt';
+      var prefix = t('eventCount', '{n} 项日程', { n: titles.length });
+      txt.textContent = prefix + ' · ' + titles.join(' · ');
+      agenda.appendChild(mark);
+      agenda.appendChild(txt);
+      agenda.dataset.empty = 'false';
+      agenda.classList.add('has');
+    }
+  }
+
+  /* ================= 交互 ================= */
+  function navigate(delta) {
+    view = addMonths(view, delta);
+    render();
+    bridge.emit('calendar:navigate', { month: ymOf(view) });
+  }
+
+  function goToday() {
+    var previousMonth = ymOf(view);
+    view = startOfMonth(new Date());
+    selected = TODAY;
+    render();
+    if (ymOf(view) !== previousMonth) bridge.emit('calendar:navigate', { month: ymOf(view) });
+    bridge.emit('calendar:select', { date: TODAY, events: agendaTitles(TODAY) });
+  }
+
+  grid.addEventListener('click', function (e) {
+    var cell = e.target.closest('.cell');
+    if (!cell) return;
+    var key = cell.dataset.date;
+    var d = parseDate(key);
+    if (!d) return;
+    selected = key;
+    if (d.getMonth() !== view.getMonth()) view = startOfMonth(d);
+    render();
+    bridge.emit('calendar:select', {
+      date: key,
+      holiday: entryFor(key, d),
+      events: agendaTitles(key)
+    });
+  });
+
+  document.getElementById('prev').addEventListener('click', function () { navigate(-1); });
+  document.getElementById('next').addEventListener('click', function () { navigate(1); });
+  document.getElementById('today').addEventListener('click', goToday);
+  document.getElementById('todayBtn').addEventListener('click', goToday);
+
+  /* ================= 滚动翻月 ================= */
+  var wheelAcc = 0;
+  var wheelLockUntil = 0;
+  var wheelResetTimer = 0;
+  document.getElementById('panel').addEventListener('wheel', function (e) {
+    if (sheetWrap.dataset.open === 'true') return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+    if (e.deltaMode === 1) delta *= 16;
+    else if (e.deltaMode === 2) delta *= 100;
+    if (!delta) return;
+    e.preventDefault();
+    clearTimeout(wheelResetTimer);
+    wheelResetTimer = setTimeout(function () { wheelAcc = 0; }, 240);
+    var now = Date.now();
+    if (now < wheelLockUntil) return;
+    if (wheelAcc && (wheelAcc > 0) !== (delta > 0)) wheelAcc = 0;
+    wheelAcc += delta;
+    if (Math.abs(wheelAcc) >= 24) {
+      navigate(wheelAcc > 0 ? 1 : -1);
+      wheelAcc = 0;
+      wheelLockUntil = now + 340;
+    }
+  }, { passive: false });
+
+  window.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var sheetOpen = sheetWrap.dataset.open === 'true';
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (sheetOpen) { closeSheet(); return; }
+      bridge.emit('calendar:dismiss', {});
+      return;
+    }
+    if (sheetOpen) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); navigate(-1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); navigate(1); }
+    else if (e.key === 't' || e.key === 'T') { e.preventDefault(); goToday(); }
+  });
+
+  /* ================= 订阅：.ics 解析 ================= */
+  function unfoldICS(text) {
+    return String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n[ \t]/g, '');
+  }
+
+  function icsDate(value) {
+    var m = /^(\d{4})(\d{2})(\d{2})/.exec(String(value || '').trim());
+    if (!m) return null;
+    return new Date(+m[1], +m[2] - 1, +m[3], 12, 0, 0, 0);
+  }
+
+  function summarize(text) {
+    return String(text || '').replace(/\\n/g, ' ').replace(/\\,/g, ',').replace(/\\\\/g, '\\').trim();
+  }
+
+  function classify(summary, key) {
+    if (!summary) return { name: '', kind: 'event' };
+    var s = summary
+      .replace(/【(.*?)】/g, '$1')
+      .replace(/[(（][^)）]*[)）]/g, '')      // 去掉「黄金周 (国庆节)」这类括注
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (/^(班|上班|补班|调休上班|工作日|workday)/i.test(s) || /补班|上班|调休/.test(s)) {
+      return { name: s.slice(0, 12), kind: 'workday' };
+    }
+    if (/休|放假|假期|节|元旦|春节|清明|劳动|端午|中秋|国庆|除夕|holiday/i.test(s)) {
+      return { name: s.slice(0, 12), kind: 'holiday' };
+    }
+    return { name: s.slice(0, 24), kind: 'event' };
+  }
+
+  function parseICS(text) {
+    var days = Object.create(null);
+    var lines = unfoldICS(text).split('\n');
+    var cur = null;
+    var budget = MAX_EVENTS;
+
+    for (var i = 0; i < lines.length && budget > 0; i++) {
+      var line = lines[i];
+      if (line === 'BEGIN:VEVENT') { cur = { summary: '' }; continue; }
+      if (line === 'END:VEVENT') {
+        if (cur && cur.start) {
+          var end = cur.end || addDays(cur.start, 1);
+          var span = Math.min(Math.round((end - cur.start) / 86400000), 30);
+          var meta = classify(cur.summary, ymd(cur.start));
+          for (var n = 0; n < Math.max(span, 1); n++) {
+            var key = ymd(addDays(cur.start, n));
+            var slot = days[key] || (days[key] = { name: '', kind: 'event', count: 0, titles: [] });
+            if (meta.name && !slot.name) { slot.name = meta.name; slot.kind = meta.kind; }
+            if (meta.kind === 'event') {
+              slot.count += 1;
+              if (meta.name) slot.titles.push(meta.name);
+            } else {
+              slot.kind = meta.kind;
+              if (!slot.name) slot.name = meta.name;
+            }
+            budget--;
+            if (budget <= 0) break;
+          }
+        }
+        cur = null;
+        continue;
+      }
+      if (!cur) continue;
+      var idx = line.indexOf(':');
+      if (idx < 0) continue;
+      var name = line.slice(0, idx).split(';')[0].toUpperCase();
+      var value = line.slice(idx + 1);
+      if (name === 'DTSTART') cur.start = icsDate(value);
+      else if (name === 'DTEND') cur.end = icsDate(value);
+      else if (name === 'SUMMARY') cur.summary = summarize(value);
+    }
+    return days;
+  }
+
+  function setStatus(text, tone) {
+    feedStatus.textContent = text;
+    feedStatus.dataset.tone = tone || 'muted';
+  }
+
+  function syncFeed(silent) {
+    if (!feed.url) {
+      setStatus(t('neverSynced', '尚未同步'), 'muted');
+      return Promise.resolve(false);
+    }
+    if (typeof bridge.fetch !== 'function') {
+      setStatus(t('offline', '订阅仅在 App 内可用'), 'error');
+      return Promise.resolve(false);
+    }
+    if (!silent) setStatus('同步中…', 'muted');
+
+    return bridge.fetch(feed.url, {}).then(function (res) {
+      var text = typeof res === 'string' ? res : (res && res.text ? res.text : '');
+      if (!text) throw new Error('empty response');
+      var days = parseICS(text);
+      var count = Object.keys(days).length;
+      if (count === 0) throw new Error('no VEVENT');
+      feed.days = days;
+      feed.updatedAt = Date.now();
+      saveFeed();
+      render();
+      setStatus(t('synced', '已同步 {n} 条 · {when}', { n: count, when: '刚刚' }), 'ok');
+      bridge.emit('calendar:feed', { status: 'ok', count: count, message: '' });
+      return true;
+    }).catch(function (err) {
+      var msg = (err && err.message) ? String(err.message).slice(0, 40) : 'failed';
+      setStatus(t('syncFailed', '同步失败：{msg}', { msg: msg }), 'error');
+      bridge.emit('calendar:feed', { status: 'error', count: 0, message: msg });
+      return false;
+    });
+  }
+
+  function openSheet() {
+    feedUrlInput.value = feed.url;
+    if (feed.url) {
+      setStatus(feed.updatedAt
+        ? t('synced', '已同步 {n} 条 · {when}', { n: Object.keys(feed.days).length, when: new Date(feed.updatedAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) })
+        : t('neverSynced', '尚未同步'), feed.updatedAt ? 'ok' : 'muted');
+    } else {
+      setStatus(t('neverSynced', '尚未同步'), 'muted');
+    }
+    sheetWrap.dataset.open = 'true';
+    setTimeout(function () { feedUrlInput.focus(); }, 0);
+  }
+
+  function closeSheet() {
+    sheetWrap.dataset.open = 'false';
+  }
+
+  document.getElementById('settings').addEventListener('click', function (e) {
+    e.stopPropagation();
+    openSheet();
+  });
+  document.getElementById('sheetClose').addEventListener('click', closeSheet);
+  sheetWrap.addEventListener('click', function (e) {
+    if (e.target === sheetWrap) closeSheet();
+  });
+
+  document.getElementById('feedSync').addEventListener('click', function () {
+    var url = feedUrlInput.value.trim();
+    if (!/^https:\/\//i.test(url)) {
+      setStatus('需要 https 链接', 'error');
+      return;
+    }
+    feed.url = url;
+    saveFeed();
+    syncFeed(false);
+  });
+
+  document.getElementById('feedRemove').addEventListener('click', function () {
+    feed = { url: '', updatedAt: 0, days: Object.create(null) };
+    saveFeed();
+    feedUrlInput.value = '';
+    setStatus(t('neverSynced', '尚未同步'), 'muted');
+    render();
+    bridge.emit('calendar:feed', { status: 'ok', count: 0, message: 'removed' });
+  });
+
+  /* ================= Agent 协议 ================= */
+  function takeHolidays(input) {
+    var out = Object.create(null);
+    if (!input || typeof input !== 'object') return out;
+    Object.keys(input).slice(0, 400).forEach(function (k) {
+      if (!DATE_RE.test(k)) return;
+      var v = input[k];
+      if (typeof v === 'string') out[k] = { name: v.slice(0, 12), kind: 'holiday' };
+      else if (v && typeof v === 'object') {
+        out[k] = { name: String(v.name || '').slice(0, 12), kind: normalizeKind(v.kind) };
+      }
+    });
+    return out;
+  }
+
+  function takeEvents(input) {
+    var out = Object.create(null);
+    if (!input || typeof input !== 'object') return out;
+    Object.keys(input).slice(0, 400).forEach(function (k) {
+      if (!DATE_RE.test(k)) return;
+      var v = input[k];
+      if (typeof v === 'number' && v > 0) out[k] = { count: Math.min(v, 9) };
+      else if (v && typeof v === 'object') {
+        out[k] = {
+          count: Math.min(+v.count || 1, 9),
+          titles: Array.isArray(v.titles) ? v.titles.filter(function (x) { return typeof x === 'string'; }).slice(0, 6) : []
+        };
+      }
+      else if (v === true) out[k] = { count: 1 };
+    });
+    return out;
+  }
+
+  bridge.on('calendar:set', function (data) {
+    if (!data || typeof data !== 'object') return;
+    var changed = false;
+    var month = parseMonth(data.month);
+    if (month) { view = startOfMonth(month); changed = true; }
+    var sel = typeof data.selected === 'string' ? parseDate(data.selected) : null;
+    if (sel) { selected = ymd(sel); changed = true; }
+    if (data.weekStart === 'mon' || data.weekStart === 'sun') {
+      weekStart = data.weekStart === 'mon' ? 1 : 0;
+      try { localStorage.setItem(PREF_WEEKSTART, data.weekStart); } catch (e) {}
+      renderWeekdays();
+      changed = true;
+    }
+    if (data.holidays !== undefined) {
+      overrides = takeHolidays(data.holidays);
+      changed = true;
+    }
+    if (data.events !== undefined) {
+      agendaMap = takeEvents(data.events);
+      changed = true;
+    }
+    if (changed) render();
+  });
+
+  bridge.on('calendar:feed', function (data) {
+    if (!data || typeof data !== 'object') return;
+    var url = typeof data.url === 'string' ? data.url.trim() : '';
+    if (url) {
+      if (!/^https:\/\//i.test(url)) return;
+      feed.url = url;
+      saveFeed();
+    }
+    if (data.refresh === true || url) syncFeed(true);
+    render();
+  });
+
+  bridge.on('calendar:today', goToday);
+
+  /* ================= 启动 ================= */
+  renderWeekdays();
+  render();
+
+  if (feed.url && feed.updatedAt && (Date.now() - feed.updatedAt) > FEED_TTL) {
+    syncFeed(true);
+  }
+
+  bridge.emit('calendar:ready', {
+    version: '1.0.0',
+    month: ymOf(view),
+    today: TODAY,
+    weekStart: weekStart === 1 ? 'mon' : 'sun',
+    lunar: true,
+    feed: { url: feed.url, updatedAt: feed.updatedAt, days: Object.keys(feed.days).length }
+  });
+})();
+</script>
+</body>
+</html>
