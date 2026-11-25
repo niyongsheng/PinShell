@@ -163,6 +163,16 @@ final class ConsoleDetailViewController: NSViewController {
         previewWebView.autoresizingMask = [.width, .height]
         previewWindowView.addSubview(previewWebView)
 
+        // 舞台宽度由滚动页内部布局决定：首次打开控制台或调整窗口尺寸时，
+        // 详情视图的 viewDidLayout 早于滚动页完成布局，读到的是旧尺寸，
+        // 预览会停在旧位置（不居中）。等舞台自身尺寸变化后再居中一次。
+        previewStage.contentView.postsFrameChangedNotifications = true
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(previewStageFrameChanged(_:)),
+            name: NSView.frameDidChangeNotification,
+            object: previewStage.contentView)
+
         // 高度跟随模板声明高度；整页可滚动，不再压缩舞台来迁就首屏
         let height = previewCard.heightAnchor.constraint(equalToConstant: 236)
         height.isActive = true
@@ -492,6 +502,10 @@ final class ConsoleDetailViewController: NSViewController {
         layoutPreview()
     }
 
+    @objc private func previewStageFrameChanged(_ notification: Notification) {
+        layoutPreview()
+    }
+
     private func layoutPreview() {
         let box = previewStage.contentView.bounds.size
         guard let item = currentTemplate, box.width > 1, box.height > 1 else { return }
@@ -512,7 +526,9 @@ final class ConsoleDetailViewController: NSViewController {
                            height: scaled.height)
         previewWindowView.frame = frame
         previewWebView.frame = previewWindowView.bounds
-        previewWebView.pageZoom = scale
+        if previewWebView.pageZoom != scale {
+            previewWebView.pageZoom = scale
+        }
         let corner = previewRadius * scale
         previewWindowView.layer?.cornerRadius = corner
         previewShadowView.frame = frame.insetBy(dx: -PreviewShadowView.bleed,
