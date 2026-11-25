@@ -21,7 +21,7 @@
 "update.availableTitle" = "PinShell v%@ is available";
 "update.availableMessage" = "A new version (v%@) of PinShell is available. You can download and install it now.";
 "update.download" = "Download & Install";
-"update.installHint" = "The system Installer will open after the download. Reopen PinShell once installation finishes.";
+"update.installHint" = "The system Installer will open after the download. PinShell restarts automatically when installation finishes.";
 "update.later" = "Later";
 "update.skip" = "Skip This Version";
 "update.upToDate" = "You're up to date";
@@ -37,6 +37,10 @@
 "update.cancelling" = "Cancelling…";
 "update.verifying" = "Verifying installer…";
 "update.openingInstaller" = "Opening Installer…";
+"update.waitingForInstall" = "Waiting for installation…";
+"update.restarting" = "Installation complete. Restarting…";
+"update.installedTitle" = "Update Installed";
+"update.relaunchFailed" = "PinShell couldn't reopen automatically. Quit PinShell, then reopen it to use the new version.";
 "update.installFailed" = "Update Download Failed";
 "update.retry" = "Retry";
 "update.openReleasePage" = "Open Release Page";
@@ -152,6 +156,54 @@
 "console.mcp.clients.errorUnreadable" = "Couldn’t read the config file (permissions or encoding issue), so it was left unchanged:\n%@";
 "console.mcp.clients.hint" = "Restart the client after configuring for the change to take effect.";
 
+/* 控制台 · CLI */
+"console.cli.title" = "CLI";
+"console.cli.navTitle" = "CLI";
+"console.cli.navSubtitle" = "Shell · Local control";
+"console.cli.ready" = "CLI · ready";
+"console.cli.tools.title" = "Command-Line Tool";
+"console.cli.executable" = "Executable";
+"console.cli.executable.subtitle" = "The CLI and MCP share the same local control channel.";
+"console.cli.install.title" = "Install to PATH";
+"console.cli.install.subtitle" = "Create a PinShell symlink in ~/.local/bin";
+"console.cli.install.install" = "Install";
+"console.cli.install.reinstall" = "Reinstall";
+"console.cli.install.remove" = "Remove";
+"console.cli.install.installed" = "Installed";
+"console.cli.install.stale" = "Path changed";
+"console.cli.install.notInstalled" = "Not installed";
+"console.cli.install.occupied" = "Path occupied";
+"console.cli.install.staleHint" = "The link points to %@. Choose Reinstall to update it.";
+"console.cli.install.occupiedHint" = "~/.local/bin/PinShell already exists, but it is not a symlink created by this app.";
+"console.cli.install.errorTitle" = "Couldn’t Install Command-Line Tool";
+"console.cli.install.errorExists" = "%@ already exists. Move it away and try again.";
+"console.cli.path.hint" = "If your terminal can’t find PinShell, add this line to ~/.zshrc or ~/.bash_profile, then open a new terminal:";
+"console.cli.path.copy" = "Copy PATH Line";
+"console.cli.commands" = "Common Commands";
+"console.cli.commands.hint" = "Run PinShell --help for every command, option, and exit code.";
+"console.cli.command.show" = "Show a local HTML file; --watch reloads when the file changes";
+"console.cli.command.set" = "Update properties of the current window";
+"console.cli.command.eval" = "Evaluate JavaScript in the page and return the result";
+"console.cli.command.emit" = "Dispatch an event to the page; data must be valid JSON";
+"console.cli.command.listen" = "Stream page events, one JSON object per line";
+"console.cli.command.status" = "Print the current window state";
+"console.cli.command.templates" = "List installed templates";
+"console.cli.command.close" = "Hide the overlay";
+"console.cli.command.quit" = "Quit the PinShell app";
+"console.cli.command.mcp" = "Run the MCP stdio server";
+"console.cli.command.reload" = "Reload the current HTML file";
+"console.cli.command.copy" = "Copy Command";
+"console.cli.skill.title" = "Agent Skill";
+"console.cli.skill.subtitle" = "SKILL.md teaches shell-only agents to drive PinShell from the command line. Save it to ~/.claude/skills/pinshell/ or your client’s skills directory.";
+"console.cli.skill.path" = "~/.claude/skills/pinshell/SKILL.md";
+"console.cli.skill.download" = "Download SKILL.md";
+"console.cli.skill.copy" = "Copy Content";
+"console.cli.skill.saved" = "Saved";
+"console.cli.skill.saveTitle" = "Save SKILL.md";
+"console.cli.skill.saveMessage" = "Save as SKILL.md, then place it in the agent’s skills/pinshell directory.";
+"console.cli.skill.errorTitle" = "Couldn’t Save SKILL.md";
+"console.cli.skill.unavailable" = "The bundled SKILL.md is missing. Reinstall PinShell.";
+
 /* 控制台 · 关于 */
 "console.about.title" = "About";
 "console.about.subtitle" = "A bright window for AI: code as paper, a corner of the screen as its place — to converse, to present, to echo.";
@@ -222,6 +274,8 @@
 "console.shortcuts.action.toggleOverlay.subtitle" = "Toggle the overlay from any app.";
 "console.shortcuts.action.togglePassthrough" = "Toggle Interactive / Passthrough";
 "console.shortcuts.action.togglePassthrough.subtitle" = "Let mouse events pass through the overlay, or restore interaction.";
+"console.shortcuts.action.toggleDisplayMode" = "Toggle Display Mode";
+"console.shortcuts.action.toggleDisplayMode.subtitle" = "Switch between the desktop overlay and the menu bar popover.";
 "console.shortcuts.action.openConsole" = "Open Console";
 "console.shortcuts.action.openConsole.subtitle" = "Open the window with templates, MCP, and settings.";
 "console.shortcuts.action.showTemplates" = "Local Templates";

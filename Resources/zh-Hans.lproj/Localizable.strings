@@ -21,7 +21,7 @@
 "update.availableTitle" = "发现新版本 v%@";
 "update.availableMessage" = "PinShell 有新版本 v%@ 可用，可立即下载安装包。";
 "update.download" = "下载并安装";
-"update.installHint" = "下载完成后会打开系统安装器；安装完成后请重新打开 PinShell。";
+"update.installHint" = "下载完成后会打开系统安装器；安装完成后 PinShell 会自动重启。";
 "update.later" = "稍后提醒";
 "update.skip" = "跳过此版本";
 "update.upToDate" = "已是最新版本";
@@ -37,6 +37,10 @@
 "update.cancelling" = "正在取消…";
 "update.verifying" = "正在校验安装包…";
 "update.openingInstaller" = "正在打开安装器…";
+"update.waitingForInstall" = "等待安装完成…";
+"update.restarting" = "安装完成，正在重启…";
+"update.installedTitle" = "更新已安装";
+"update.relaunchFailed" = "无法自动重新打开 PinShell。请先退出 PinShell，再重新打开以使用新版本。";
 "update.installFailed" = "更新下载失败";
 "update.retry" = "重试";
 "update.openReleasePage" = "打开发布页";
@@ -152,6 +156,54 @@
 "console.mcp.clients.errorUnreadable" = "无法读取配置文件（权限或编码问题），未做修改：\n%@";
 "console.mcp.clients.hint" = "写入后重启对应客户端即可生效。";
 
+/* 控制台 · CLI */
+"console.cli.title" = "CLI 命令行";
+"console.cli.navTitle" = "CLI";
+"console.cli.navSubtitle" = "Shell · 本地控制";
+"console.cli.ready" = "CLI · 已就绪";
+"console.cli.tools.title" = "命令行工具";
+"console.cli.executable" = "可执行文件";
+"console.cli.executable.subtitle" = "CLI 与 MCP 共用同一条本机控制通道。";
+"console.cli.install.title" = "安装到 PATH";
+"console.cli.install.subtitle" = "在 ~/.local/bin 创建 PinShell 软链";
+"console.cli.install.install" = "安装";
+"console.cli.install.reinstall" = "重新安装";
+"console.cli.install.remove" = "移除";
+"console.cli.install.installed" = "已安装";
+"console.cli.install.stale" = "路径已变更";
+"console.cli.install.notInstalled" = "未安装";
+"console.cli.install.occupied" = "路径被占用";
+"console.cli.install.staleHint" = "链接指向 %@，选择“重新安装”更新。";
+"console.cli.install.occupiedHint" = "~/.local/bin/PinShell 已存在，但不是本应用的软链。";
+"console.cli.install.errorTitle" = "无法安装命令行工具";
+"console.cli.install.errorExists" = "%@ 已被占用，请先移走后再试。";
+"console.cli.path.hint" = "如果终端找不到 PinShell，把这行加入 ~/.zshrc 或 ~/.bash_profile，然后重开终端：";
+"console.cli.path.copy" = "复制 PATH 配置";
+"console.cli.commands" = "常用命令";
+"console.cli.commands.hint" = "运行 PinShell --help 查看全部命令、选项和退出码。";
+"console.cli.command.show" = "显示本地 HTML；--watch 在文件变化时自动重载";
+"console.cli.command.set" = "更新当前窗口的属性";
+"console.cli.command.eval" = "在页面中执行 JS 并返回结果";
+"console.cli.command.emit" = "向页面派发事件，数据必须是合法 JSON";
+"console.cli.command.listen" = "流式读取页面事件，每行一个 JSON";
+"console.cli.command.status" = "打印当前窗口状态";
+"console.cli.command.templates" = "列出已安装模板";
+"console.cli.command.close" = "隐藏悬浮窗";
+"console.cli.command.quit" = "退出 PinShell 应用";
+"console.cli.command.mcp" = "运行 MCP stdio 服务";
+"console.cli.command.reload" = "重新加载当前 HTML 文件";
+"console.cli.command.copy" = "复制命令";
+"console.cli.skill.title" = "Agent Skill";
+"console.cli.skill.subtitle" = "SKILL.md 教只支持 shell 的 Agent 用命令行驱动 PinShell。保存到 ~/.claude/skills/pinshell/ 或对应客户端的 skills 目录。";
+"console.cli.skill.path" = "~/.claude/skills/pinshell/SKILL.md";
+"console.cli.skill.download" = "下载 SKILL.md";
+"console.cli.skill.copy" = "复制内容";
+"console.cli.skill.saved" = "已保存";
+"console.cli.skill.saveTitle" = "保存 SKILL.md";
+"console.cli.skill.saveMessage" = "保存为 SKILL.md，并放入 Agent 的 skills/pinshell 目录。";
+"console.cli.skill.errorTitle" = "无法保存 SKILL.md";
+"console.cli.skill.unavailable" = "找不到内置的 SKILL.md，请重新安装 PinShell。";
+
 /* 控制台 · 关于 */
 "console.about.title" = "关于";
 "console.about.subtitle" = "予 AI 一扇明窗，以代码为笺，于屏隅之间，晤谈、呈示、回响。";
@@ -222,6 +274,8 @@
 "console.shortcuts.action.toggleOverlay.subtitle" = "在任意应用中切换悬浮窗的显示状态。";
 "console.shortcuts.action.togglePassthrough" = "切换交互 / 穿透";
 "console.shortcuts.action.togglePassthrough.subtitle" = "让鼠标事件穿过悬浮窗，或恢复交互。";
+"console.shortcuts.action.toggleDisplayMode" = "切换显示方式";
+"console.shortcuts.action.toggleDisplayMode.subtitle" = "在桌面悬浮与顶部菜单栏弹出之间切换。";
 "console.shortcuts.action.openConsole" = "打开控制台";
 "console.shortcuts.action.openConsole.subtitle" = "打开模板、MCP 与设置所在的窗口。";
 "console.shortcuts.action.showTemplates" = "本地模板";
