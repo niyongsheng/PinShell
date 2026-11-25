@@ -24,6 +24,12 @@
         "prev": "Previous month",
         "next": "Next month",
         "today": "Today",
+        "tomorrow": "Tomorrow",
+        "dayAfter": "Day after tomorrow",
+        "allDay": "All day",
+        "agenda": "Schedule",
+        "eventDetails": "Event details",
+        "emptyWeek": "Nothing in the next 7 days",
         "dayOff": "Day off",
         "workday": "Workday",
         "monthView": "Month view",
@@ -41,7 +47,47 @@
         "noEvents": "No events",
         "eventCount": "{n} events",
         "weekShort": "W{week}",
-        "lunarFooter": "{year} · {month}{day}"
+        "lunarFooter": "{year} · {month}{day}",
+        "justNow": "just now",
+        "syncing": "Syncing…",
+        "httpsRequired": "An https URL is required",
+        "emptyFeed": "The feed is empty",
+        "noFeedEvents": "No events in the feed",
+        "syncFailure": "Sync failed",
+        "makeupWorkday": "Make-up workday",
+        "workdayShort": "Work",
+        "dayOffShort": "Off",
+        "festival.qingming": "Qingming",
+        "festival.springFestival": "Spring Festival",
+        "festival.lantern": "Lantern Festival",
+        "festival.longtaitou": "Longtaitou",
+        "festival.dragonBoat": "Dragon Boat Festival",
+        "festival.qixi": "Qixi",
+        "festival.zhongyuan": "Zhongyuan",
+        "festival.midAutumn": "Mid-Autumn Festival",
+        "festival.doubleNinth": "Double Ninth Festival",
+        "festival.laba": "Laba Festival",
+        "festival.xiaonian": "Little New Year",
+        "festival.newYearEve": "New Year's Eve",
+        "festival.newYear": "New Year's Day",
+        "festival.valentine": "Valentine's Day",
+        "festival.womensDay": "Women's Day",
+        "festival.arborDay": "Arbor Day",
+        "festival.aprilFools": "April Fools' Day",
+        "festival.laborDay": "Labor Day",
+        "festival.youthDay": "Youth Day",
+        "festival.mothersDay": "Mother's Day",
+        "festival.childrensDay": "Children's Day",
+        "festival.fathersDay": "Father's Day",
+        "festival.partyDay": "Party Founding Day",
+        "festival.armyDay": "Army Day",
+        "festival.teachersDay": "Teachers' Day",
+        "festival.nationalDay": "National Day",
+        "festival.halloweenEve": "Halloween",
+        "festival.allSaints": "All Saints' Day",
+        "festival.thanksgiving": "Thanksgiving",
+        "festival.christmasEve": "Christmas Eve",
+        "festival.christmas": "Christmas"
       }
     }
   }
@@ -49,7 +95,7 @@
 </script>
 <title>工作日历</title>
 <meta name="description" content="农历、节假日与调休，支持 .ics 订阅。">
-<meta name="pinshell:size" content="320x400">
+<meta name="pinshell:size" content="320x472">
 <meta name="pinshell:position" content="top">
 <meta name="pinshell:radius" content="18">
 <meta name="pinshell:order" content="11">
@@ -61,7 +107,12 @@
     calendar:set    { month?: "YYYY-MM", selected?: "YYYY-MM-DD",
                       weekStart?: "mon" | "sun",
                       holidays?: { "YYYY-MM-DD": { name, kind } }   // kind: holiday | workday | event
-                      events?:   { "YYYY-MM-DD": 1 | { count, title } } }
+                      events?:   { "YYYY-MM-DD": 1 | true | { count, titles }
+                                   | [EventItem] | { count?, titles?, items: [EventItem] } } }
+                    EventItem = { title, start?: "HH:MM", end?: "HH:MM",
+                                  allDay?: true, location?: string,
+                                  note?: string, kind?: "event" | "holiday" | "workday" }
+                                    title 必填；带 start 显示时间条，allDay 显示「全天」。
                     字段级替换：只处理传入的字段，holidays / events 每次传入即整表替换，传 {} 清空。
                     优先级：holidays > 订阅源 > 内置节假日。
     calendar:feed   { url?: "https://….ics", refresh?: true }  设置或立即刷新订阅
@@ -70,12 +121,14 @@
   Page -> agent (pinshell_poll_events / pinshell_await_event):
     calendar:ready     { version, month, today, weekStart, feed, lunar }
     calendar:navigate  { month }
-    calendar:select    { date, holiday, events }
+    calendar:select    { date, holiday, events, items }         items 为当日富日程（含全天节日）
     calendar:dismiss   {}                       按下 Esc（Agent 可用 pinshell_close 收起）
     calendar:feed      { status: "ok" | "error", count, message }
 
   农历与干支由系统 Intl 的 chinese 日历提供；内置 2025–2027 法定节假日放假/调休表，
-  更远年份请订阅 .ics 或通过 calendar:set 推送。滚动滚轮可翻月，顶栏圆点按钮回到今天。
+  更远年份请订阅 .ics 或通过 calendar:set 推送。日历订阅会读取 DTSTART/DTEND 时间、
+  LOCATION 与 DESCRIPTION，并在月视图下方按天分组显示。滚轮在日程列表内滚动、在月视图
+  上翻月；顶栏圆点按钮回到今天。
 -->
 <style>
   * { box-sizing: border-box; }
@@ -110,8 +163,16 @@
     --selected-ring: rgba(255, 255, 255, 0.24);
     --today-ring: rgba(41, 151, 255, 0.55);
     --dot: rgba(255, 255, 255, 0.55);
-    --today-dot: var(--ps-primary-on-dark);
     --accent-soft: var(--ps-primary-on-dark);
+
+    /* 日程卡片：中性底 + 语义色轨道 */
+    --event-card: rgba(255, 255, 255, 0.045);
+    --event-border: rgba(255, 255, 255, 0.075);
+    --event-hover: rgba(255, 255, 255, 0.085);
+    --event-holiday-card: rgba(255, 159, 10, 0.075);
+    --event-holiday-border: rgba(255, 159, 10, 0.2);
+    --allday-chip: rgba(255, 255, 255, 0.09);
+    --note-ink: rgba(255, 255, 255, 0.82);
 
     --veil: rgba(0, 0, 0, 0.52);
     --sheet-bg: var(--ps-surface-tile-2);
@@ -149,8 +210,15 @@
       --selected-ring: rgba(0, 0, 0, 0.2);
       --today-ring: rgba(0, 102, 204, 0.45);
       --dot: rgba(0, 0, 0, 0.38);
-      --today-dot: var(--ps-primary);
       --accent-soft: var(--ps-primary);
+
+      --event-card: rgba(0, 0, 0, 0.028);
+      --event-border: rgba(0, 0, 0, 0.065);
+      --event-hover: rgba(0, 0, 0, 0.05);
+      --event-holiday-card: rgba(178, 80, 0, 0.055);
+      --event-holiday-border: rgba(178, 80, 0, 0.16);
+      --allday-chip: rgba(0, 0, 0, 0.06);
+      --note-ink: rgba(29, 29, 31, 0.82);
 
       --veil: rgba(0, 0, 0, 0.26);
       --sheet-bg: rgba(255, 255, 255, 0.98);
@@ -169,9 +237,11 @@
   }
 
   .panel {
-    position: absolute; inset: 0;
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: auto;
     display: flex; flex-direction: column;
-    padding: 12px 12px 10px;
+    padding: 12px;
     background:
       radial-gradient(120% 70% at 50% -18%, var(--panel-tint), transparent 60%),
       linear-gradient(180deg, var(--panel-top), var(--panel-bottom));
@@ -186,17 +256,23 @@
   /* ---------- 表头 ---------- */
   header {
     flex: none;
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: flex-start; justify-content: space-between;
     gap: 8px;
-    height: 24px;
-    margin-bottom: 7px;
+    margin-bottom: 6px;
   }
+  .month-wrap { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
   .month {
     min-width: 0;
-    font-size: 16px; font-weight: 600; letter-spacing: -0.3px;
+    font-size: 16px; font-weight: 600; line-height: 1.15; letter-spacing: -0.3px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .nav { display: flex; align-items: center; gap: 1px; flex: none; }
+  .month-sub {
+    min-width: 0;
+    font-size: 9px; line-height: 1.2; letter-spacing: 0.02em;
+    color: var(--ink-faint);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .nav { display: flex; align-items: center; gap: 1px; flex: none; margin-top: 1px; }
 
   .icon-btn {
     display: inline-flex; align-items: center; justify-content: center;
@@ -231,8 +307,8 @@
 
   /* ---------- 日期网格 ---------- */
   .grid {
-    flex: 1;
-    min-height: 0;
+    flex: 0 0 auto;
+    height: 272px;
     grid-auto-rows: minmax(0, 1fr);
     gap: var(--cell-gap) 0;
   }
@@ -251,10 +327,13 @@
   .badge {
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    width: 38px; height: 38px;
+    height: min(38px, calc(100% - 8px));
+    aspect-ratio: 1;
     border-radius: 50%;
     gap: 0;
+    overflow: visible;
   }
+  .cell.today .badge { overflow: hidden; }
   .dnum {
     font-size: 14.5px; font-weight: 500; line-height: 1.05;
     font-variant-numeric: tabular-nums;
@@ -262,13 +341,13 @@
     color: var(--ink);
   }
   .sub {
-    max-width: 38px;
+    max-width: 40px;
     font-size: 9.5px; font-weight: 450; line-height: 1.15;
     color: var(--ink-muted);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .sub.holiday { color: var(--day-holiday); font-weight: 600; }
-  .sub.event { color: var(--accent-soft); font-weight: 600; }
+  .sub.holiday { color: var(--day-holiday); font-weight: 600; font-size: 9px; }
+  .sub.event { color: var(--accent-soft); font-weight: 600; font-size: 9px; }
   .sub.work {
     color: var(--day-work); font-weight: 700;
     border: 1px solid var(--work-border);
@@ -290,70 +369,186 @@
   .cell.today .sub { color: rgba(255, 255, 255, 0.82); }
   .cell.today.selected .badge { box-shadow: 0 0 0 2px var(--today-ring); }
 
-  .cell.selected:not(.today) .badge { box-shadow: inset 0 0 0 1px var(--selected-ring); }
+  .cell.selected:not(.today) .badge { box-shadow: 0 0 0 1px var(--selected-ring); }
 
   .cell.other { opacity: 0.38; }
 
-  .dot {
+  .dots {
     position: absolute;
     left: 50%; bottom: 1px;
+    display: flex; align-items: center; gap: 2px;
+    transform: translateX(-50%);
+  }
+  .dots i {
     width: 3px; height: 3px;
-    margin-left: -1.5px;
     border-radius: 50%;
     background: var(--dot);
   }
-  .cell.today .dot { background: var(--today-dot); }
-  .dot.many { width: 7px; height: 2px; margin-left: -3.5px; border-radius: 1px; }
+  .dots i.event { background: var(--accent-soft); }
+  .dots i.holiday { background: var(--day-holiday); }
+  .dots i.work { background: var(--day-work); }
 
-  /* ---------- 页脚 ---------- */
-  footer {
-    flex: none;
+  /* ---------- 日程列表 ---------- */
+  .day-panel {
+    position: relative;
+    flex: 0 0 auto;
+    max-height: 208px;
     display: flex; flex-direction: column;
-    gap: 2px;
-    margin-top: 5px;
-    padding-top: 6px;
+    min-width: 0;
+    margin-top: 8px;
+    padding-top: 8px;
     border-top: 1px solid var(--hairline);
   }
-  .foot-row {
+  .day-panel::after {
+    content: "";
+    position: absolute; left: 0; right: 0; bottom: 0;
+    height: 16px;
+    background: linear-gradient(180deg, transparent, var(--panel-bottom));
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
+  .day-panel[data-scrollable="true"]::after { opacity: 1; }
+  .day-list {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    padding-right: 2px;
+    margin-right: -2px;
+  }
+  .day-list::-webkit-scrollbar { display: none; }
+  .day-group + .day-group { margin-top: 9px; }
+
+  .day-head {
     display: flex; align-items: baseline; justify-content: space-between;
-    gap: 10px;
-    font-size: 10.5px;
-    color: var(--ink-muted);
-  }
-  .foot-left {
-    display: inline-flex; align-items: baseline; gap: 5px;
+    gap: 8px;
+    padding: 0 2px 4px;
     min-width: 0;
-    color: var(--ink-faint);
   }
-  .today-link {
-    padding: 0; border: 0; background: transparent;
-    font: inherit; font-size: 10.5px; font-weight: 600;
+  .dh-date {
+    min-width: 0;
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em;
     color: var(--ink-strong);
-    cursor: pointer; border-radius: var(--ps-radius-xs);
-  }
-  .today-link:hover { color: var(--ink); text-decoration: underline; }
-  .today-link:focus-visible { outline: 2px solid var(--ps-primary-focus); outline-offset: 2px; }
-  .sep { opacity: 0.45; }
-  .foot-right {
-    flex: none;
-    white-space: nowrap;
-    color: var(--ink-weak);
-    font-variant-numeric: tabular-nums;
-  }
-  .agenda {
-    display: flex; align-items: center; gap: 5px;
-    min-width: 0;
-    font-size: 10.5px;
-    color: var(--ink-faintest);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .agenda.has { color: var(--ink-soft); }
-  .agenda .mark {
+  .dh-date .rel { font-weight: 700; color: var(--ink); }
+  .dh-date .sep { margin: 0 4px; opacity: 0.42; }
+  .dh-lunar {
     flex: none;
-    width: 3px; height: 3px; border-radius: 50%;
+    font-size: 9px;
+    color: var(--ink-faintest);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .day-empty {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 2px 2px;
+    font-size: 10px; line-height: 1.35;
+    color: var(--ink-faintest);
+  }
+  .day-empty::before {
+    content: "";
+    flex: none;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--dot);
+    opacity: 0.55;
+  }
+  .day-empty-card {
+    display: flex; align-items: center; gap: 10px;
+    margin: 5px 2px 0;
+    padding: 13px 12px;
+    background: var(--event-card);
+    border: 1px solid var(--event-border);
+    border-radius: var(--ps-radius-sm);
+  }
+  .day-empty-glyph {
+    flex: none;
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--allday-chip);
+    color: var(--ink-faint);
+  }
+  .day-empty-glyph svg { width: 14px; height: 14px; }
+  .day-empty-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .day-empty-title { font-size: 11px; font-weight: 600; color: var(--ink-soft); }
+  .day-empty-sub { font-size: 9.5px; color: var(--ink-faintest); }
+
+  .ev-card {
+    position: relative;
+    display: flex; align-items: flex-start; gap: 8px;
+    width: 100%;
+    margin-top: 4px;
+    padding: 7px 8px 7px 11px;
+    font: inherit; text-align: left;
+    color: var(--ink);
+    background: var(--event-card);
+    border: 1px solid var(--event-border);
+    border-radius: var(--ps-radius-sm);
+    cursor: pointer;
+    overflow: hidden;
+    transition: background 0.14s ease, border-color 0.14s ease;
+  }
+  .ev-card::before {
+    content: "";
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px;
     background: var(--accent-soft);
   }
-  .agenda span.txt { overflow: hidden; text-overflow: ellipsis; }
+  .ev-card[data-kind="holiday"],
+  .ev-card[data-kind="workday"] {
+    background: var(--event-holiday-card);
+    border-color: var(--event-holiday-border);
+  }
+  .ev-card[data-kind="holiday"]::before,
+  .ev-card[data-kind="workday"]::before { background: var(--day-holiday); }
+  .ev-card:hover { background: var(--event-hover); }
+  .ev-card[data-kind="holiday"]:hover,
+  .ev-card[data-kind="workday"]:hover { background: var(--event-holiday-card); border-color: var(--event-holiday-border); }
+  .ev-card:active { transform: scale(0.985); }
+  .ev-card:focus-visible { outline: 2px solid var(--ps-primary-focus); outline-offset: 1px; }
+
+  .ev-time {
+    flex: none;
+    width: 38px;
+    display: flex; flex-direction: column; gap: 1px;
+    padding-top: 1px;
+    font-variant-numeric: tabular-nums;
+  }
+  .ev-start { font-size: 10.5px; font-weight: 650; line-height: 1.2; color: var(--ink-strong); }
+  .ev-end { font-size: 9px; line-height: 1.2; color: var(--ink-faint); }
+  .ev-allday {
+    align-self: flex-start;
+    padding: 1px 4px;
+    font-size: 8.5px; font-weight: 600; line-height: 1.25;
+    color: var(--ink-muted);
+    background: var(--allday-chip);
+    border-radius: var(--ps-radius-xs);
+    white-space: nowrap;
+  }
+  .ev-body { flex: 1; min-width: 0; }
+  .ev-title {
+    font-size: 11.5px; font-weight: 600; line-height: 1.3;
+    letter-spacing: -0.1px;
+    color: var(--ink);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .ev-meta {
+    display: flex; align-items: center; gap: 3px;
+    margin-top: 2px;
+    font-size: 9px; line-height: 1.3;
+    color: var(--ink-faint);
+    white-space: nowrap; overflow: hidden;
+  }
+  .ev-meta svg { flex: none; width: 8px; height: 8px; opacity: 0.75; }
+  .ev-meta span { overflow: hidden; text-overflow: ellipsis; }
 
   /* ---------- 订阅设置浮层 ---------- */
   .sheet-wrap {
@@ -420,15 +615,65 @@
   .sheet .row button:active { transform: var(--ps-press-scale); }
   .sheet .row button:focus-visible { outline: 2px solid var(--ps-primary-focus); outline-offset: 1px; }
 
+  /* ---------- 日程详情浮层 ---------- */
+  .event-sheet {
+    max-height: calc(100% - 4px);
+    overflow-y: auto;
+  }
+  .es-eyebrow {
+    display: flex; align-items: center; gap: 5px;
+    margin-bottom: 5px;
+    font-size: 9px; font-weight: 600; letter-spacing: 0.06em;
+    color: var(--ink-faint);
+  }
+  .es-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+  }
+  .es-dot[data-kind="holiday"],
+  .es-dot[data-kind="workday"] { background: var(--day-holiday); }
+  .sheet h2.es-title {
+    margin: 0 0 5px;
+    font-size: 13.5px; font-weight: 650; line-height: 1.3;
+    letter-spacing: -0.1px;
+    color: var(--ink);
+    user-select: text; -webkit-user-select: text;
+  }
+  .es-meta {
+    display: flex; align-items: center; gap: 5px;
+    margin-top: 3px;
+    font-size: 10px; line-height: 1.4;
+    color: var(--ink-muted);
+  }
+  .es-meta svg { flex: none; width: 10px; height: 10px; opacity: 0.6; }
+  .es-meta span { min-width: 0; overflow-wrap: anywhere; }
+  .es-note {
+    margin-top: 9px;
+    padding-top: 8px;
+    border-top: 1px solid var(--hairline);
+    max-height: 190px;
+    overflow-y: auto;
+    font-size: 10.5px; line-height: 1.55;
+    color: var(--note-ink);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: text; -webkit-user-select: text;
+  }
+  .es-meta[hidden], .es-note[hidden] { display: none; }
+
   @media (prefers-reduced-motion: reduce) {
-    .icon-btn { transition: none; }
+    .icon-btn, .ev-card, .day-panel::after { transition: none; }
   }
 </style>
 </head>
 <body>
 <div class="panel" id="panel" role="application" aria-roledescription="calendar" aria-label="月视图日历" data-i18n-aria-label="monthView">
   <header>
-    <div class="month" id="monthLabel">2026年11月</div>
+    <div class="month-wrap">
+      <div class="month" id="monthLabel">2026年11月</div>
+      <div class="month-sub" id="monthLunar">丙午马年 · 十月</div>
+    </div>
     <div class="nav">
       <button type="button" class="icon-btn" id="todayBtn" title="今天" aria-label="今天" data-i18n-title="today" data-i18n-aria-label="today">
         <svg viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="3.4" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="5" cy="5" r="1.1" fill="currentColor"/></svg>
@@ -446,19 +691,9 @@
   <div class="weekdays" id="weekdays" aria-hidden="true"></div>
   <div class="grid" id="grid" role="grid" aria-label="日期"></div>
 
-  <footer>
-    <div class="foot-row">
-      <div class="foot-left">
-        <button type="button" class="today-link" id="today" data-i18n="today">今天</button>
-        <span class="sep">·</span>
-        <span id="weekNo">第47周</span>
-      </div>
-      <div class="foot-right" id="lunarFooter">丙午马年 十月十六</div>
-    </div>
-    <div class="foot-row">
-      <div class="agenda" id="agenda" data-empty="true">没有日程</div>
-    </div>
-  </footer>
+  <section class="day-panel" aria-label="日程" data-i18n-aria-label="agenda">
+    <div class="day-list" id="dayList"></div>
+  </section>
 
   <div class="sheet-wrap" id="sheetWrap" data-open="false" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
     <div class="sheet">
@@ -472,6 +707,28 @@
         <button type="button" class="primary" id="feedSync" data-i18n="sync">同步</button>
         <button type="button" id="feedRemove" data-i18n="remove">移除</button>
         <button type="button" id="sheetClose" data-i18n="close">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheet-wrap" id="eventSheetWrap" data-open="false" role="dialog" aria-modal="true" aria-labelledby="eventSheetTitle">
+    <div class="sheet event-sheet">
+      <div class="es-eyebrow">
+        <span class="es-dot" id="eventDot" data-kind="event"></span>
+        <span data-i18n="eventDetails">日程详情</span>
+      </div>
+      <h2 class="es-title" id="eventSheetTitle">日程</h2>
+      <div class="es-meta">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.7" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M6 3.3V6l1.9 1.1" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <span id="eventWhenText"></span>
+      </div>
+      <div class="es-meta" id="eventWhere" hidden>
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 10.4s3.6-3.2 3.6-5.7a3.6 3.6 0 1 0-7.2 0C2.4 7.2 6 10.4 6 10.4Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="6" cy="4.7" r="1.15" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+        <span id="eventWhereText"></span>
+      </div>
+      <div class="es-note" id="eventNotes" hidden></div>
+      <div class="row">
+        <button type="button" id="eventClose" data-i18n="close">关闭</button>
       </div>
     </div>
   </div>
@@ -491,6 +748,9 @@
   var MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
   var FEED_TTL = 12 * 3600 * 1000;      // 12 小时后自动刷新
   var MAX_EVENTS = 400;                 // 订阅条目上限
+  var AGENDA_DAYS = 7;                  // 日程列表覆盖选中日起 7 天
+  var MAX_ITEMS = 8;                    // 单日富日程上限
+  var VERSION = '1.1.0';
 
   function t(key, fallback, vars) {
     if (PSapi && typeof PSapi.t === 'function') return PSapi.t(key, fallback, vars);
@@ -499,7 +759,7 @@
 
   /* ================= 日期工具 ================= */
   function ymd(d) {
-    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
   }
   function parseDate(s) {
     if (typeof s !== 'string' || !DATE_RE.test(s)) return null;
@@ -517,7 +777,7 @@
   function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1, 12, 0, 0, 0); }
   function addMonths(d, n) { return new Date(d.getFullYear(), d.getMonth() + n, 1, 12, 0, 0, 0); }
   function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n, 12, 0, 0, 0); }
-  function ymOf(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2); }
+  function ymOf(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1); }
 
   function isoWeek(date) {                       // ISO-8601 周数
     var d = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
@@ -605,6 +865,17 @@
     return out;
   }
 
+  var CN_DIGITS = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+  function chineseLunarDay(n) {
+    if (n === 10) return '初十';
+    if (n > 0 && n < 10) return '初' + CN_DIGITS[n];
+    if (n > 10 && n < 20) return '十' + CN_DIGITS[n - 10];
+    if (n === 20) return '二十';
+    if (n === 30) return '三十';
+    if (n > 20 && n < 30) return '廿' + CN_DIGITS[n - 20];
+    return '';
+  }
+
   function lunarOf(date) {
     var key = ymd(date);
     var hit = lunarCache[key];
@@ -614,11 +885,15 @@
     var monthName = long.month || '';
     var leap = monthName.charAt(0) === '闰';
     var monthNum = (MONTH_NAMES.indexOf(leap ? monthName.slice(1) : monthName) + 1) || 0;
+    var dayName = long.day || '';
+    var dayNum = parseInt(num.day, 10) || 0;
+    // Chrome 的 ICU 可能把农历日输出成阿拉伯数字，统一成中文日名。
+    if (/^\d{1,2}(?:日)?$/.test(dayName) && dayNum) dayName = chineseLunarDay(dayNum);
     var info = {
       monthName: monthName,
       monthNum: monthNum,
-      dayNum: +num.day || 0,
-      dayName: long.day || '',
+      dayNum: dayNum,
+      dayName: dayName,
       yearName: long.yearName || '',
       zodiac: ZODIAC[(long.yearName || '').charAt(1)] || '',
       leap: leap
@@ -634,48 +909,50 @@
     return Math.floor(y * 0.2422 + c) - Math.floor(y / 4);
   }
 
+  function festival(id, fallback) { return t('festival.' + id, fallback); }
+
   function builtinFestival(date) {
     var y = date.getFullYear(), m = date.getMonth() + 1, d = date.getDate();
     var l = lunarOf(date);
 
-    if (m === 4 && d === qingmingDay(y)) return { name: '清明', kind: 'holiday' };
+    if (m === 4 && d === qingmingDay(y)) return { name: festival('qingming', '清明'), kind: 'holiday' };
 
     if (!l.leap) {
-      if (l.monthNum === 1 && l.dayNum === 1) return { name: '春节', kind: 'holiday' };
-      if (l.monthNum === 1 && l.dayNum === 15) return { name: '元宵', kind: 'event' };
-      if (l.monthNum === 2 && l.dayNum === 2) return { name: '龙抬头', kind: 'event' };
-      if (l.monthNum === 5 && l.dayNum === 5) return { name: '端午', kind: 'holiday' };
-      if (l.monthNum === 7 && l.dayNum === 7) return { name: '七夕', kind: 'event' };
-      if (l.monthNum === 7 && l.dayNum === 15) return { name: '中元', kind: 'event' };
-      if (l.monthNum === 8 && l.dayNum === 15) return { name: '中秋', kind: 'holiday' };
-      if (l.monthNum === 9 && l.dayNum === 9) return { name: '重阳', kind: 'event' };
-      if (l.monthNum === 12 && l.dayNum === 8) return { name: '腊八', kind: 'event' };
-      if (l.monthNum === 12 && l.dayNum === 23) return { name: '小年', kind: 'event' };
+      if (l.monthNum === 1 && l.dayNum === 1) return { name: festival('springFestival', '春节'), kind: 'holiday' };
+      if (l.monthNum === 1 && l.dayNum === 15) return { name: festival('lantern', '元宵'), kind: 'event' };
+      if (l.monthNum === 2 && l.dayNum === 2) return { name: festival('longtaitou', '龙抬头'), kind: 'event' };
+      if (l.monthNum === 5 && l.dayNum === 5) return { name: festival('dragonBoat', '端午'), kind: 'holiday' };
+      if (l.monthNum === 7 && l.dayNum === 7) return { name: festival('qixi', '七夕'), kind: 'event' };
+      if (l.monthNum === 7 && l.dayNum === 15) return { name: festival('zhongyuan', '中元'), kind: 'event' };
+      if (l.monthNum === 8 && l.dayNum === 15) return { name: festival('midAutumn', '中秋'), kind: 'holiday' };
+      if (l.monthNum === 9 && l.dayNum === 9) return { name: festival('doubleNinth', '重阳'), kind: 'event' };
+      if (l.monthNum === 12 && l.dayNum === 8) return { name: festival('laba', '腊八'), kind: 'event' };
+      if (l.monthNum === 12 && l.dayNum === 23) return { name: festival('xiaonian', '小年'), kind: 'event' };
       // 除夕：次日为正月初一
       var next = addDays(date, 1);
       var nl = lunarOf(next);
-      if (nl.monthNum === 1 && nl.dayNum === 1 && !nl.leap) return { name: '除夕', kind: 'holiday' };
+      if (nl.monthNum === 1 && nl.dayNum === 1 && !nl.leap) return { name: festival('newYearEve', '除夕'), kind: 'holiday' };
     }
 
-    if (m === 1 && d === 1) return { name: '元旦', kind: 'holiday' };
-    if (m === 2 && d === 14) return { name: '情人节', kind: 'event' };
-    if (m === 3 && d === 8) return { name: '妇女节', kind: 'event' };
-    if (m === 3 && d === 12) return { name: '植树节', kind: 'event' };
-    if (m === 4 && d === 1) return { name: '愚人节', kind: 'event' };
-    if (m === 5 && d === 1) return { name: '劳动节', kind: 'holiday' };
-    if (m === 5 && d === 4) return { name: '青年节', kind: 'event' };
-    if (m === 5 && date.getDay() === 0 && d >= 8 && d <= 14) return { name: '母亲节', kind: 'event' };
-    if (m === 6 && d === 1) return { name: '儿童节', kind: 'event' };
-    if (m === 6 && date.getDay() === 0 && d >= 15 && d <= 21) return { name: '父亲节', kind: 'event' };
-    if (m === 7 && d === 1) return { name: '建党节', kind: 'event' };
-    if (m === 8 && d === 1) return { name: '建军节', kind: 'event' };
-    if (m === 9 && d === 10) return { name: '教师节', kind: 'event' };
-    if (m === 10 && d === 1) return { name: '国庆节', kind: 'holiday' };
-    if (m === 10 && d === 31) return { name: '万圣夜', kind: 'event' };
-    if (m === 11 && d === 1) return { name: '万圣节', kind: 'event' };
-    if (m === 11 && date.getDay() === 4 && d >= 22 && d <= 28) return { name: '感恩节', kind: 'event' };
-    if (m === 12 && d === 24) return { name: '平安夜', kind: 'event' };
-    if (m === 12 && d === 25) return { name: '圣诞', kind: 'event' };
+    if (m === 1 && d === 1) return { name: festival('newYear', '元旦'), kind: 'holiday' };
+    if (m === 2 && d === 14) return { name: festival('valentine', '情人节'), kind: 'event' };
+    if (m === 3 && d === 8) return { name: festival('womensDay', '妇女节'), kind: 'event' };
+    if (m === 3 && d === 12) return { name: festival('arborDay', '植树节'), kind: 'event' };
+    if (m === 4 && d === 1) return { name: festival('aprilFools', '愚人节'), kind: 'event' };
+    if (m === 5 && d === 1) return { name: festival('laborDay', '劳动节'), kind: 'holiday' };
+    if (m === 5 && d === 4) return { name: festival('youthDay', '青年节'), kind: 'event' };
+    if (m === 5 && date.getDay() === 0 && d >= 8 && d <= 14) return { name: festival('mothersDay', '母亲节'), kind: 'event' };
+    if (m === 6 && d === 1) return { name: festival('childrensDay', '儿童节'), kind: 'event' };
+    if (m === 6 && date.getDay() === 0 && d >= 15 && d <= 21) return { name: festival('fathersDay', '父亲节'), kind: 'event' };
+    if (m === 7 && d === 1) return { name: festival('partyDay', '建党节'), kind: 'event' };
+    if (m === 8 && d === 1) return { name: festival('armyDay', '建军节'), kind: 'event' };
+    if (m === 9 && d === 10) return { name: festival('teachersDay', '教师节'), kind: 'event' };
+    if (m === 10 && d === 1) return { name: festival('nationalDay', '国庆节'), kind: 'holiday' };
+    if (m === 10 && d === 31) return { name: festival('halloweenEve', '万圣夜'), kind: 'event' };
+    if (m === 11 && d === 1) return { name: festival('allSaints', '万圣节'), kind: 'event' };
+    if (m === 11 && date.getDay() === 4 && d >= 22 && d <= 28) return { name: festival('thanksgiving', '感恩节'), kind: 'event' };
+    if (m === 12 && d === 24) return { name: festival('christmasEve', '平安夜'), kind: 'event' };
+    if (m === 12 && d === 25) return { name: festival('christmas', '圣诞'), kind: 'event' };
     return null;
   }
 
@@ -722,19 +999,89 @@
     } catch (e) {}
   }
 
+  var panel = document.getElementById('panel');
   var monthLabel = document.getElementById('monthLabel');
+  var monthLunar = document.getElementById('monthLunar');
   var weekdaysRow = document.getElementById('weekdays');
   var grid = document.getElementById('grid');
-  var weekNo = document.getElementById('weekNo');
-  var lunarFooter = document.getElementById('lunarFooter');
-  var agenda = document.getElementById('agenda');
+  var dayPanel = document.querySelector('.day-panel');
+  var dayList = document.getElementById('dayList');
   var sheetWrap = document.getElementById('sheetWrap');
   var feedUrlInput = document.getElementById('feedUrl');
   var feedStatus = document.getElementById('feedStatus');
+  var eventSheetWrap = document.getElementById('eventSheetWrap');
+  var eventSheetTitle = document.getElementById('eventSheetTitle');
+  var eventDot = document.getElementById('eventDot');
+  var eventWhenText = document.getElementById('eventWhenText');
+  var eventWhere = document.getElementById('eventWhere');
+  var eventWhereText = document.getElementById('eventWhereText');
+  var eventNotes = document.getElementById('eventNotes');
+  var lastAgendaKey = '';
 
   /* ================= 数据合并 ================= */
   function normalizeKind(v) {
     return (v === 'holiday' || v === 'workday' || v === 'event') ? v : 'event';
+  }
+
+  function pad2(n) { return ('0' + n).slice(-2); }
+
+  function cleanTime(value) {
+    var m = /^(\d{1,2}):(\d{2})$/.exec(String(value || '').trim());
+    if (!m) return '';
+    var hour = +m[1], minute = +m[2];
+    if (hour > 23 || minute > 59) return '';
+    return pad2(hour) + ':' + pad2(minute);
+  }
+
+  function clipText(value, max) {
+    var s = typeof value === 'string' ? value : '';
+    return s.replace(/\s+/g, ' ').trim().slice(0, max);
+  }
+
+  function cleanNote(value) {
+    var s = typeof value === 'string' ? value : '';
+    return s.replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').trim().slice(0, 600);
+  }
+
+  // 把 Agent / .ics 的原始条目收纳成固定形状；缺 title 的条目直接丢弃。
+  function makeItem(raw) {
+    if (typeof raw === 'string') {
+      var only = clipText(raw, 60);
+      return only ? { title: only, kind: 'event' } : null;
+    }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    var title = clipText(raw.title || raw.name, 60);
+    if (!title) return null;
+    var item = { title: title, kind: normalizeKind(raw.kind) };
+    var start = cleanTime(raw.start);
+    var end = cleanTime(raw.end);
+    if (start) {
+      item.start = start;
+      if (end) item.end = end;
+    }
+    if (raw.allDay === true) item.allDay = true;
+    var place = clipText(raw.location || raw.place, 40);
+    if (place) item.location = place;
+    var note = cleanNote(raw.note || raw.notes || raw.description || raw.desc);
+    if (note) item.note = note;
+    return item;
+  }
+
+  function storedItems(slot) {
+    if (!slot || typeof slot !== 'object') return [];
+    return cleanItems(Array.isArray(slot.items) ? slot.items : slot.titles);
+  }
+
+  function storedForKey(key) {
+    return storedItems(agendaMap[key]).concat(storedItems(feed.days[key]));
+  }
+
+  function slotCount(slot) {
+    if (!slot || typeof slot !== 'object') return 0;
+    var count = typeof slot.count === 'number' ? slot.count : 0;
+    if (Array.isArray(slot.items)) count = Math.max(count, slot.items.length);
+    else if (Array.isArray(slot.titles)) count = Math.max(count, slot.titles.length);
+    return count;
   }
 
   function entryFor(key, date) {
@@ -748,7 +1095,7 @@
     }
 
     var stat = statutoryOf(date);
-    if (stat === 'work') return { name: '补班', kind: 'workday', source: 'builtin' };
+    if (stat === 'work') return { name: t('makeupWorkday', '补班'), kind: 'workday', source: 'builtin' };
     var b = builtinFestival(date);
     if (b) return { name: b.name, kind: stat === 'off' ? 'holiday' : b.kind, source: 'builtin' };
     if (stat === 'off') return { name: '', kind: 'holiday', source: 'builtin' };
@@ -756,11 +1103,7 @@
   }
 
   function eventCount(key, date) {
-    var count = 0;
-    var a = agendaMap[key];
-    if (a && typeof a.count === 'number') count = a.count;
-    var f = feed.days[key];
-    if (f && typeof f.count === 'number') count = Math.max(count, f.count);
+    var count = Math.max(slotCount(agendaMap[key]), slotCount(feed.days[key]));
     if (count === 0) {
       var entry = entryFor(key, date);
       if (entry && entry.source === 'feed' && entry.kind === 'event') count = 1;
@@ -768,21 +1111,64 @@
     return count > 0 ? Math.min(count, 9) : 0;
   }
 
-  function agendaTitles(key) {
-    var list = [];
+  function itemRank(item) {
+    if (item.allDay) return 0;
+    return item.start ? 1 : 2;
+  }
+
+  function sortItems(list) {
+    return list.sort(function (a, b) {
+      var ra = itemRank(a), rb = itemRank(b);
+      if (ra !== rb) return ra - rb;
+      if (ra === 1 && a.start !== b.start) return a.start < b.start ? -1 : 1;
+      return 0;
+    });
+  }
+
+  // 当日日程：Agent 富日程 + 订阅日程 + 节假日/补班全天条。
+  function dayItems(key, date) {
     var a = agendaMap[key];
-    if (a && Array.isArray(a.titles)) list = list.concat(a.titles);
     var f = feed.days[key];
-    if (f && Array.isArray(f.titles)) list = list.concat(f.titles);
-    return list.filter(function (s) { return typeof s === 'string' && s.trim(); }).map(function (s) { return s.trim().slice(0, 24); });
+    var list = storedForKey(key);
+    if (!list.length) {
+      var count = Math.max(slotCount(a), slotCount(f));
+      if (count > 0) {
+        list.push({
+          title: t('eventCount', '{n} 项日程', { n: Math.min(count, 9) }),
+          kind: 'event'
+        });
+      }
+    }
+    var entry = entryFor(key, date);
+    if (entry && (entry.kind === 'holiday' || entry.kind === 'workday')) {
+      list.unshift({
+        title: entry.name || (entry.kind === 'workday' ? t('workday', '上班') : t('dayOff', '放假')),
+        kind: entry.kind,
+        allDay: true
+      });
+    } else if (entry && entry.source === 'builtin' && entry.kind === 'event' && entry.name) {
+      // 内置节日（感恩节、万圣夜等）作为全天条进入日程列表。
+      list.unshift({ title: entry.name, kind: 'event', allDay: true });
+    } else if (!list.length && entry && entry.source === 'feed' && entry.kind === 'event' && entry.name) {
+      list.push({ title: entry.name, kind: 'event' });
+    }
+    return sortItems(list);
+  }
+
+  function agendaTitles(key) {
+    return storedForKey(key).map(function (item) { return item.title; }).slice(0, MAX_ITEMS);
   }
 
   /* ================= 渲染 ================= */
   var weekdayShort = new Intl.DateTimeFormat(locale, { weekday: 'short' });
   var weekdayLong = new Intl.DateTimeFormat(locale, { weekday: 'long' });
   var monthFmt = new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'long' });
+  var dayHeadFmt = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' });
   var dayFmt = new Intl.DateTimeFormat(locale, { month: 'numeric', day: 'numeric' });
   var REF_SUNDAY = new Date(2024, 0, 7, 12);
+  var PIN_SVG = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 10.4s3.6-3.2 3.6-5.7a3.6 3.6 0 1 0-7.2 0C2.4 7.2 6 10.4 6 10.4Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="6" cy="4.7" r="1.15" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>';
+  var NOTE_SVG = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.8 3.2h6.4M2.8 6h6.4M2.8 8.8h4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
+  var EMPTY_SVG = '<svg viewBox="0 0 14 14" aria-hidden="true"><rect x="2.2" y="3.2" width="9.6" height="8.2" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M4.6 2.2v2M9.4 2.2v2M2.6 6.1h8.8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
 
   function renderWeekdays() {
     weekdaysRow.textContent = '';
@@ -798,11 +1184,11 @@
     var entry = entryFor(key, date);
     var l = lunarOf(date);
     if (entry && entry.kind === 'workday') {
-      return { text: '班', cls: 'sub work', label: entry.name || t('workday', '上班') };
+      return { text: t('workdayShort', '班'), cls: 'sub work', label: entry.name || t('workday', '上班') };
     }
     if (entry && entry.kind === 'holiday') {
       if (entry.name) return { text: entry.name, cls: 'sub holiday', label: entry.name };
-      return { text: '休', cls: 'sub rest', label: t('dayOff', '放假') };
+      return { text: t('dayOffShort', '休'), cls: 'sub rest', label: t('dayOff', '放假') };
     }
     if (entry && entry.source === 'builtin' && entry.kind === 'event' && entry.name) {
       return { text: entry.name, cls: 'sub event', label: entry.name };
@@ -811,8 +1197,212 @@
     return { text: l.dayName, cls: 'sub', label: l.dayName };
   }
 
+  function dayMarks(key, date) {
+    var marks = [];
+    var entry = entryFor(key, date);
+    if (entry && entry.kind === 'holiday') marks.push('holiday');
+    else if (entry && entry.kind === 'workday') marks.push('work');
+    if (eventCount(key, date) > 0) marks.push('event');
+    return marks;
+  }
+
+  function renderMonthLunar() {
+    // 取月中日期，避免月初 / 月末跨农历年时把整月标成错误干支。
+    var mid = new Date(view.getFullYear(), view.getMonth(), 15, 12, 0, 0, 0);
+    var l = lunarOf(mid);
+    monthLunar.textContent = l.yearName + (l.zodiac ? l.zodiac + '年' : '年');
+  }
+
+  function relativeDay(date) {
+    var diff = Math.round((date - parseDate(TODAY)) / 86400000);
+    if (diff === 0) return t('today', '今天');
+    if (diff === 1) return t('tomorrow', '明天');
+    if (diff === 2) return t('dayAfter', '后天');
+    return '';
+  }
+
+  function dayHeadEl(date) {
+    var head = document.createElement('div');
+    head.className = 'day-head';
+
+    var left = document.createElement('span');
+    left.className = 'dh-date';
+    var rel = relativeDay(date);
+    if (rel) {
+      var relEl = document.createElement('span');
+      relEl.className = 'rel';
+      relEl.textContent = rel;
+      left.appendChild(relEl);
+      var sep = document.createElement('span');
+      sep.className = 'sep';
+      sep.textContent = '·';
+      left.appendChild(sep);
+    }
+    var dateEl = document.createElement('span');
+    dateEl.textContent = dayHeadFmt.format(date) + ' ' + weekdayShort.format(date);
+    left.appendChild(dateEl);
+
+    var l = lunarOf(date);
+    var right = document.createElement('span');
+    right.className = 'dh-lunar';
+    right.textContent = t('weekShort', '第{week}周', { week: isoWeek(date) }) + ' · ' + l.monthName + l.dayName;
+
+    head.appendChild(left);
+    head.appendChild(right);
+    return head;
+  }
+
+  function ariaForItem(date, item) {
+    var parts = [];
+    if (item.allDay) parts.push(t('allDay', '全天'));
+    else if (item.start) parts.push(item.start + (item.end ? '–' + item.end : ''));
+    parts.push(dayHeadFmt.format(date) + ' ' + weekdayShort.format(date));
+    parts.push(item.title);
+    if (item.location) parts.push(item.location);
+    return parts.join(' · ');
+  }
+
+  function eventCard(key, date, item) {
+    var card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'ev-card';
+    card.dataset.kind = item.kind;
+    card.dataset.date = key;
+    card.__item = item;
+    card.setAttribute('aria-label', ariaForItem(date, item));
+
+    var time = document.createElement('span');
+    time.className = 'ev-time';
+    if (item.allDay) {
+      var chip = document.createElement('span');
+      chip.className = 'ev-allday';
+      chip.textContent = t('allDay', '全天');
+      time.appendChild(chip);
+    } else if (item.start) {
+      var start = document.createElement('span');
+      start.className = 'ev-start';
+      start.textContent = item.start;
+      time.appendChild(start);
+      if (item.end) {
+        var end = document.createElement('span');
+        end.className = 'ev-end';
+        end.textContent = item.end;
+        time.appendChild(end);
+      }
+    }
+    card.appendChild(time);
+
+    var body = document.createElement('span');
+    body.className = 'ev-body';
+    var title = document.createElement('span');
+    title.className = 'ev-title';
+    title.textContent = item.title;
+    body.appendChild(title);
+
+    if (item.location || item.note) {
+      var meta = document.createElement('span');
+      meta.className = 'ev-meta';
+      meta.innerHTML = item.location ? PIN_SVG : NOTE_SVG;
+      var text = document.createElement('span');
+      text.textContent = item.location || item.note;
+      meta.appendChild(text);
+      body.appendChild(meta);
+    }
+    card.appendChild(body);
+
+    return card;
+  }
+
+  function renderAgenda() {
+    var base = parseDate(selected) || new Date();
+    var groups = [];
+    var content = 0;
+
+    for (var i = 0; i < AGENDA_DAYS; i++) {
+      var date = addDays(base, i);
+      var items = dayItems(ymd(date), date);
+      if (i > 0 && items.length === 0) continue;
+      groups.push({ date: date, items: items });
+      content += items.length;
+    }
+
+    var frag = document.createDocumentFragment();
+    groups.forEach(function (group) {
+      var wrap = document.createElement('div');
+      wrap.className = 'day-group';
+      wrap.appendChild(dayHeadEl(group.date));
+
+      if (group.items.length === 0) {
+        if (content === 0) {
+          var card = document.createElement('div');
+          card.className = 'day-empty-card';
+          var glyph = document.createElement('span');
+          glyph.className = 'day-empty-glyph';
+          glyph.innerHTML = EMPTY_SVG;
+          var copy = document.createElement('span');
+          copy.className = 'day-empty-copy';
+          var title = document.createElement('span');
+          title.className = 'day-empty-title';
+          title.textContent = t('noEvents', '没有日程');
+          var sub = document.createElement('span');
+          sub.className = 'day-empty-sub';
+          sub.textContent = t('emptyWeek', '未来 7 天都空着');
+          copy.appendChild(title);
+          copy.appendChild(sub);
+          card.appendChild(glyph);
+          card.appendChild(copy);
+          wrap.appendChild(card);
+        } else {
+          var empty = document.createElement('div');
+          empty.className = 'day-empty';
+          empty.textContent = t('noEvents', '没有日程');
+          wrap.appendChild(empty);
+        }
+      } else {
+        group.items.forEach(function (item) {
+          wrap.appendChild(eventCard(ymd(group.date), group.date, item));
+        });
+      }
+      frag.appendChild(wrap);
+    });
+
+    var scroll = dayList.scrollTop;
+    dayList.textContent = '';
+    dayList.appendChild(frag);
+    dayList.scrollTop = lastAgendaKey === selected ? scroll : 0;
+    lastAgendaKey = selected;
+    updateAgendaFade();
+  }
+
+  function updateAgendaFade() {
+    var more = dayList.scrollHeight - dayList.clientHeight - dayList.scrollTop > 2;
+    dayPanel.dataset.scrollable = more ? 'true' : 'false';
+  }
+
+  // 月视图高度固定，下方日程按内容撑开；窗口高度跟随整个面板。
+  var fitTimer = 0;
+  var lastFitWidth = 0;
+  var lastFitHeight = 0;
+
+  function fitWindowHeight() {
+    if (typeof bridge.setSize !== 'function') return;
+    var width = Math.ceil(window.innerWidth || 320);
+    var height = Math.ceil(panel.getBoundingClientRect().height);
+    if (width < 80 || height < 80) return;
+    if (Math.abs(width - lastFitWidth) < 1 && Math.abs(height - lastFitHeight) < 1) return;
+    lastFitWidth = width;
+    lastFitHeight = height;
+    bridge.setSize(width, height);
+  }
+
+  function scheduleFit() {
+    clearTimeout(fitTimer);
+    fitTimer = setTimeout(fitWindowHeight, 60);
+  }
+
   function render() {
     monthLabel.textContent = monthFmt.format(view);
+    renderMonthLunar();
 
     var offset = (view.getDay() - weekStart + 7) % 7;
     var frag = document.createDocumentFragment();
@@ -847,13 +1437,20 @@
       badge.appendChild(subEl);
       cell.appendChild(badge);
 
-      var count = eventCount(key, d);
-      if (count > 0) {
-        var dot = document.createElement('span');
-        dot.className = 'dot' + (count > 1 ? ' many' : '');
-        cell.appendChild(dot);
+      var marks = dayMarks(key, d);
+      if (marks.length) {
+        var dots = document.createElement('span');
+        dots.className = 'dots';
+        dots.setAttribute('aria-hidden', 'true');
+        marks.forEach(function (mark) {
+          var dot = document.createElement('i');
+          dot.className = mark;
+          dots.appendChild(dot);
+        });
+        cell.appendChild(dots);
       }
 
+      var count = eventCount(key, d);
       var label = dayFmt.format(d) + ' ' + weekdayLong.format(d) + ' ' + sub.label;
       if (count > 0) label += '，' + t('eventCount', '{n} 项日程', { n: count });
       cell.setAttribute('aria-label', label);
@@ -863,50 +1460,40 @@
 
     grid.textContent = '';
     grid.appendChild(frag);
-    renderFooter();
-  }
-
-  function renderFooter() {
-    weekNo.textContent = t('weekShort', '第{week}周', { week: isoWeek(parseDate(selected) || new Date()) });
-
-    var d = parseDate(selected) || new Date();
-    var l = lunarOf(d);
-    if (/^zh/i.test(locale)) {
-      lunarFooter.textContent = l.yearName + (l.zodiac ? l.zodiac + '年' : '年') + ' ' + l.monthName + l.dayName;
-    } else {
-      lunarFooter.textContent = t('lunarFooter', '{year} · {month}{day}', {
-        year: l.yearName + (l.zodiac || ''), month: l.monthName, day: l.dayName
-      });
-    }
-
-    var titles = agendaTitles(selected);
-    var entry = entryFor(selected, d);
-    agenda.textContent = '';
-    if (titles.length === 0) {
-      var quiet = document.createElement('span');
-      quiet.className = 'txt';
-      var empty = t('noEvents', '没有日程');
-      quiet.textContent = (entry && entry.kind === 'holiday')
-        ? (entry.name || t('dayOff', '放假')) + ' · ' + empty
-        : empty;
-      agenda.appendChild(quiet);
-      agenda.dataset.empty = 'true';
-      agenda.classList.remove('has');
-    } else {
-      var mark = document.createElement('span');
-      mark.className = 'mark';
-      var txt = document.createElement('span');
-      txt.className = 'txt';
-      var prefix = t('eventCount', '{n} 项日程', { n: titles.length });
-      txt.textContent = prefix + ' · ' + titles.join(' · ');
-      agenda.appendChild(mark);
-      agenda.appendChild(txt);
-      agenda.dataset.empty = 'false';
-      agenda.classList.add('has');
-    }
+    renderAgenda();
+    fitWindowHeight();
   }
 
   /* ================= 交互 ================= */
+  var lastFocused = null;
+
+  function openEventSheet(item, date) {
+    if (!item || !date) return;
+    lastFocused = document.activeElement;
+    eventSheetTitle.textContent = item.title;
+    eventDot.dataset.kind = item.kind;
+
+    var when = '';
+    if (item.allDay) when = t('allDay', '全天');
+    else if (item.start) when = item.start + (item.end ? ' – ' + item.end : '');
+    var dayText = dayHeadFmt.format(date) + ' ' + weekdayShort.format(date);
+    eventWhenText.textContent = when ? dayText + ' · ' + when : dayText;
+
+    eventWhere.hidden = !item.location;
+    eventWhereText.textContent = item.location || '';
+    eventNotes.hidden = !item.note;
+    eventNotes.textContent = item.note || '';
+
+    eventSheetWrap.dataset.open = 'true';
+    setTimeout(function () { document.getElementById('eventClose').focus(); }, 0);
+  }
+
+  function closeEventSheet() {
+    eventSheetWrap.dataset.open = 'false';
+    if (lastFocused && typeof lastFocused.focus === 'function') lastFocused.focus();
+    lastFocused = null;
+  }
+
   function navigate(delta) {
     view = addMonths(view, delta);
     render();
@@ -919,7 +1506,13 @@
     selected = TODAY;
     render();
     if (ymOf(view) !== previousMonth) bridge.emit('calendar:navigate', { month: ymOf(view) });
-    bridge.emit('calendar:select', { date: TODAY, events: agendaTitles(TODAY) });
+    var d = parseDate(TODAY);
+    bridge.emit('calendar:select', {
+      date: TODAY,
+      holiday: entryFor(TODAY, d),
+      events: agendaTitles(TODAY),
+      items: dayItems(TODAY, d)
+    });
   }
 
   grid.addEventListener('click', function (e) {
@@ -934,13 +1527,35 @@
     bridge.emit('calendar:select', {
       date: key,
       holiday: entryFor(key, d),
-      events: agendaTitles(key)
+      events: agendaTitles(key),
+      items: dayItems(key, d)
     });
   });
 
+  dayList.addEventListener('click', function (e) {
+    var card = e.target.closest('.ev-card');
+    if (!card || !card.__item) return;
+    openEventSheet(card.__item, parseDate(card.dataset.date));
+  });
+  dayList.addEventListener('scroll', updateAgendaFade, { passive: true });
+  window.addEventListener('resize', function () {
+    updateAgendaFade();
+    scheduleFit();
+  });
+  // 浏览器可能恢复上次的元素滚动位置；首次加载仍以选中日期为起点。
+  window.addEventListener('load', function () {
+    dayList.scrollTop = 0;
+    updateAgendaFade();
+    fitWindowHeight();
+  });
+
+  eventSheetWrap.addEventListener('click', function (e) {
+    if (e.target === eventSheetWrap) closeEventSheet();
+  });
+  document.getElementById('eventClose').addEventListener('click', closeEventSheet);
+
   document.getElementById('prev').addEventListener('click', function () { navigate(-1); });
   document.getElementById('next').addEventListener('click', function () { navigate(1); });
-  document.getElementById('today').addEventListener('click', goToday);
   document.getElementById('todayBtn').addEventListener('click', goToday);
 
   /* ================= 滚动翻月 ================= */
@@ -948,7 +1563,10 @@
   var wheelLockUntil = 0;
   var wheelResetTimer = 0;
   document.getElementById('panel').addEventListener('wheel', function (e) {
-    if (sheetWrap.dataset.open === 'true') return;
+    if (sheetWrap.dataset.open === 'true' || eventSheetWrap.dataset.open === 'true') return;
+    // 日程列表可滚动时，滚轮交给列表；否则继续翻月。
+    var list = e.target && e.target.closest ? e.target.closest('.day-list') : null;
+    if (list && list.scrollHeight > list.clientHeight + 1) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     var delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
     if (e.deltaMode === 1) delta *= 16;
@@ -971,13 +1589,15 @@
   window.addEventListener('keydown', function (e) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     var sheetOpen = sheetWrap.dataset.open === 'true';
+    var eventOpen = eventSheetWrap.dataset.open === 'true';
     if (e.key === 'Escape') {
       e.preventDefault();
+      if (eventOpen) { closeEventSheet(); return; }
       if (sheetOpen) { closeSheet(); return; }
       bridge.emit('calendar:dismiss', {});
       return;
     }
-    if (sheetOpen) return;
+    if (sheetOpen || eventOpen) return;
     if (e.key === 'ArrowLeft') { e.preventDefault(); navigate(-1); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); navigate(1); }
     else if (e.key === 't' || e.key === 'T') { e.preventDefault(); goToday(); }
@@ -988,10 +1608,34 @@
     return String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n[ \t]/g, '');
   }
 
-  function icsDate(value) {
-    var m = /^(\d{4})(\d{2})(\d{2})/.exec(String(value || '').trim());
+  // 解析 DATE 或 DATE-TIME；带 Z 的时间换算到本地时区。
+  function icsWhen(value) {
+    var m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?)?(Z)?/i.exec(String(value || '').trim());
     if (!m) return null;
-    return new Date(+m[1], +m[2] - 1, +m[3], 12, 0, 0, 0);
+    var date;
+    var time = null;
+    if (m[4] != null) {
+      time = pad2(+m[4]) + ':' + pad2(+m[5]);
+      if (m[7]) {
+        var utc = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)));
+        date = new Date(utc.getFullYear(), utc.getMonth(), utc.getDate(), 12, 0, 0, 0);
+        time = pad2(utc.getHours()) + ':' + pad2(utc.getMinutes());
+      } else {
+        date = new Date(+m[1], +m[2] - 1, +m[3], 12, 0, 0, 0);
+      }
+    } else {
+      date = new Date(+m[1], +m[2] - 1, +m[3], 12, 0, 0, 0);
+    }
+    if (isNaN(date.getTime())) return null;
+    return { date: date, time: time };
+  }
+
+  function icsText(value) {
+    return String(value || '')
+      .replace(/\\n/gi, '\n')
+      .replace(/\\,/g, ',')
+      .replace(/\\;/g, ';')
+      .replace(/\\\\/g, '\\');
   }
 
   function summarize(text) {
@@ -1008,7 +1652,7 @@
     if (/^(班|上班|补班|调休上班|工作日|workday)/i.test(s) || /补班|上班|调休/.test(s)) {
       return { name: s.slice(0, 12), kind: 'workday' };
     }
-    if (/休|放假|假期|节|元旦|春节|清明|劳动|端午|中秋|国庆|除夕|holiday/i.test(s)) {
+    if (/休|放假|假日|假期|休假|节|元旦|春节|清明|劳动|端午|中秋|国庆|除夕|holiday/i.test(s)) {
       return { name: s.slice(0, 12), kind: 'holiday' };
     }
     return { name: s.slice(0, 24), kind: 'event' };
@@ -1028,16 +1672,29 @@
           var end = cur.end || addDays(cur.start, 1);
           var span = Math.min(Math.round((end - cur.start) / 86400000), 30);
           var meta = classify(cur.summary, ymd(cur.start));
+          var item = null;
+          if (meta.kind === 'event' && meta.name) {
+            item = { title: meta.name, kind: 'event' };
+            if (cur.startTime) {
+              item.start = cur.startTime;
+              if (cur.endTime) item.end = cur.endTime;
+            } else {
+              item.allDay = true;
+            }
+            if (cur.location) item.location = cur.location;
+            if (cur.note) item.note = cur.note;
+          }
           for (var n = 0; n < Math.max(span, 1); n++) {
             var key = ymd(addDays(cur.start, n));
-            var slot = days[key] || (days[key] = { name: '', kind: 'event', count: 0, titles: [] });
-            if (meta.name && !slot.name) { slot.name = meta.name; slot.kind = meta.kind; }
+            var slot = days[key] || (days[key] = { name: '', kind: 'event', count: 0, titles: [], items: [] });
             if (meta.kind === 'event') {
               slot.count += 1;
               if (meta.name) slot.titles.push(meta.name);
+              if (item) slot.items.push(item);
             } else {
+              // 节假日 / 补班优先于同日普通日程的名称与语义色。
+              if (!slot.name || slot.kind === 'event') slot.name = meta.name;
               slot.kind = meta.kind;
-              if (!slot.name) slot.name = meta.name;
             }
             budget--;
             if (budget <= 0) break;
@@ -1051,9 +1708,25 @@
       if (idx < 0) continue;
       var name = line.slice(0, idx).split(';')[0].toUpperCase();
       var value = line.slice(idx + 1);
-      if (name === 'DTSTART') cur.start = icsDate(value);
-      else if (name === 'DTEND') cur.end = icsDate(value);
-      else if (name === 'SUMMARY') cur.summary = summarize(value);
+      if (name === 'DTSTART') {
+        var start = icsWhen(value);
+        if (start) {
+          cur.start = start.date;
+          cur.startTime = start.time;
+        }
+      } else if (name === 'DTEND') {
+        var stop = icsWhen(value);
+        if (stop) {
+          cur.end = stop.date;
+          cur.endTime = stop.time;
+        }
+      } else if (name === 'SUMMARY') {
+        cur.summary = summarize(value);
+      } else if (name === 'LOCATION') {
+        cur.location = clipText(summarize(value), 40);
+      } else if (name === 'DESCRIPTION') {
+        cur.note = cleanNote(icsText(value).replace(/\n{3,}/g, '\n\n'));
+      }
     }
     return days;
   }
@@ -1072,23 +1745,23 @@
       setStatus(t('offline', '订阅仅在 App 内可用'), 'error');
       return Promise.resolve(false);
     }
-    if (!silent) setStatus('同步中…', 'muted');
+    if (!silent) setStatus(t('syncing', '同步中…'), 'muted');
 
     return bridge.fetch(feed.url, {}).then(function (res) {
       var text = typeof res === 'string' ? res : (res && res.text ? res.text : '');
-      if (!text) throw new Error('empty response');
+      if (!text) throw new Error(t('emptyFeed', '订阅内容为空'));
       var days = parseICS(text);
       var count = Object.keys(days).length;
-      if (count === 0) throw new Error('no VEVENT');
+      if (count === 0) throw new Error(t('noFeedEvents', '订阅里没有日程'));
       feed.days = days;
       feed.updatedAt = Date.now();
       saveFeed();
       render();
-      setStatus(t('synced', '已同步 {n} 条 · {when}', { n: count, when: '刚刚' }), 'ok');
+      setStatus(t('synced', '已同步 {n} 条 · {when}', { n: count, when: t('justNow', '刚刚') }), 'ok');
       bridge.emit('calendar:feed', { status: 'ok', count: count, message: '' });
       return true;
     }).catch(function (err) {
-      var msg = (err && err.message) ? String(err.message).slice(0, 40) : 'failed';
+      var msg = (err && err.message) ? String(err.message).slice(0, 40) : t('syncFailure', '同步失败');
       setStatus(t('syncFailed', '同步失败：{msg}', { msg: msg }), 'error');
       bridge.emit('calendar:feed', { status: 'error', count: 0, message: msg });
       return false;
@@ -1124,7 +1797,7 @@
   document.getElementById('feedSync').addEventListener('click', function () {
     var url = feedUrlInput.value.trim();
     if (!/^https:\/\//i.test(url)) {
-      setStatus('需要 https 链接', 'error');
+      setStatus(t('httpsRequired', '需要 https 链接'), 'error');
       return;
     }
     feed.url = url;
@@ -1145,7 +1818,7 @@
   function takeHolidays(input) {
     var out = Object.create(null);
     if (!input || typeof input !== 'object') return out;
-    Object.keys(input).slice(0, 400).forEach(function (k) {
+    Object.keys(input).slice(0, MAX_EVENTS).forEach(function (k) {
       if (!DATE_RE.test(k)) return;
       var v = input[k];
       if (typeof v === 'string') out[k] = { name: v.slice(0, 12), kind: 'holiday' };
@@ -1156,20 +1829,57 @@
     return out;
   }
 
+  function cleanTitles(list) {
+    var out = [];
+    if (!Array.isArray(list)) return out;
+    for (var i = 0; i < list.length && out.length < MAX_ITEMS; i++) {
+      var text = clipText(list[i], 60);
+      if (text) out.push(text);
+    }
+    return out;
+  }
+
+  function cleanItems(list) {
+    var out = [];
+    if (!Array.isArray(list)) return out;
+    for (var i = 0; i < list.length && out.length < MAX_ITEMS; i++) {
+      var item = makeItem(list[i]);
+      if (item) out.push(item);
+    }
+    return out;
+  }
+
   function takeEvents(input) {
     var out = Object.create(null);
     if (!input || typeof input !== 'object') return out;
-    Object.keys(input).slice(0, 400).forEach(function (k) {
+    Object.keys(input).slice(0, MAX_EVENTS).forEach(function (k) {
       if (!DATE_RE.test(k)) return;
       var v = input[k];
-      if (typeof v === 'number' && v > 0) out[k] = { count: Math.min(v, 9) };
-      else if (v && typeof v === 'object') {
-        out[k] = {
-          count: Math.min(+v.count || 1, 9),
-          titles: Array.isArray(v.titles) ? v.titles.filter(function (x) { return typeof x === 'string'; }).slice(0, 6) : []
-        };
+      if (typeof v === 'number' && v > 0) {
+        out[k] = { count: Math.min(v, 9) };
+        return;
       }
-      else if (v === true) out[k] = { count: 1 };
+      if (v === true) {
+        out[k] = { count: 1 };
+        return;
+      }
+      if (v && typeof v === 'object') {
+        // 日程既可以直接传数组，也可以包成 { items: [...] }。
+        var list = Array.isArray(v) ? v : (Array.isArray(v.items) ? v.items : null);
+        if (list) {
+          var items = cleanItems(list);
+          out[k] = {
+            count: items.length,
+            titles: items.map(function (item) { return item.title; }),
+            items: items
+          };
+        } else {
+          out[k] = {
+            count: Math.max(1, Math.min(+v.count || 1, 9)),
+            titles: cleanTitles(v.titles)
+          };
+        }
+      }
     });
     return out;
   }
@@ -1221,7 +1931,7 @@
   }
 
   bridge.emit('calendar:ready', {
-    version: '1.0.0',
+    version: VERSION,
     month: ymOf(view),
     today: TODAY,
     weekStart: weekStart === 1 ? 'mon' : 'sun',

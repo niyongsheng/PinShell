@@ -156,6 +156,8 @@ enum ConsoleTheme {
             return CategoryStyle(symbol: "gamecontroller", tint: .systemRed)
         case "social":
             return CategoryStyle(symbol: "bubble.left.and.bubble.right", tint: .systemTeal)
+        case "other":
+            return CategoryStyle(symbol: "ellipsis.circle", tint: .systemGray)
         default:
             return CategoryStyle(symbol: "square.grid.2x2", tint: .systemGray)
         }

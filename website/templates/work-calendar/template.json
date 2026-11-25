@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "id": "work-calendar",
-  "version": "1.0.0",
-  "releaseDate": "2026-11-24",
+  "version": "1.1.0",
+  "releaseDate": "2026-11-25",
   "minAppVersion": "1.4.0",
   "category": "productivity",
   "tags": ["calendar", "lunar", "holiday", "schedule", "month-grid"],
@@ -13,11 +13,11 @@
   "listing": {
     "zh-Hans": {
       "tagline": "农历、节气与法定节假日都在一格之内的工作日历。",
-      "highlights": ["农历日与干支，系统 Intl 计算", "内置春节/清明/端午/中秋等节日", "订阅 .ics 工作日历，自动标放假与补班", "Agent 可推送日程与节假日"]
+      "highlights": ["农历、节气与法定节假日，一格看全", "月视图下按天分组的时间轴日程", "日程卡片带时间、地点与备注，点击看详情", "订阅 .ics，或由 Agent 推送富日程"]
     },
     "en": {
       "tagline": "A workday calendar that carries lunar dates, Chinese holidays and workday shifts.",
-      "highlights": ["Lunar dates and sexagenary year via system Intl", "Built-in festivals: Spring Festival, Qingming, Dragon Boat, Mid-Autumn", "Subscribe to an .ics workday calendar for holidays and shift days", "Agent-pushable events and holidays"]
+      "highlights": ["Lunar dates, festivals and statutory holidays in one grid", "Day-grouped timeline agenda under the month view", "Event cards with time, place and notes; click for details", "Subscribe to .ics or let an agent push rich events"]
     }
   },
   "changelog": {
@@ -26,6 +26,13 @@
       "notes": {
         "zh-Hans": "首个版本：农历与干支、法定节假日与常见节日、.ics 工作日历订阅、滚轮翻月 / 今天快捷按钮和 Agent 协议。",
         "en": "First release: lunar dates, statutory and common festivals, .ics workday subscription, scroll navigation, quick today and agent protocol."
+      }
+    },
+    "1.1.0": {
+      "date": "2026-11-25",
+      "notes": {
+        "zh-Hans": "日程视图升级：月视图下新增按天分组的日程列表，支持时间、地点、备注、全天条目与详情浮层；窗口高度随日程内容自适应；.ics 订阅读取时间、地点和描述；Agent 可推送富日程。",
+        "en": "Richer schedule: a day-grouped agenda under the month grid with times, places, notes, all-day entries and a detail sheet; the window height follows the schedule; .ics feeds read times, locations and descriptions; agents can push rich events."
       }
     }
   }

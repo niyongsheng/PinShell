@@ -33,6 +33,7 @@
     { "id": "companion", "names": { "zh-Hans": "陪伴", "en": "Companion" } },
     { "id": "media", "names": { "zh-Hans": "影音", "en": "Media" } },
     { "id": "play", "names": { "zh-Hans": "娱乐", "en": "Play" } },
-    { "id": "social", "names": { "zh-Hans": "社交", "en": "Social" } }
+    { "id": "social", "names": { "zh-Hans": "社交", "en": "Social" } },
+    { "id": "other", "names": { "zh-Hans": "其他", "en": "Other" } }
   ]
 }
