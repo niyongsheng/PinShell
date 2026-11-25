@@ -84,7 +84,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         // 关闭自动校验，否则 menuWillOpen 里设置的置灰状态会被 AppKit 按 target/action 重新启用
         menu.autoenablesItems = false
 
-        let header = NSMenuItem(title: "PinShell", action: nil, keyEquivalent: "")
+        let header = NSMenuItem(title: PinShellAppInfo.name, action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
         menu.addItem(.separator())
@@ -411,7 +411,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         windowController.dismissMenuBarPopover()   // 状态栏层级面板会盖住模态弹窗
         let alert = NSAlert()
         alert.messageText = String(format: NSLocalizedString("update.availableTitle", comment: ""), release.versionLabel)
-        alert.informativeText = release.excerpt() + "\n\n" + NSLocalizedString("update.installHint", comment: "")
+        // Release 说明按 Markdown 渲染，长文在固定高度内滚动；安装提示放在内容区底部。
+        let notes = (release.body ?? release.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallback = String(format: NSLocalizedString("update.availableMessage", comment: ""),
+                              release.versionLabel)
+        alert.accessoryView = UpdateAlertContent.make(markdown: notes.isEmpty ? fallback : notes)
         alert.addButton(withTitle: NSLocalizedString("update.download", comment: ""))
         alert.addButton(withTitle: NSLocalizedString("update.later", comment: ""))
         alert.addButton(withTitle: NSLocalizedString("update.skip", comment: ""))

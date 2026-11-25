@@ -1,4 +1,5 @@
 import Foundation
+import PinShellCore
 
 /// 基于 URLSessionDownloadTask 的安装包下载器：带进度回调、可取消。
 /// delegate queue 固定为主队列，所以进度/完成回调都在主线程。
@@ -12,11 +13,9 @@ final class UpdateDownloader: NSObject, URLSessionDownloadDelegate, @unchecked S
             case .httpStatus(let code):
                 return String(format: NSLocalizedString("update.httpError", comment: ""), String(code))
             case .incomplete(let expected, let actual):
-                let formatter = ByteCountFormatter()
-                formatter.countStyle = .file
                 return String(format: NSLocalizedString("update.sizeMismatch", comment: ""),
-                              formatter.string(fromByteCount: expected),
-                              formatter.string(fromByteCount: actual))
+                              NumberFormat.bytes(expected),
+                              NumberFormat.bytes(actual))
             }
         }
     }

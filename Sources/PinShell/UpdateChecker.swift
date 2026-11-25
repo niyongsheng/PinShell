@@ -126,14 +126,3 @@ enum UpdateChecker {
         }
     }
 }
-
-extension UpdateRelease {
-    /// 展示用摘要：优先 release body，其次 name；截断到 limit，都没有则用兜底文案。
-    func excerpt(limit: Int = 500) -> String {
-        let text = (body ?? name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else {
-            return String(format: NSLocalizedString("update.availableMessage", comment: ""), versionLabel)
-        }
-        return text.count > limit ? String(text.prefix(limit)) + "…" : text
-    }
-}

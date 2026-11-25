@@ -9,6 +9,7 @@
 # 否则安装会被判定失败（即使清理动作本身出错）。
 set -u
 
+# 与 Sources/PinShellCore/AppInfo.swift 的 installDirectory/name 保持一致
 APP="/Applications/PinShell.app"
 XATTR="/usr/bin/xattr"
 CHOWN="/usr/sbin/chown"

@@ -1,4 +1,5 @@
 import AppKit
+import PinShellCore
 
 /// 更新下载进度小面板：图标 + 标题 + 进度 + 取消。
 /// 只在主线程使用。
@@ -109,15 +110,14 @@ final class UpdateProgressWindowController: NSObject {
     // MARK: - 状态更新
 
     func update(received: Int64, total: Int64) {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
         if total > 0 {
             progressBar.isIndeterminate = false
             progressBar.doubleValue = min(1, Double(received) / Double(total))
-            statusLabel.stringValue = "\(formatter.string(fromByteCount: received)) / \(formatter.string(fromByteCount: total))"
+            statusLabel.stringValue =
+                "\(NumberFormat.bytes(received)) / \(NumberFormat.bytes(total))"
         } else {
             makeIndeterminate()
-            statusLabel.stringValue = formatter.string(fromByteCount: received)
+            statusLabel.stringValue = NumberFormat.bytes(received)
         }
     }
 

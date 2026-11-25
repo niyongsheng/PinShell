@@ -86,7 +86,7 @@ extension UpdateRelease {
     public static func webFallback(tagName: String, repository: String) -> UpdateRelease {
         let base = "https://github.com/\(repository)/releases"
         return UpdateRelease(tagName: tagName,
-                             name: nil,   // 无更新说明，让 excerpt() 用本地化兜底文案
+                             name: nil,   // 无更新说明，更新弹窗会使用本地化兜底文案
                              body: nil,
                              htmlURL: URL(string: "\(base)/tag/\(tagName)"),
                              assets: [ReleaseAsset(name: "PinShell.pkg",
