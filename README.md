@@ -20,9 +20,9 @@ https://github.com/user-attachments/assets/e41163ae-ab77-47e9-a174-7bc201597627
 - Always-on-top HTML overlay across Spaces, with click-through, opacity, radius, and hot reload.
 - Two display modes: a **Desktop Overlay** pinned to the screen, or a **Menu Bar Popover** anchored below the menu-bar icon (left-click to show, right-click for the menu).
 - MCP server and CLI share one control socket; pages can push events back to the agent.
-- Control console (⌃⌥C): the template library, local templates with live preview and editor, General settings, MCP setup, shortcuts, and About.
+- Control console (⌃⌥C): the template library, local templates with live preview and editor, General settings, MCP setup, command-line setup with a downloadable Agent Skill, shortcuts, and About.
 - Online template library: eleven first-party templates (badges, goals, todo list, system monitor, desktop pet, pomodoro, decision maker, vinyl radio, gomoku, stock board, workday calendar) with per-template versions, checksums, and install/update/ignore actions in the console. Add other HTTPS libraries in **Console → General → Template Libraries**; all sources merge into one library page. The workday calendar is bundled on first install so the app stays usable without the online library; install the others from the console.
-- Menu-bar only, no Dock icon; update check against GitHub Releases, with in-app installer download (SHA-256 verified) handed off to the system Installer.
+- Menu-bar only, no Dock icon; update check against GitHub Releases, with in-app installer download (SHA-256 verified) handed off to the system Installer, then an automatic restart into the new version.
 
 ## Install
 
@@ -55,7 +55,7 @@ Launch PinShell, then use the menu-bar icon:
 | Menu item | Shortcut | Action |
 |---|---|---|
 | Console | ⌃⌥C | Open the console |
-| Display Mode ▸ | | Choose Desktop Overlay or Menu Bar Popover |
+| Display Mode ▸ | ⌃⌥D | Switch between Desktop Overlay and Menu Bar Popover |
 | Window Position ▸ | | Place the overlay in a screen corner |
 | Window State: Interactive / Passthrough | ⌃⌥T | Toggle click-through |
 | Window Shown / Window Hidden | ⌃⌥P | Toggle the overlay (switch on = shown) |
@@ -110,6 +110,8 @@ PinShell emit agent:message '{"text":"next step"}'
 PinShell listen --json
 PinShell mcp
 ```
+
+The console's **CLI** page can install `PinShell` into `~/.local/bin` and download a ready-to-use `SKILL.md` for shell-capable agents.
 
 Run `PinShell --help` for commands, options, and exit codes.
 
