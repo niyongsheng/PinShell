@@ -16,8 +16,10 @@ enum ShortcutScope {
     case console
 }
 
-/// 可配置快捷键的动作。rawValue 同时作为本地化 key 与持久化存储 key。
+/// 可配置快捷键的动作。rawValue 同时作为本地化 key 与持久化存储 key；
+/// 声明顺序即「快捷键」页的展示顺序。
 enum ShortcutAction: String, CaseIterable {
+    case toggleDisplayMode
     case toggleOverlay
     case togglePassthrough
     case openConsole
@@ -31,7 +33,7 @@ enum ShortcutAction: String, CaseIterable {
 
     var scope: ShortcutScope {
         switch self {
-        case .toggleOverlay, .togglePassthrough, .openConsole:
+        case .toggleOverlay, .togglePassthrough, .toggleDisplayMode, .openConsole:
             return .global
         default:
             return .console
@@ -56,6 +58,8 @@ enum ShortcutAction: String, CaseIterable {
             return ShortcutCombo(keyCode: 35, modifiers: [.control, .option], key: "p")
         case .togglePassthrough:
             return ShortcutCombo(keyCode: 17, modifiers: [.control, .option], key: "t")
+        case .toggleDisplayMode:
+            return ShortcutCombo(keyCode: 2, modifiers: [.control, .option], key: "d")
         case .openConsole:
             return ShortcutCombo(keyCode: 8, modifiers: [.control, .option], key: "c")
         case .showTemplates:
@@ -79,7 +83,7 @@ enum ShortcutAction: String, CaseIterable {
 
     var subtitle: String? {
         switch self {
-        case .toggleOverlay, .togglePassthrough, .openConsole:
+        case .toggleOverlay, .togglePassthrough, .toggleDisplayMode, .openConsole:
             return NSLocalizedString("console.shortcuts.action.\(rawValue).subtitle", comment: "")
         default:
             return nil
@@ -91,6 +95,7 @@ enum ShortcutAction: String, CaseIterable {
         switch self {
         case .toggleOverlay: return "rectangle.on.rectangle"
         case .togglePassthrough: return "cursorarrow.rays"
+        case .toggleDisplayMode: return "menubar.rectangle"
         case .openConsole: return "macwindow"
         case .showTemplates: return "square.stack"
         case .editTemplate: return "slider.horizontal.3"
@@ -102,6 +107,7 @@ enum ShortcutAction: String, CaseIterable {
         switch self {
         case .toggleOverlay: return .systemBlue
         case .togglePassthrough: return .systemOrange
+        case .toggleDisplayMode: return .systemPurple
         case .openConsole: return .systemTeal
         case .showTemplates: return .systemBlue
         case .showMCP: return .systemGreen

@@ -413,12 +413,31 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         static let templates = NSToolbarItem.Identifier("PinShell.Console.Templates")
     }
 
-    /// 工具栏三个图标统一按 17pt 渲染。SF Symbol 的字形留白不同，
-    /// 用默认尺寸时眼睛偏大、省略号圆偏小，显式配置后视觉大小才齐平。
-    private static func toolbarImage(_ symbol: String) -> NSImage? {
-        NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 17,
+    /// 工具栏图标按符号各自的字号渲染（默认 17pt）。SF Symbol 的字形留白不同，
+    /// 用统一默认尺寸时圆形箭头/省略号明显压过扁平的眼镜，按符号微调后视觉才等大。
+    /// 左右再留出透明边距：系统工具栏项间距不可调，用图像内边距换出更疏朗的节奏；
+    /// 菜单项的箭头也会跟着远离圆形图标。
+    private static func toolbarImage(_ symbol: String,
+                                     pointSize: CGFloat = 17,
+                                     horizontalPadding: CGFloat = 4) -> NSImage? {
+        guard let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: pointSize,
                                                                  weight: .regular))
+        else { return nil }
+        guard horizontalPadding > 0 else { return image }
+
+        let glyph = image.size
+        let canvas = NSSize(width: glyph.width + horizontalPadding * 2,
+                            height: glyph.height)
+        let padded = NSImage(size: canvas, flipped: false) { _ in
+            image.draw(in: NSRect(x: horizontalPadding,
+                                  y: 0,
+                                  width: glyph.width,
+                                  height: glyph.height))
+            return true
+        }
+        padded.isTemplate = true
+        return padded
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -440,6 +459,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         struct Spec {
             let titleKey: String
             let symbol: String
+            var pointSize: CGFloat = 17
             let action: Selector
         }
         let specs: [NSToolbarItem.Identifier: Spec] = [
@@ -448,6 +468,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
                                      action: #selector(toggleOverlayVisibility)),
             ToolbarID.reload: Spec(titleKey: "console.toolbar.reload",
                                    symbol: "arrow.clockwise",
+                                   pointSize: 12,
                                    action: #selector(reloadCurrent)),
         ]
         guard let spec = specs[itemIdentifier] else { return nil }
@@ -458,7 +479,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         item.label = NSLocalizedString(spec.titleKey, comment: "")
         item.paletteLabel = item.label
         item.toolTip = item.label
-        item.image = Self.toolbarImage(spec.symbol)
+        item.image = Self.toolbarImage(spec.symbol, pointSize: spec.pointSize)
         item.action = spec.action
         if itemIdentifier == ToolbarID.showHide {
             showHideItem = item
@@ -472,7 +493,7 @@ final class ConsoleController: NSObject, NSWindowDelegate, NSToolbarDelegate {
         item.label = NSLocalizedString("console.toolbar.templates", comment: "")
         item.paletteLabel = item.label
         item.toolTip = item.label
-        item.image = Self.toolbarImage("ellipsis.circle")
+        item.image = Self.toolbarImage("ellipsis.circle", pointSize: 15)
         item.isBordered = false
         item.showsIndicator = true
 

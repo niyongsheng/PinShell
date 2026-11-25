@@ -45,6 +45,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             guard let self else { return }
             self.togglePassthrough(self.windowStateItem)
         }
+        dispatcher.register(.toggleDisplayMode) { [weak self] in self?.toggleDisplayMode() }
         dispatcher.startGlobalHotKeys()
     }
 
@@ -262,6 +263,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     // MARK: - 显示方式
+
+    private func toggleDisplayMode() {
+        let next: DisplayMode = windowController.displayMode == .desktop ? .menuBar : .desktop
+        windowController.setDisplayMode(next)
+        refreshMenuState()
+    }
 
     @objc private func selectDisplayMode(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String,

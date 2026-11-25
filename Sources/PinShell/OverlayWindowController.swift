@@ -238,10 +238,21 @@ final class OverlayWindowController: NSObject, NSWindowDelegate {
         }
     }
 
-    /// 回到桌面模式：优先恢复用户上次的桌面 frame；没有记录时用默认位置 + 模板声明。
+    /// 回到桌面模式：优先恢复用户上次的桌面位置；尺寸始终沿用当前模板。
+    /// 不能整帧恢复旧记录：历史 frame 可能来自别的模板/别的会话，
+    /// 切换显示方式时会把当前模板撑大或压小（例如 240×80 的徽章变成 320×520）。
     private func restoreDesktopFrame() {
-        if let saved = restoreFrame() {
-            applyProgrammaticFrame(saved)
+        if let saved = restoreFrame(),
+           let visible = NSScreen.screens
+               .first(where: { $0.visibleFrame.intersects(saved) })?.visibleFrame {
+            // 尺寸变化后把左上角夹回屏幕内，避免窗口跑出可视区。
+            let frame = WindowGeometry.resolve(
+                size: WindowSize(width: Double(panel.frame.width),
+                                 height: Double(panel.frame.height)),
+                position: .absolute(x: Double(saved.minX), y: Double(saved.minY)),
+                current: WindowFrame(panel.frame),
+                screen: WindowFrame(visible))
+            applyProgrammaticFrame(frame.nsRect)
             return
         }
         applyProgrammaticFrame(Self.defaultFrame())

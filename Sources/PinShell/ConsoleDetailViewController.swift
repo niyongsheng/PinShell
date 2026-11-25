@@ -163,9 +163,8 @@ final class ConsoleDetailViewController: NSViewController {
         previewWebView.autoresizingMask = [.width, .height]
         previewWindowView.addSubview(previewWebView)
 
-        // 高度跟随模板声明高度；空间不足时可被压缩，保证标题与操作按钮可见
+        // 高度跟随模板声明高度；整页可滚动，不再压缩舞台来迁就首屏
         let height = previewCard.heightAnchor.constraint(equalToConstant: 236)
-        height.priority = .defaultHigh
         height.isActive = true
         previewHeightConstraint = height
 
@@ -356,17 +355,18 @@ final class ConsoleDetailViewController: NSViewController {
         positionInfoRow.configure(value: positionText(item.spec.position))
         orderInfoRow.configure(value: item.order == Int.max ? "—" : "#\(item.order)")
 
-        // 舞台留白：让 HTML 以其声明高度 1:1 展示；
-        // 过高的模板在可视区内缩放，避免把标题和操作挤出首屏。
-        let chrome = 2 * ConsoleTheme.Space.stageInset
-        let natural = item.size.height + CGFloat(chrome)
-        previewHeightConstraint?.constant = min(max(120, natural), 300)
         // 整窗圆角与悬浮窗保持一致。HTML 的窗口阴影会被 WebView 边界裁断，
         // 只在四角留下一圈灰边；按窗口圆角裁剪后才是悬浮窗真实的边缘。
         let radius = CGFloat(max(item.spec.radius ?? 0, 0))
         previewRadius = radius
         previewWindowView.layer?.masksToBounds = radius > 0
         previewShadowView.isHidden = radius <= 0
+
+        // 舞台按模板声明的窗口尺寸 1:1 撑开（含投影留白），
+        // 超出可视区时由详情页滚动，不再把模板等比压进固定高度。
+        let chrome = 2 * ConsoleTheme.Space.stageInset
+            + (radius > 0 ? 2 * Self.previewShadowMargin : 0)
+        previewHeightConstraint?.constant = max(120, item.size.height + chrome)
         previewWebView.loadLocalHTMLFile(item.url)
         updateShowingState()
         view.layoutSubtreeIfNeeded()
@@ -498,10 +498,10 @@ final class ConsoleDetailViewController: NSViewController {
         let size = item.frameSize
         // 留出阴影的绘制空隙，避免被舞台的圆角遮罩裁掉。
         let margin = previewRadius > 0 ? Self.previewShadowMargin : 0
-        let available = NSSize(width: max(box.width - 2 * margin, 1),
-                               height: max(box.height - 2 * margin, 1))
-        let scale = min(min(1, available.width / max(size.width, 1)),
-                        available.height / max(size.height, 1))
+        // 按 HTML 实际尺寸 1:1 展示；只有模板比可视区更宽时才按宽度等比缩小，
+        // 避免横向被裁掉半截。高度已由舞台约束撑开，不再参与缩放计算。
+        let availableWidth = max(box.width - 2 * margin, 1)
+        let scale = min(1, availableWidth / max(size.width, 1))
 
         // 用 pageZoom 而不是图层 transform：WKWebView 只绘制 visibleRect 内的内容，
         // 图层缩放会把未绘制（负坐标）的部分一起裁掉，预览只剩窗口上半截。
