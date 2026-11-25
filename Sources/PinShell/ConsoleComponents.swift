@@ -520,9 +520,14 @@ func configureConsoleButton(_ button: NSButton,
 /// 22pt 无边框图标按钮的统一外观；也供需要携带额外状态的子类复用。
 func configureIconButton(_ button: NSButton,
                          symbol: String,
-                         accessibilityLabel: String) {
-    button.image = NSImage(systemSymbolName: symbol,
-                           accessibilityDescription: accessibilityLabel) ?? NSImage()
+                         accessibilityLabel: String,
+                         pointSize: CGFloat? = nil) {
+    var image = NSImage(systemSymbolName: symbol, accessibilityDescription: accessibilityLabel)
+    if let pointSize {
+        image = image?.withSymbolConfiguration(
+            NSImage.SymbolConfiguration(pointSize: pointSize, weight: .regular))
+    }
+    button.image = image ?? NSImage()
     button.bezelStyle = .texturedRounded
     button.isBordered = false
     button.imageScaling = .scaleProportionallyDown
@@ -533,6 +538,18 @@ func configureIconButton(_ button: NSButton,
         button.widthAnchor.constraint(equalToConstant: 22),
         button.heightAnchor.constraint(equalToConstant: 22),
     ])
+}
+
+/// 延迟复位：重复触发时取消上一次，避免旧回调覆盖新状态。
+struct DelayedReset {
+    private var work: DispatchWorkItem?
+
+    mutating func schedule(after seconds: TimeInterval, _ action: @escaping () -> Void) {
+        work?.cancel()
+        let item = DispatchWorkItem(block: action)
+        work = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: item)
+    }
 }
 
 /// 图标按钮（无边框），用于"更多"等轻量操作。

@@ -4,6 +4,10 @@ CONFIG    := release
 APP       := build/$(APP_NAME).app
 PKG       := build/$(APP_NAME).pkg
 
+# 与 Sources/PinShellCore/AppInfo.swift 保持一致
+INSTALL_DIR := /Applications
+PKG_ID      := com.pinshell.app.pkg
+
 # ARCH: native（默认）或 universal（arm64 + x86_64）
 ARCH      ?= native
 ifeq ($(ARCH),universal)
@@ -23,7 +27,7 @@ BIN_PATH := $(shell swift build -c $(CONFIG) $(SWIFT_ARCH) --show-bin-path)
 SDK_VERSION := $(shell xcrun --show-sdk-version)
 MIN_MACOS   := $(shell /usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" Resources/Info.plist)
 
-.PHONY: build app icon menubar-icon run install pkg universal clean site serve-site check-user
+.PHONY: build app icon menubar-icon mcp-icon run install pkg universal clean site serve-site check-user
 
 # sudo make 会把 build/ 里的产物写成 root 所有，之后普通用户删不掉（make app 会报一堆 Permission denied）。
 # /Applications 对 admin 组可写，安装不需要 sudo。
@@ -54,7 +58,11 @@ app: check-user build ## 组装 PinShell.app（二进制/Info.plist/资源，ad-
 	cp Resources/PinShell.icns "$(APP)/Contents/Resources/PinShell.icns"
 	cp Resources/MenuBarIcon.png "$(APP)/Contents/Resources/MenuBarIcon.png"
 	cp Resources/MenuBarIcon@2x.png "$(APP)/Contents/Resources/MenuBarIcon@2x.png"
+	cp Resources/MCPIcon.png "$(APP)/Contents/Resources/MCPIcon.png"
+	cp Resources/MCPIcon@2x.png "$(APP)/Contents/Resources/MCPIcon@2x.png"
 	cp -R Resources/templates "$(APP)/Contents/Resources/templates"
+	# Agent Skill：控制台「CLI」页从 bundle 读取并允许导出 SKILL.md
+	cp -R Resources/skills "$(APP)/Contents/Resources/skills"
 	# 首装内置模板：与官网模板源保持同一份文件
 	cp website/templates/work-calendar/work-calendar.html "$(APP)/Contents/Resources/templates/work-calendar.html"
 	cp Resources/legacy-templates.json "$(APP)/Contents/Resources/legacy-templates.json"
@@ -68,19 +76,22 @@ icon: check-user ## 从 Resources/logo.svg 重新生成应用图标（背景色:
 	iconutil -c icns build/AppIcon.iconset -o Resources/PinShell.icns
 
 menubar-icon: check-user ## 从 Resources/logo.svg 重新生成菜单栏 template 图标
-	swift scripts/make_menubar_icon.swift Resources/logo.svg Resources/
+	swift scripts/make_template_icon.swift Resources/logo.svg Resources/ MenuBarIcon 0.9 --flatten
+
+mcp-icon: check-user ## 从 Resources/mcp.svg 重新生成侧栏 MCP template 图标
+	swift scripts/make_template_icon.swift Resources/mcp.svg Resources/ MCPIcon 0.92
 
 run: app ## 用 open 启动（隐式注册 LaunchServices —— CLI 交接的前提）
 	open "$(APP)"
 
 install: app ## 安装到 /Applications 并启动
-	@rm -rf "/Applications/$(APP_NAME).app" 2>/dev/null || { \
-		echo "error: 无法删除 /Applications/$(APP_NAME).app —— 它可能由 .pkg 安装（root 所有）。"; \
-		echo "       请先执行: sudo rm -rf /Applications/$(APP_NAME).app"; \
+	@rm -rf "$(INSTALL_DIR)/$(APP_NAME).app" 2>/dev/null || { \
+		echo "error: 无法删除 $(INSTALL_DIR)/$(APP_NAME).app —— 它可能由 .pkg 安装（root 所有）。"; \
+		echo "       请先执行: sudo rm -rf $(INSTALL_DIR)/$(APP_NAME).app"; \
 		exit 1; \
 	}
-	cp -R "$(APP)" "/Applications/"
-	open "/Applications/$(APP_NAME).app"
+	cp -R "$(APP)" "$(INSTALL_DIR)/"
+	open "$(INSTALL_DIR)/$(APP_NAME).app"
 
 # 不依赖 app：CI 里 tag 构建可能已用 ARCH=universal 生成，避免被重建成 native
 pkg: ## 组装 .pkg 安装包（需先 make app 或 make universal）
@@ -90,8 +101,8 @@ pkg: ## 组装 .pkg 安装包（需先 make app 或 make universal）
 	cp scripts/pkg-postinstall build/pkg-scripts/postinstall
 	chmod +x build/pkg-scripts/postinstall
 	VERSION=$$(plutil -extract CFBundleShortVersionString raw Resources/Info.plist); \
-	pkgbuild --component "$(APP)" --install-location /Applications \
-		--identifier com.pinshell.app.pkg --version "$$VERSION" \
+	pkgbuild --component "$(APP)" --install-location $(INSTALL_DIR) \
+		--identifier $(PKG_ID) --version "$$VERSION" \
 		--scripts build/pkg-scripts "$(PKG)"
 	@echo "PKG: $(PKG)"
 

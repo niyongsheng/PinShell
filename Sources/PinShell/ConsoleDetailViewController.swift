@@ -328,6 +328,8 @@ final class ConsoleDetailViewController: NSViewController {
             view = ConsoleShortcutsView()
         case .mcp:
             view = ConsoleMCPView()
+        case .cli:
+            view = ConsoleCommandLineView()
         case .about:
             view = ConsoleAboutView()
         }

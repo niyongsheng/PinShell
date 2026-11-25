@@ -31,7 +31,7 @@ final class MCPServer {
     }
 
     static func printHelp() {
-        let executable = Bundle.main.executableURL ?? URL(fileURLWithPath: "PinShell")
+        let executable = PinShellAppInfo.executableURL
         let config = MCPClient.serverConfigurationJSON(executable: executable, pretty: false)
         let message = """
         PinShell MCP 2.0 server (stdio)

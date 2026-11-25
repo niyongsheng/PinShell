@@ -384,7 +384,7 @@ public enum ControlEndpoint {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent("Library/Application Support")
-        return base.appendingPathComponent("PinShell", isDirectory: true)
+        return base.appendingPathComponent(PinShellAppInfo.name, isDirectory: true)
     }
 
     /// Unix socket 路径；路径过长（sun_path 上限 104）时退回临时目录。

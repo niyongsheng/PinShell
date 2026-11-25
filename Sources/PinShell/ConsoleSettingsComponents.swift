@@ -127,6 +127,19 @@ final class SettingsPageHeaderView: NSView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 }
 
+extension SettingsPageHeaderView {
+    /// 服务页通用页头：标题 / 副标题 + 绿色就绪徽标。
+    static func ready(titleKey: String, subtitleKey: String, readyKey: String) -> SettingsPageHeaderView {
+        let chip = StatusChip()
+        chip.configure(text: NSLocalizedString(readyKey, comment: ""),
+                       symbol: "checkmark.circle.fill",
+                       style: .positive)
+        return SettingsPageHeaderView(title: NSLocalizedString(titleKey, comment: ""),
+                                      subtitle: NSLocalizedString(subtitleKey, comment: ""),
+                                      accessory: chip)
+    }
+}
+
 // MARK: - 页面容器
 
 /// 设置式页面：滚动容器 + 居中 640pt 列，页面只负责添加分组。
@@ -362,7 +375,7 @@ final class SettingsRowView: NSView {
     private var valueText: String?
     private let valueColor: NSColor
     private let copyValue: String?
-    private var copyResetWork: DispatchWorkItem?
+    private var copyReset = DelayedReset()
 
     init(title: String,
          subtitle: String? = nil,
@@ -510,16 +523,13 @@ final class SettingsRowView: NSView {
 
     private func showCopiedFeedback() {
         guard let valueText else { return }
-        copyResetWork?.cancel()
         valueLabel.stringValue = NSLocalizedString("console.about.copied", comment: "")
         valueLabel.textColor = ConsoleTheme.Color.positive
-        let work = DispatchWorkItem { [weak self] in
+        copyReset.schedule(after: 1.2) { [weak self] in
             guard let self else { return }
             self.valueLabel.stringValue = valueText
             self.valueLabel.textColor = self.valueColor
         }
-        copyResetWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
     }
 
     override func accessibilityPerformPress() -> Bool {

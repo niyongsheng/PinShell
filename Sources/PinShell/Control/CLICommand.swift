@@ -480,21 +480,20 @@ enum CLICommand {
     }
 
     private static func printHelp() {
+        let width = CLICommandCatalog.commands
+            .map { "PinShell \($0.usage)".count }
+            .max() ?? 0
+        let usageLines = CLICommandCatalog.commands.map { spec -> String in
+            let usage = "PinShell \(spec.usage)"
+            let padding = String(repeating: " ", count: width - usage.count)
+            return "  \(usage)\(padding)  \(spec.summary)"
+        }.joined(separator: "\n")
+
         print("""
         PinShell — local HTML overlay shell
 
         Usage:
-          PinShell [show] <file> [options]     Show a local HTML file
-          PinShell set [options]               Update the current overlay
-          PinShell reload                      Reload the current file
-          PinShell eval <js> [--json]          Evaluate JS in the page
-          PinShell emit <event> [json]         Dispatch an event to the page
-          PinShell listen [--json]             Stream page events (agent)
-          PinShell status [--json]             Print overlay state
-          PinShell templates [--json]          List auto-discovered templates
-          PinShell close                       Hide the overlay
-          PinShell quit                        Quit PinShell
-          PinShell mcp                         Run the MCP 2.0 stdio server (agent)
+        \(usageLines)
 
         Options:
           --size WxH                           Window size (e.g. 240x80)

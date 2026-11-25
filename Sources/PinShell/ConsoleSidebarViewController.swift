@@ -308,6 +308,7 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
         rows.append(.page(.shortcuts))
         rows.append(.section(NSLocalizedString("console.sidebar.services", comment: "")))
         rows.append(.page(.mcp))
+        rows.append(.page(.cli))
         rows.append(.page(.about))
         tableView.reloadData()
         searchEmptyLabel.isHidden = query.isEmpty || !templates.isEmpty
@@ -442,9 +443,11 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
             let cell = rowCell()
             let badge = page == .library && libraryUpdateCount > 0
                 ? "\(libraryUpdateCount)" : nil
-            cell.configure(symbol: page.symbol,
-                           title: page.title,
-                           trailing: badge)
+            if let asset = page.iconAsset {
+                cell.configure(asset: asset, title: page.title, trailing: badge)
+            } else {
+                cell.configure(symbol: page.symbol, title: page.title, trailing: badge)
+            }
             return cell
         }
     }
@@ -580,8 +583,33 @@ private final class SidebarCellView: NSTableCellView {
         return image
     }
 
+    /// bundle 内的 template PNG（如 MCP 标志）：黑色蒙版，随选中态/深浅色染色。
+    /// NSImage(named:) 自带缓存，无需再包一层。
+    private static func assetImage(named name: String) -> NSImage? {
+        guard let image = NSImage(named: name) else { return nil }
+        image.isTemplate = true
+        return image
+    }
+
     func configure(symbol: String, title: String, trailing: String?, applied: Bool = false) {
-        symbolView.image = Self.symbolImage(named: symbol)
+        configure(image: Self.symbolImage(named: symbol),
+                  title: title,
+                  trailing: trailing,
+                  applied: applied)
+    }
+
+    func configure(asset: String, title: String, trailing: String?, applied: Bool = false) {
+        configure(image: Self.assetImage(named: asset),
+                  title: title,
+                  trailing: trailing,
+                  applied: applied)
+    }
+
+    private func configure(image: NSImage?,
+                           title: String,
+                           trailing: String?,
+                           applied: Bool) {
+        symbolView.image = image
         titleLabel.stringValue = title
         trailingLabel.stringValue = trailing ?? ""
         trailingLabel.isHidden = trailing == nil

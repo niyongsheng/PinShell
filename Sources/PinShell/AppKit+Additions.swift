@@ -9,6 +9,20 @@ extension URL {
     }
 }
 
+extension NSWorkspace {
+    /// 在 Finder 中定位文件；文件不存在时退回到父目录，父目录也不存在则响铃。
+    func revealInFinder(_ url: URL) {
+        let manager = FileManager.default
+        if manager.fileExists(atPath: url.path) {
+            activateFileViewerSelecting([url])
+        } else if manager.fileExists(atPath: url.deletingLastPathComponent().path) {
+            open(url.deletingLastPathComponent())
+        } else {
+            NSSound.beep()
+        }
+    }
+}
+
 extension WindowFrame {
     /// NSRect ↔ WindowFrame 的唯一转换点：窗口装配、菜单栏定位与状态栏锚点共用。
     init(_ rect: NSRect) {

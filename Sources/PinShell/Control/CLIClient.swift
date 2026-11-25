@@ -132,11 +132,13 @@ enum ControlClient {
     private static func registeredAppURL() -> URL? {
         let bundle = Bundle.main.bundleURL
         if bundle.pathExtension == "app" { return bundle }
-        return NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.pinshell.app")
+        return NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: PinShellAppInfo.bundleIdentifier)
     }
 
     private static func isAppRunning() -> Bool {
-        !NSRunningApplication.runningApplications(withBundleIdentifier: "com.pinshell.app").isEmpty
+        !NSRunningApplication.runningApplications(
+            withBundleIdentifier: PinShellAppInfo.bundleIdentifier).isEmpty
     }
 
     // MARK: - I/O

@@ -10,7 +10,7 @@ setvbuf(stdout, nil, _IONBF, 0)
 let arguments = Array(CommandLine.arguments.dropFirst())
 
 // MCP 2.0 stdio server：供 Claude Code 等 MCP 客户端以子进程方式拉起
-if arguments.first == "mcp" {
+if arguments.first == CLICommandCatalog.mcpName {
     if arguments.contains("--help") {
         MCPServer.printHelp()
         exit(0)

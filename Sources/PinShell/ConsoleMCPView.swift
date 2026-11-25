@@ -9,7 +9,7 @@ final class ConsoleMCPView: NSView, ConsoleServicePage {
                                             target: nil, action: nil)
     private let copySocketButton = NSButton(title: NSLocalizedString("console.mcp.copy", comment: ""),
                                             target: nil, action: nil)
-    private var copyResetWork: DispatchWorkItem?
+    private var copyReset = DelayedReset()
     private var configText = ""
     private var clientRows: [ClientRow] = []
 
@@ -73,14 +73,9 @@ final class ConsoleMCPView: NSView, ConsoleServicePage {
     }
 
     private func buildHero() -> NSView {
-        let readyChip = StatusChip()
-        readyChip.configure(text: NSLocalizedString("console.mcp.ready", comment: ""),
-                            symbol: "checkmark.circle.fill",
-                            style: .positive)
-        return SettingsPageHeaderView(
-            title: NSLocalizedString("console.mcp.title", comment: ""),
-            subtitle: NSLocalizedString("console.mcp.navSubtitle", comment: ""),
-            accessory: readyChip)
+        SettingsPageHeaderView.ready(titleKey: "console.mcp.title",
+                                     subtitleKey: "console.mcp.navSubtitle",
+                                     readyKey: "console.mcp.ready")
     }
 
     // MARK: - 客户端自动配置
@@ -174,7 +169,7 @@ final class ConsoleMCPView: NSView, ConsoleServicePage {
     /// 客户端状态需要读取并解析可能很大的配置文件，放到后台计算，回主线程更新。
     private func refreshClients() {
         let context = MCPClientContext.current
-        let executable = Self.executableURL
+        let executable = PinShellAppInfo.executableURL
         let entries = clientRows.map { ($0, $0.client.configURL(in: context)) }
 
         clientsRefreshGeneration += 1
@@ -252,7 +247,7 @@ final class ConsoleMCPView: NSView, ConsoleServicePage {
 
     private func configure(_ client: MCPClient) {
         do {
-            try client.install(executable: Self.executableURL)
+            try client.install(executable: PinShellAppInfo.executableURL)
         } catch {
             presentConfigError(error, client: client)
         }
@@ -269,15 +264,7 @@ final class ConsoleMCPView: NSView, ConsoleServicePage {
     }
 
     private func revealConfig(_ client: MCPClient) {
-        let url = client.configURL()
-        let manager = FileManager.default
-        if manager.fileExists(atPath: url.path) {
-            NSWorkspace.shared.activateFileViewerSelecting([url])
-        } else if manager.fileExists(atPath: url.deletingLastPathComponent().path) {
-            NSWorkspace.shared.open(url.deletingLastPathComponent())
-        } else {
-            NSSound.beep()
-        }
+        NSWorkspace.shared.revealInFinder(client.configURL())
     }
 
     private func presentConfigError(_ error: Error, client: MCPClient) {
@@ -306,11 +293,6 @@ final class ConsoleMCPView: NSView, ConsoleServicePage {
         }
         alert.addButton(withTitle: NSLocalizedString("console.error.ok", comment: ""))
         alert.runAppModal()
-    }
-
-    private static var executableURL: URL {
-        Bundle.main.executableURL
-            ?? URL(fileURLWithPath: CommandLine.arguments.first ?? "PinShell")
     }
 
     private static func abbreviate(_ path: String, home: String) -> String {
@@ -486,7 +468,7 @@ final class ConsoleMCPView: NSView, ConsoleServicePage {
     }
 
     func refresh() {
-        let config = MCPClient.serverConfigurationJSON(executable: Self.executableURL)
+        let config = MCPClient.serverConfigurationJSON(executable: PinShellAppInfo.executableURL)
         configText = config
         configLabel.stringValue = config
         socketLabel.stringValue = ControlEndpoint.socketURL().path
@@ -509,9 +491,6 @@ final class ConsoleMCPView: NSView, ConsoleServicePage {
     private func copy(_ text: String, button: NSButton, restore: String) {
         copyStringToPasteboard(text)
         button.title = NSLocalizedString("console.events.copied", comment: "")
-        copyResetWork?.cancel()
-        let work = DispatchWorkItem { button.title = restore }
-        copyResetWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
+        copyReset.schedule(after: 1.2) { button.title = restore }
     }
 }
