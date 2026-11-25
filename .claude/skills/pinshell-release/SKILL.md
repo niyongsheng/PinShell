@@ -353,7 +353,7 @@ git tag -d "v$VERSION"
 5. **构建号递增**：`CFBundleVersion` 每次发布 +1；即使 short version 已在 HEAD 准备好，也要确认它高于上一 tag。
 6. **模板 `minAppVersion` 不进入发布提交**：Pages 会先部署，线上会出现要求未发布版本的模板。发布成功后再单独提交。
 7. **不要 sudo make**：`build/` 会变成 root 所有，后续无法清理。
-8. 工作区有未提交改动时停下，不要擅自 stash / 提交。
+8. 工作区有未提交改动时，调用 `/nico-git-commit` 提交后，继续。
 9. 发布提交只包含 `Resources/Info.plist`；commit 末尾不追加 `Co-Authored-By`。
 10. 不修改 `website/site.json` 的下载链接（已指向 `latest` 稳定别名），也不改 `Resources/legacy-templates.json` 的 `sourceVersion`。
 11. 网络失败 / 未登录 / CI 失败时原样报告，不静默重试、不掩盖。
