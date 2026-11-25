@@ -177,8 +177,6 @@
 "console.cli.install.occupiedHint" = "~/.local/bin/PinShell already exists, but it is not a symlink created by this app.";
 "console.cli.install.errorTitle" = "Couldn’t Install Command-Line Tool";
 "console.cli.install.errorExists" = "%@ already exists. Move it away and try again.";
-"console.cli.path.hint" = "If your terminal can’t find PinShell, add this line to ~/.zshrc or ~/.bash_profile, then open a new terminal:";
-"console.cli.path.copy" = "Copy PATH Line";
 "console.cli.commands" = "Common Commands";
 "console.cli.commands.hint" = "Run PinShell --help for every command, option, and exit code.";
 "console.cli.command.show" = "Show a local HTML file; --watch reloads when the file changes";
@@ -194,8 +192,7 @@
 "console.cli.command.reload" = "Reload the current HTML file";
 "console.cli.command.copy" = "Copy Command";
 "console.cli.skill.title" = "Agent Skill";
-"console.cli.skill.subtitle" = "SKILL.md teaches shell-only agents to drive PinShell from the command line. Save it to ~/.claude/skills/pinshell/ or your client’s skills directory.";
-"console.cli.skill.path" = "~/.claude/skills/pinshell/SKILL.md";
+"console.cli.skill.subtitle" = "SKILL.md guides agents to drive PinShell from the command line.";
 "console.cli.skill.download" = "Download SKILL.md";
 "console.cli.skill.copy" = "Copy Content";
 "console.cli.skill.saved" = "Saved";
@@ -234,7 +231,7 @@
 "console.general.appearance.dark" = "Dark";
 "console.general.library.title" = "Template Libraries";
 "console.general.library.official" = "Official Library";
-"console.general.library.footer" = "Templates from all sources are merged in the Template Library page. If two sources share a template ID, the first one wins, and the official library comes first.";
+"console.general.library.footer" = "Templates from all sources are merged in the Template Library page.";
 "console.general.library.add" = "Add Template Library…";
 "console.general.library.addSubtitle" = "Any HTTPS address that serves library.json";
 "console.general.library.addTitle" = "Add Template Library";

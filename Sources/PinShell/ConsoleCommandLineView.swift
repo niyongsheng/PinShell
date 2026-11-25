@@ -27,8 +27,6 @@ final class ConsoleCommandLineView: NSView, ConsoleServicePage {
         }
     }
 
-    private static let pathLine = "export PATH=\"$HOME/.local/bin:$PATH\""
-
     private static let commands: [CommandItem] = CLICommandCatalog.commands.compactMap { spec in
         guard let example = spec.consoleExample,
               let descriptionKey = spec.consoleDescriptionKey else { return nil }
@@ -117,7 +115,6 @@ final class ConsoleCommandLineView: NSView, ConsoleServicePage {
             subtitle: NSLocalizedString("console.cli.install.subtitle", comment: ""),
             accessory: installTrailing)
         group.addRow(installRow)
-        group.addContent(buildPathHint())
 
         refreshInstallState()
         return group
@@ -178,48 +175,6 @@ final class ConsoleCommandLineView: NSView, ConsoleServicePage {
             subtitle.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
         return container
-    }
-
-    private func buildPathHint() -> NSView {
-        let hint = NSTextField(wrappingLabelWithString:
-            NSLocalizedString("console.cli.path.hint", comment: ""))
-        hint.font = ConsoleTheme.Font.caption
-        hint.textColor = .secondaryLabelColor
-        hint.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
-        let codeLabel = NSTextField(labelWithString: Self.pathLine)
-        codeLabel.font = ConsoleTheme.Font.monoCode
-        codeLabel.textColor = .labelColor
-        codeLabel.lineBreakMode = .byTruncatingMiddle
-        codeLabel.isSelectable = true
-        codeLabel.toolTip = Self.pathLine
-        codeLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
-        let copy = CopyIconButton(
-            text: Self.pathLine,
-            accessibilityLabel: NSLocalizedString("console.cli.path.copy", comment: ""))
-
-        let box = ConsoleInsetView(inset: NSEdgeInsets(top: 10, left: 12, bottom: 10, right: 12))
-        let codeRow = NSStackView(views: [codeLabel, NSView(), copy])
-        codeRow.orientation = .horizontal
-        codeRow.alignment = .centerY
-        codeRow.spacing = 8
-        codeRow.translatesAutoresizingMaskIntoConstraints = false
-        box.contentView.addSubview(codeRow)
-        NSLayoutConstraint.activate([
-            codeRow.leadingAnchor.constraint(equalTo: box.contentView.leadingAnchor),
-            codeRow.trailingAnchor.constraint(equalTo: box.contentView.trailingAnchor),
-            codeRow.topAnchor.constraint(equalTo: box.contentView.topAnchor),
-            codeRow.bottomAnchor.constraint(equalTo: box.contentView.bottomAnchor),
-        ])
-
-        let stack = NSStackView(views: [hint, box])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 8
-        hint.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-        box.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-        return stack
     }
 
     private func buildCommandsGroup() -> SettingsDisclosureGroupView {
@@ -290,14 +245,6 @@ final class ConsoleCommandLineView: NSView, ConsoleServicePage {
         subtitle.textColor = .secondaryLabelColor
         subtitle.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        let pathLabel = NSTextField(labelWithString:
-            NSLocalizedString("console.cli.skill.path", comment: ""))
-        pathLabel.font = ConsoleTheme.Font.monoMeta
-        pathLabel.textColor = .tertiaryLabelColor
-        pathLabel.lineBreakMode = .byTruncatingMiddle
-        pathLabel.isSelectable = true
-        pathLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
         for (button, symbol, action) in [
             (skillDownloadButton, "arrow.down.circle", #selector(downloadSkill)),
             (skillCopyButton, "doc.on.doc", #selector(copySkill)),
@@ -315,7 +262,7 @@ final class ConsoleCommandLineView: NSView, ConsoleServicePage {
         buttons.spacing = 8
         buttons.alignment = .centerY
 
-        let content = NSStackView(views: [subtitle, pathLabel, buttons])
+        let content = NSStackView(views: [subtitle, buttons])
         content.orientation = .vertical
         content.alignment = .leading
         content.spacing = 8
