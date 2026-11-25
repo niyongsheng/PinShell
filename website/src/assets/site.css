@@ -1210,6 +1210,9 @@ html[data-theme="dark"] .agent-menubar { color: rgba(235, 235, 245, 0.72); }
 }
 .stage-wrap { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .detail-stage {
+  /* 舞台宽度固定为栅格列宽，模板在舞台内居中；
+     必须显式写 width: 100%，否则 WebKit 会按 aspect-ratio 把舞台收缩成模板比例。 */
+  width: 100%;
   /* 窗口越宽，舞台越扁；窄高模板仍保留一块方形桌面。 */
   height: auto;
   aspect-ratio: var(--preview-aspect, 1.25);
