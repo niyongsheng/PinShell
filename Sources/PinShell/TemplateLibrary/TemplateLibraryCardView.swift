@@ -9,6 +9,10 @@ final class TemplateLibraryCardView: NSView {
     var onOpenInstalled: (() -> Void)?
 
     private let primaryButton = NSButton(title: "", target: nil, action: nil)
+    /// 仅图标形态的主按钮（未安装时的下载按钮）保留动作名作为 tooltip。
+    private var iconOnlyActionTitle: String?
+    /// 图标形态下把按钮固定成和「更多」一致的 22×22 点击区域。
+    private var iconButtonConstraints: [NSLayoutConstraint] = []
     private lazy var menuButton = makeIconButton(
         symbol: "ellipsis.circle",
         accessibilityLabel: NSLocalizedString("library.menu.more", comment: ""),
@@ -113,7 +117,8 @@ final class TemplateLibraryCardView: NSView {
             primaryButton.isEnabled = !service.isInstalling && !readOnly
         } else if evaluation.installState == .notInstalled {
             setButtonTitle(NSLocalizedString("library.action.get", comment: ""),
-                           tone: .action)
+                           tone: .action,
+                           symbol: "icloud.and.arrow.down")
             primaryButton.isEnabled = !service.isInstalling && !readOnly
         } else {
             setButtonTitle(NSLocalizedString(
@@ -124,7 +129,7 @@ final class TemplateLibraryCardView: NSView {
         }
 
         // 状态提示收进按钮 tooltip，卡片上只保留一个可操作按钮。
-        primaryButton.toolTip = statusText(for: evaluation)
+        primaryButton.toolTip = iconOnlyActionTitle ?? statusText(for: evaluation)
 
         let category = service.categoryName(for: row.entry.category)
         toolTip = [row.localizedName, category, "v\(row.entry.version)",
@@ -205,17 +210,47 @@ final class TemplateLibraryCardView: NSView {
         case warning
     }
 
-    private func setButtonTitle(_ title: String, tone: InstallTone) {
-        primaryButton.title = title
+    private func setButtonTitle(_ title: String, tone: InstallTone, symbol: String? = nil) {
+        iconOnlyActionTitle = symbol == nil ? nil : title
+        primaryButton.title = symbol == nil ? title : ""
         primaryButton.setAccessibilityLabel(title)
-        switch tone {
-        case .action:
-            primaryButton.bezelColor = ConsoleTheme.Color.accent
-        case .success:
-            primaryButton.bezelColor = nil
-        case .warning:
-            primaryButton.bezelColor = ConsoleTheme.Color.warning
+        NSLayoutConstraint.deactivate(iconButtonConstraints)
+
+        guard let symbol else {
+            // 文字按钮：恢复系统圆角边框与状态色。
+            iconButtonConstraints = []
+            primaryButton.image = nil
+            primaryButton.imagePosition = .noImage
+            primaryButton.bezelStyle = .rounded
+            primaryButton.isBordered = true
+            primaryButton.contentTintColor = nil
+            switch tone {
+            case .action:
+                primaryButton.bezelColor = ConsoleTheme.Color.accent
+            case .success:
+                primaryButton.bezelColor = nil
+            case .warning:
+                primaryButton.bezelColor = ConsoleTheme.Color.warning
+            }
+            return
         }
+
+        // 图标按钮：只留一个蓝色下载图标，和右侧「更多」同一视觉层级。
+        iconButtonConstraints = [
+            primaryButton.widthAnchor.constraint(equalToConstant: 22),
+            primaryButton.heightAnchor.constraint(equalToConstant: 22),
+        ]
+        NSLayoutConstraint.activate(iconButtonConstraints)
+        primaryButton.image = NSImage(systemSymbolName: symbol,
+                                      accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 16,
+                                                                 weight: .regular))
+        primaryButton.imagePosition = .imageOnly
+        primaryButton.imageScaling = .scaleProportionallyDown
+        primaryButton.bezelStyle = .texturedRounded
+        primaryButton.isBordered = false
+        primaryButton.bezelColor = nil
+        primaryButton.contentTintColor = ConsoleTheme.Color.accent
     }
 
     // MARK: - Actions

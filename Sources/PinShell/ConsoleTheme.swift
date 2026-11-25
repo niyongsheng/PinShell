@@ -114,7 +114,7 @@ enum ConsoleTheme {
         static let monoMeta = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         static let sidebarItem = NSFont.systemFont(ofSize: 13, weight: .regular)
         static let sidebarSection = NSFont.systemFont(ofSize: 11, weight: .semibold)
-        static let sidebarBadge = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        static let sidebarBadge = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .semibold)
         static let editorTitle = NSFont.systemFont(ofSize: 17, weight: .semibold)
         static let emptyTitle = NSFont.systemFont(ofSize: 15, weight: .semibold)
 

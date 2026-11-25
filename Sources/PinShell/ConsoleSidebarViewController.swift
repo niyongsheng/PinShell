@@ -432,7 +432,7 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
             let cell = rowCell()
             cell.configure(symbol: "rectangle.on.rectangle",
                            title: item.name,
-                           trailing: nil,
+                           badge: nil,
                            applied: isApplied(item))
             cell.toolTip = "\(item.name) · "
                 + "\(NumberFormat.text(item.size.width, fractionDigits: 0))×"
@@ -444,9 +444,9 @@ final class ConsoleSidebarViewController: NSViewController, NSTableViewDataSourc
             let badge = page == .library && libraryUpdateCount > 0
                 ? "\(libraryUpdateCount)" : nil
             if let asset = page.iconAsset {
-                cell.configure(asset: asset, title: page.title, trailing: badge)
+                cell.configure(asset: asset, title: page.title, badge: badge)
             } else {
-                cell.configure(symbol: page.symbol, title: page.title, trailing: badge)
+                cell.configure(symbol: page.symbol, title: page.title, badge: badge)
             }
             return cell
         }
@@ -495,7 +495,9 @@ private final class SidebarCellView: NSTableCellView {
     private let iconContainer = NSView()
     private let symbolView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
-    private let trailingLabel = NSTextField(labelWithString: "")
+    /// 待更新角标：红色胶囊，贴在选择行右上角。
+    private let badgeView = NSView()
+    private let badgeLabel = NSTextField(labelWithString: "")
     private let appliedPin = NSImageView()
     private var isApplied = false
 
@@ -525,12 +527,18 @@ private final class SidebarCellView: NSTableCellView {
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        trailingLabel.font = ConsoleTheme.Font.sidebarBadge
-        trailingLabel.textColor = .tertiaryLabelColor
-        trailingLabel.alignment = .right
-        trailingLabel.setContentHuggingPriority(.required, for: .horizontal)
-        trailingLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
-        trailingLabel.translatesAutoresizingMaskIntoConstraints = false
+        badgeView.wantsLayer = true
+        badgeView.layer?.cornerRadius = 7
+        badgeView.layer?.cornerCurve = .continuous
+        badgeView.layer?.backgroundColor = ConsoleTheme.Color.destructive.cgColor
+        badgeView.isHidden = true
+        badgeView.translatesAutoresizingMaskIntoConstraints = false
+
+        badgeLabel.font = ConsoleTheme.Font.sidebarBadge
+        badgeLabel.textColor = .white
+        badgeLabel.alignment = .center
+        badgeLabel.translatesAutoresizingMaskIntoConstraints = false
+        badgeView.addSubview(badgeLabel)
 
         appliedPin.imageScaling = .scaleProportionallyDown
         appliedPin.translatesAutoresizingMaskIntoConstraints = false
@@ -545,7 +553,7 @@ private final class SidebarCellView: NSTableCellView {
         iconContainer.addSubview(symbolView)
         addSubview(iconContainer)
         addSubview(titleLabel)
-        addSubview(trailingLabel)
+        addSubview(badgeView)
         addSubview(appliedPin)
 
         NSLayoutConstraint.activate([
@@ -557,11 +565,16 @@ private final class SidebarCellView: NSTableCellView {
 
             titleLabel.leadingAnchor.constraint(equalTo: iconContainer.trailingAnchor, constant: 8),
             titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
-            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingLabel.leadingAnchor, constant: -8),
             titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: appliedPin.leadingAnchor, constant: -8),
 
-            trailingLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
-            trailingLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+            badgeView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            badgeView.topAnchor.constraint(equalTo: topAnchor, constant: 3),
+            badgeView.heightAnchor.constraint(equalToConstant: 14),
+            badgeView.widthAnchor.constraint(greaterThanOrEqualToConstant: 14),
+
+            badgeLabel.leadingAnchor.constraint(equalTo: badgeView.leadingAnchor, constant: 4),
+            badgeLabel.trailingAnchor.constraint(equalTo: badgeView.trailingAnchor, constant: -4),
+            badgeLabel.centerYAnchor.constraint(equalTo: badgeView.centerYAnchor),
 
             appliedPin.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
             appliedPin.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -591,28 +604,28 @@ private final class SidebarCellView: NSTableCellView {
         return image
     }
 
-    func configure(symbol: String, title: String, trailing: String?, applied: Bool = false) {
+    func configure(symbol: String, title: String, badge: String?, applied: Bool = false) {
         configure(image: Self.symbolImage(named: symbol),
                   title: title,
-                  trailing: trailing,
+                  badge: badge,
                   applied: applied)
     }
 
-    func configure(asset: String, title: String, trailing: String?, applied: Bool = false) {
+    func configure(asset: String, title: String, badge: String?, applied: Bool = false) {
         configure(image: Self.assetImage(named: asset),
                   title: title,
-                  trailing: trailing,
+                  badge: badge,
                   applied: applied)
     }
 
     private func configure(image: NSImage?,
                            title: String,
-                           trailing: String?,
+                           badge: String?,
                            applied: Bool) {
         symbolView.image = image
         titleLabel.stringValue = title
-        trailingLabel.stringValue = trailing ?? ""
-        trailingLabel.isHidden = trailing == nil
+        badgeLabel.stringValue = badge ?? ""
+        badgeView.isHidden = badge == nil
         setApplied(applied)
         applyColors()
     }
@@ -632,7 +645,6 @@ private final class SidebarCellView: NSTableCellView {
     private func applyColors() {
         let emphasized = backgroundStyle == .emphasized
         titleLabel.textColor = emphasized ? .alternateSelectedControlTextColor : .labelColor
-        trailingLabel.textColor = emphasized ? .alternateSelectedControlTextColor : .tertiaryLabelColor
         symbolView.contentTintColor = emphasized ? .alternateSelectedControlTextColor : .labelColor
         updatePinTint()
     }
