@@ -8,7 +8,9 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15
+    # 必须用带 macOS 26+ SDK 的镜像：AppKit 按 LC_BUILD_VERSION.sdk 决定是否
+    # 启用 Liquid Glass，macOS 15 runner（SDK 15.x）会退回经典控件外观。
+    runs-on: macos-26
 
     steps:
       - uses: actions/checkout@v4
@@ -36,6 +38,16 @@ jobs:
           else
             make app
           fi
+
+      # Makefile 会把缺失的 sdk 字段改写为真实 SDK 版本；这里兜底校验，
+      # 避免 runner 回退导致安装包丢失 Liquid Glass 外观。
+      - name: Verify Liquid Glass SDK
+        run: |
+          vtool -show-build build/PinShell.app/Contents/MacOS/PinShell | tee build-version.txt
+          grep -Eq "sdk (2[6-9]|[3-9][0-9])" build-version.txt || {
+            echo "error: app is linked against macOS SDK < 26; Liquid Glass will fall back to legacy controls." >&2
+            exit 1
+          }
 
       - name: Package DMG
         run: |
