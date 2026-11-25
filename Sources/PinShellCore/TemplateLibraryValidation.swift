@@ -316,7 +316,8 @@ public enum TemplateLibraryValidation {
                 throw TemplateLibraryValidationError.invalidPreview(entry.id)
             }
             guard let width = preview.width, let height = preview.height,
-                  width >= 80, height >= 40 else {
+                  width >= Int(WindowSize.minimum.width),
+                  height >= Int(WindowSize.minimum.height) else {
                 throw TemplateLibraryValidationError.invalidPreview(entry.id)
             }
         } else if let url = preview.url, !isAllowedPageURL(url) {

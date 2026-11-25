@@ -550,12 +550,7 @@ final class TemplateLibraryService {
     }
 
     func revealInFinder(_ row: Row) {
-        let url = localURL(for: row.entry)
-        if fileExists(url) {
-            NSWorkspace.shared.activateFileViewerSelecting([url])
-        } else {
-            NSWorkspace.shared.open(templatesDirectory)
-        }
+        NSWorkspace.shared.revealInFinder(localURL(for: row.entry))
     }
 
     func installedVersion(forFile file: String) -> String? {

@@ -181,7 +181,14 @@
     stages.forEach(loadPreview);
   }
 
-  window.addEventListener('resize', () => stages.forEach(fit), { passive: true });
+  let fitFrame = 0;
+  window.addEventListener('resize', () => {
+    if (fitFrame) return;
+    fitFrame = requestAnimationFrame(() => {
+      fitFrame = 0;
+      stages.forEach(fit);
+    });
+  }, { passive: true });
   document.addEventListener('load', (event) => {
     if (event.target && event.target.tagName === 'IFRAME') {
       const stage = event.target.closest('.preview-stage');

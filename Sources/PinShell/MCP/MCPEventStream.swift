@@ -3,8 +3,8 @@ import PinShellCore
 
 /// 后台订阅 `listen`，把页面事件放入本地环形缓冲。
 ///
-/// 与旧实现的区别：
-/// - 事件带 `seq` / `epoch`，`poll` 支持游标，不再取走即焚；
+/// 事件语义：
+/// - 事件带 `seq` / `epoch`，`poll` 按游标增量读取；
 /// - 断线重连时通过控制通道的 `events` 命令按游标补齐缺口；
 /// - 等待可被 `notifications/cancelled` 唤醒；
 /// - 返回的批次带 `connected` / `dropped` / `more` / `skipped` 等元数据。
@@ -247,11 +247,7 @@ final class MCPEventStream {
             return
         }
         var firstCurrentSeq: Int?
-        for value in replayed {
-            guard let data = try? ControlWire.encoder.encode(value),
-                  let event = try? ControlWire.decoder.decode(ControlEvent.self, from: data) else {
-                continue
-            }
+        for event in Self.decodeEvents(replayed) {
             if event.session != latestSession { continue }
             if firstCurrentSeq == nil { firstCurrentSeq = event.seq }
             ingestLocked(event)
@@ -306,14 +302,19 @@ final class MCPEventStream {
             evictedThrough = max(evictedThrough, since + dropped)
         }
 
-        for value in replayed {
-            guard let data = try? ControlWire.encoder.encode(value),
-                  let event = try? ControlWire.decoder.decode(ControlEvent.self, from: data) else {
-                continue
-            }
+        for event in Self.decodeEvents(replayed) {
             ingestLocked(event)
         }
         condition.broadcast()
+    }
+
+    /// 控制通道回放的是 JSONValue 数组；一次解码成事件，避免逐条编解码。
+    private static func decodeEvents(_ values: [JSONValue]) -> [ControlEvent] {
+        guard !values.isEmpty,
+              let data = try? ControlWire.encoder.encode(JSONValue.array(values)),
+              let events = try? ControlWire.decoder.decode([ControlEvent].self, from: data)
+        else { return [] }
+        return events
     }
 
     private func ingest(_ event: ControlEvent) {

@@ -119,8 +119,9 @@ enum CatalogBuilder {
                 throw BuilderError(message: "\(id): missing title")
             }
             guard let size = metadata.size,
-                  size.width >= 80, size.height >= 40 else {
-                throw BuilderError(message: "\(id): pinshell:size is missing or below 80x40")
+                  size.width >= WindowSize.minimum.width,
+                  size.height >= WindowSize.minimum.height else {
+                throw BuilderError(message: "\(id): pinshell:size is missing or below \(Int(WindowSize.minimum.width))x\(Int(WindowSize.minimum.height))")
             }
             if let order = metadata.order, !seenOrders.insert(order).inserted {
                 throw BuilderError(message: "\(id): duplicate pinshell:order \(order)")
@@ -232,7 +233,7 @@ enum CatalogBuilder {
             #"<link\b[^>]*\bhref\s*=\s*["']([^"']+)["']"#,
             #"<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["']"#,
         ]
-        let allowedLocal = Set(["design-tokens.css", "pinshell-i18n.js"])
+        let allowedLocal = Set(TemplateSidecar.names)
         for pattern in patterns {
             guard let regex = try? NSRegularExpression(
                 pattern: pattern, options: [.caseInsensitive]) else { continue }
@@ -259,8 +260,7 @@ enum CatalogBuilder {
         try? fm.removeItem(at: output)
         try fm.createDirectory(at: output, withIntermediateDirectories: true)
 
-        let sidecars = ["design-tokens.css", "pinshell-i18n.js"]
-        let sidecarURLs = try sidecars.map { ($0, try paths.sidecarURL(named: $0)) }
+        let sidecarURLs = try TemplateSidecar.names.map { ($0, try paths.sidecarURL(named: $0)) }
         for template in built {
             let directory = output
                 .appendingPathComponent("templates/\(template.entry.id)/\(template.entry.version)",
@@ -277,7 +277,7 @@ enum CatalogBuilder {
             try createBundle(directory: directory,
                              id: template.entry.id,
                              version: template.entry.version,
-                             sidecars: sidecars)
+                             sidecars: TemplateSidecar.names)
         }
 
         let encoder = JSONEncoder()

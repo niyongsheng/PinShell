@@ -111,8 +111,9 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate, ConsoleServicePag
         updateUpdatedLabel()
         updateBanner()
         rebuildCategoryPopupIfNeeded()
-        rebuildRowsIfNeeded()
-        updateStateViews()
+        let filtered = filteredRows()
+        rebuildRowsIfNeeded(filtered)
+        updateStateViews(filtered)
         updateProgressCard()
     }
 
@@ -361,8 +362,7 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate, ConsoleServicePag
         }
     }
 
-    private func rebuildRowsIfNeeded() {
-        let filtered = filteredRows()
+    private func rebuildRowsIfNeeded(_ filtered: [TemplateLibraryService.Row]) {
         let signature = filtered.map { row in
             [row.entry.id,
              row.entry.version,
@@ -397,7 +397,7 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate, ConsoleServicePag
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 
-    private func updateStateViews() {
+    private func updateStateViews(_ filtered: [TemplateLibraryService.Row]) {
         let hasRows = !service.rows.isEmpty
         let isLoading = service.loadState == .loading && !hasRows
         let isFailed: String?
@@ -423,7 +423,6 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate, ConsoleServicePag
                 message: isFailed)
             errorStateView.isHidden = false
         } else if !isLoading {
-            let filtered = filteredRows()
             if hasRows, filtered.isEmpty {
                 emptyStateView.configure(
                     title: NSLocalizedString("library.empty.filtered", comment: ""),
@@ -478,13 +477,15 @@ final class ConsoleLibraryView: NSView, NSSearchFieldDelegate, ConsoleServicePag
     @objc private func categoryChanged() {
         selectedCategory = categoryPopup.selectedItem?.representedObject as? String ?? "all"
         rowsSignature = ""
-        rebuildRowsIfNeeded()
-        updateStateViews()
+        let filtered = filteredRows()
+        rebuildRowsIfNeeded(filtered)
+        updateStateViews(filtered)
     }
 
     func controlTextDidChange(_ obj: Notification) {
-        rebuildRowsIfNeeded()
-        updateStateViews()
+        let filtered = filteredRows()
+        rebuildRowsIfNeeded(filtered)
+        updateStateViews(filtered)
     }
 
     @objc private func cancelInstall() {

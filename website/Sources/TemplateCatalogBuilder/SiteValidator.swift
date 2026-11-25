@@ -122,10 +122,9 @@ enum SiteValidator {
                 } else {
                     candidate = target
                 }
+                // 不带斜杠的目录链接：candidate 本身不存在，但 candidate/index.html 存在。
                 if !fm.fileExists(atPath: candidate.path),
-                   fm.fileExists(atPath: candidate.appendingPathComponent("index.html").path) {
-                    // directory link without trailing slash
-                } else if !fm.fileExists(atPath: candidate.path) {
+                   !fm.fileExists(atPath: candidate.appendingPathComponent("index.html").path) {
                     throw BuilderError(message: "broken internal link \(raw) in \(url.path)")
                 }
             }

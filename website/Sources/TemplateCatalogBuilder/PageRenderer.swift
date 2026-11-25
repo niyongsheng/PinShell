@@ -97,7 +97,7 @@ enum PageRenderer {
         let logo = assets.appendingPathComponent("logo.svg")
         if fm.fileExists(atPath: logo.path) { try? fm.removeItem(at: logo) }
         try fm.copyItem(at: paths.logo, to: logo)
-        for name in ["design-tokens.css", "pinshell-i18n.js"] {
+        for name in TemplateSidecar.names {
             let destination = assets.appendingPathComponent(name)
             if fm.fileExists(atPath: destination.path) { try? fm.removeItem(at: destination) }
             try fm.copyItem(at: paths.sidecarURL(named: name), to: destination)
@@ -133,7 +133,8 @@ enum PageRenderer {
                 title: isEN ? "PinShell — A real-time desktop window built for AI"
                             : "PinShell — 为 AI 打造的实时桌面窗口",
                 description: site.tagline[language.id] ?? "",
-                langSwitchPath: otherHomePath(language.id, homePaths: homePaths, languages: languages),
+                langSwitchPath: otherLanguagePath(language.id, paths: homePaths,
+                                                  fallback: "index.html"),
                 jsonLD: homeJSONLD)
             var homeExtra = homeTokens
             homeExtra["FEATURED_CARDS"] = catalog.templates
@@ -160,7 +161,8 @@ enum PageRenderer {
                 description: isEN
                     ? "Ten live HTML templates for your PinShell overlay: productivity, monitoring, focus, play, and companionship."
                     : "十款可运行的 HTML 模板：效率、监控、专注、娱乐与陪伴，让 PinShell 的窗口立刻有用。",
-                langSwitchPath: otherGalleryPath(language.id, galleryPaths: galleryPaths, languages: languages),
+                langSwitchPath: otherLanguagePath(language.id, paths: galleryPaths,
+                                                  fallback: "templates/index.html"),
                 jsonLD: galleryJSONLD)
             var galleryExtra = galleryTokens
             galleryExtra["CATEGORY_FILTERS"] = categoryFilters(site: site, language: language.id)
@@ -187,7 +189,8 @@ enum PageRenderer {
                 description: isEN
                     ? "Answers about moving and resizing the PinShell overlay, click-through, display modes, installation, templates, and privacy."
                     : "PinShell 常见问题：悬浮窗移动与缩放、穿透、显示方式、安装、模板与数据隐私。",
-                langSwitchPath: otherFaqPath(language.id, faqPaths: faqPaths, languages: languages),
+                langSwitchPath: otherLanguagePath(language.id, paths: faqPaths,
+                                                  fallback: "faq/index.html"),
                 jsonLD: "")
             try renderPage(
                 source: paths.source.appendingPathComponent(
@@ -502,7 +505,7 @@ enum PageRenderer {
                   <div><dt>\(escapeHTML(strings.category))</dt><dd>\(escapeHTML(category))</dd></div>
                   \(authorRow)
                   <div><dt>\(escapeHTML(strings.size))</dt><dd>\(width)×\(height)</dd></div>
-                  <div><dt>\(escapeHTML(strings.fileSize))</dt><dd>\(formattedBytes(entry.payload.bytes))</dd></div>
+                  <div><dt>\(escapeHTML(strings.fileSize))</dt><dd>\(NumberFormat.bytes(Int64(entry.payload.bytes)))</dd></div>
                   <div><dt>\(escapeHTML(strings.languages))</dt><dd>\(escapeHTML(languages))</dd></div>
                 </dl>
               </section>
@@ -643,31 +646,13 @@ enum PageRenderer {
         return trimmed.isEmpty ? "\(siteURL)/" : "\(siteURL)/\(trimmed)"
     }
 
-    private static func otherHomePath(_ language: String,
-                                      homePaths: [String: String],
-                                      languages: [SiteLanguage]) -> String {
+    /// 当前页到另一语言同名页面的相对链接。站点目前只有 zh-Hans / en 两种语言。
+    private static func otherLanguagePath(_ language: String,
+                                          paths: [String: String],
+                                          fallback: String) -> String {
         let other = LanguageTag.matches(language, "en") ? "zh-Hans" : "en"
-        guard let target = homePaths[other] else { return "" }
-        let from = homePaths[language] ?? "index.html"
-        return relativeHref(from: from, to: target)
-    }
-
-    private static func otherGalleryPath(_ language: String,
-                                         galleryPaths: [String: String],
-                                         languages: [SiteLanguage]) -> String {
-        let other = LanguageTag.matches(language, "en") ? "zh-Hans" : "en"
-        guard let target = galleryPaths[other] else { return "" }
-        let from = galleryPaths[language] ?? "templates/index.html"
-        return relativeHref(from: from, to: target)
-    }
-
-    private static func otherFaqPath(_ language: String,
-                                     faqPaths: [String: String],
-                                     languages: [SiteLanguage]) -> String {
-        let other = LanguageTag.matches(language, "en") ? "zh-Hans" : "en"
-        guard let target = faqPaths[other] else { return "" }
-        let from = faqPaths[language] ?? "faq/index.html"
-        return relativeHref(from: from, to: target)
+        guard let target = paths[other] else { return "" }
+        return relativeHref(from: paths[language] ?? fallback, to: target)
     }
 
     private static func relativeHref(from: String, to: String) -> String {
@@ -701,13 +686,6 @@ enum PageRenderer {
                 try fm.copyItem(at: item, to: target)
             }
         }
-    }
-
-    /// 与 App 下载器保持一致，避免同一文件在站点与 App 显示不同大小。
-    private static func formattedBytes(_ bytes: Int) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: Int64(bytes))
     }
 
     private static func escapeHTML(_ value: String) -> String {

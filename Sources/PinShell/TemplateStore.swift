@@ -44,11 +44,43 @@ enum TemplateStore {
     /// 模板语言偏好：系统语言优先，App 支持语言兜底。
     static let preferredLanguages = LanguageTag.templatePreferredLanguages
 
-    /// 每个模板的窗口元数据；用户模板目录里的文件缺尺寸时用 240×80 兜底。
-    static func effectiveMetadata(for url: URL) -> HTMLTemplateMetadata {
-        var metadata = HTMLTemplateMetadata.parse(
+    private struct CachedMetadata {
+        let modified: Date?
+        let fileSize: Int?
+        let metadata: HTMLTemplateMetadata
+    }
+
+    private static let metadataLock = NSLock()
+    private static var metadataCache: [URL: CachedMetadata] = [:]
+
+    /// 解析模板元数据；文件未变化（mtime + size）时复用上次结果。
+    static func cachedMetadata(for url: URL) -> HTMLTemplateMetadata {
+        let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+        let modified = values?.contentModificationDate
+        let fileSize = values?.fileSize
+
+        metadataLock.lock()
+        if let cached = metadataCache[url],
+           cached.modified == modified, cached.fileSize == fileSize {
+            metadataLock.unlock()
+            return cached.metadata
+        }
+        metadataLock.unlock()
+
+        let metadata = HTMLTemplateMetadata.parse(
             fileURL: url, preferredLanguages: preferredLanguages
         )
+
+        metadataLock.lock()
+        if metadataCache.count >= 64 { metadataCache.removeAll() }
+        metadataCache[url] = CachedMetadata(modified: modified, fileSize: fileSize, metadata: metadata)
+        metadataLock.unlock()
+        return metadata
+    }
+
+    /// 每个模板的窗口元数据；用户模板目录里的文件缺尺寸时用 240×80 兜底。
+    static func effectiveMetadata(for url: URL) -> HTMLTemplateMetadata {
+        var metadata = cachedMetadata(for: url)
         guard isUserTemplate(url) else { return metadata }
         if metadata.size == nil {
             metadata.size = WindowSize.fallback
@@ -71,6 +103,11 @@ enum TemplateStore {
 
     /// 文件操作可能来自控制通道后台队列；通知统一回主线程。
     static func notifyTemplatesChanged(_ url: URL?) {
+        if let url {
+            metadataLock.lock()
+            metadataCache.removeValue(forKey: url)
+            metadataLock.unlock()
+        }
         let post = { NotificationCenter.default.post(name: .pinshellTemplatesChanged, object: url) }
         if Thread.isMainThread {
             post()
@@ -88,7 +125,6 @@ enum TemplateStore {
             options: [.skipsHiddenFiles]
         ) else { return [] }
 
-        let userDir = userTemplatesDirectory().standardizedFileURL
         var items: [TemplateItem] = []
         for url in urls {
             guard TemplateFilePolicy.isTemplateFile(named: url.lastPathComponent) else { continue }
@@ -96,12 +132,7 @@ enum TemplateStore {
                 continue
             }
 
-            let isUser = url.deletingLastPathComponent().standardizedFileURL == userDir
-            let metadata = isUser
-                ? effectiveMetadata(for: url)
-                : HTMLTemplateMetadata.parse(
-                    fileURL: url, preferredLanguages: preferredLanguages
-                )
+            let metadata = effectiveMetadata(for: url)
             let fallbackTitle = url.deletingPathExtension().lastPathComponent
             let size = metadata.size ?? WindowSize.fallback
             var spec = metadata.windowSpec

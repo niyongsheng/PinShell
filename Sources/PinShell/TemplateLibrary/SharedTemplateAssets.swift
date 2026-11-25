@@ -5,7 +5,7 @@ import PinShellCore
 /// 启动时确保它们存在于用户模板目录；用户改过的版本会先备份再覆盖，
 /// 避免旧 sidecar 让新模板悄然失效。
 enum SharedTemplateAssets {
-    static let names = ["design-tokens.css", "pinshell-i18n.js"]
+    static let names = TemplateSidecar.names
 
     private static let lock = NSLock()
     private static var didSeed = false
