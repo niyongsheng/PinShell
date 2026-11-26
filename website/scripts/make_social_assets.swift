@@ -134,8 +134,8 @@ private func drawOG(language: String) -> (NSSize) -> Void {
         title.draw(in: NSRect(x: 80, y: 148, width: 1040, height: 232))
 
         let subtitleText = isZH
-            ? "用 HTML 实时沟通、展示与提问。模板在线安装，独立更新。"
-            : "Live HTML for status, choices, and questions. Templates install and update independently."
+            ? "用 HTML 即时绘制、播放与交互。模板在线安装，独立更新。"
+            : "Live HTML for drawing, playback, and interaction. Templates install and update independently."
         let subtitle = NSAttributedString(
             string: subtitleText,
             attributes: [
