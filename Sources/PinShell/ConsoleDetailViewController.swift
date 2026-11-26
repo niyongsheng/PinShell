@@ -40,17 +40,52 @@ final class ConsoleDetailViewController: NSViewController {
     )
     private let previewStage = ConsoleStageView(cornerRadius: ConsoleTheme.Radius.card,
                                                 showsBorder: false)
-    private let previewWebView = WKWebView(frame: .zero)
+    /// 预览只注入 setSize：模板（如工作日历、股票看板）会按内容高度自适应窗口，
+    /// 预览若忽略它，声明尺寸下方就会留出一条空白。
+    private lazy var previewWebView: WKWebView = {
+        let controller = WKUserContentController()
+        controller.add(PreviewMessageProxy(target: self), name: Self.previewBridgeName)
+        controller.addUserScript(WKUserScript(source: Self.previewBridgeScript,
+                                              injectionTime: .atDocumentStart,
+                                              forMainFrameOnly: true))
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController = controller
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.makeTransparent()
+        return webView
+    }()
     /// 承载 WebView 的窗口框：负责整窗圆角裁剪，避免直接给 WKWebView 图层加 mask。
     private let previewWindowView = NSView()
     /// 窗口在舞台上的投影（HTML 的 CSS 阴影被 WebView 裁掉，这里补一层原生阴影）。
     private let previewShadowView = PreviewShadowView()
     private var previewHeightConstraint: NSLayoutConstraint?
+    /// 预览窗口尺寸：初始取模板声明值，随后跟随页面的 setSize 自适应。
+    private var previewSize = NSSize.zero
+    /// 舞台为阴影预留的额外高度（不随模板内容变化）。
+    private var previewChrome: CGFloat = 0
     /// 当前预览模板的窗口圆角（与 OverlayWindowController 的整窗裁剪保持一致）。
     private var previewRadius: CGFloat = 0
 
     /// 预览窗口与舞台内容边缘之间留给阴影的空隙。
     private static let previewShadowMargin: CGFloat = 8
+    private static let previewBridgeName = "pinshellPreview"
+    private static let previewBridgeScript = """
+    (function () {
+      if (window.pinshell) { return; }
+      function post(payload) {
+        try { window.webkit.messageHandlers.pinshellPreview.postMessage(payload); } catch (e) {}
+      }
+      window.pinshell = {
+        version: '2',
+        setSize: function (width, height) {
+          post({ action: 'setSize', width: Number(width), height: Number(height) });
+        },
+        emit: function () {},
+        on: function () {},
+        log: function () {}
+      };
+    })();
+    """
 
     private let titleLabel = NSTextField(labelWithAttributedString:
         ConsoleTheme.Font.tracked("—", font: ConsoleTheme.Font.pageTitle))
@@ -146,7 +181,6 @@ final class ConsoleDetailViewController: NSViewController {
     }
 
     private func buildTemplatePage() {
-        previewWebView.makeTransparent()
         previewStage.translatesAutoresizingMaskIntoConstraints = false
         previewCard.contentView.addSubview(previewStage)
         NSLayoutConstraint.activate([
@@ -372,11 +406,13 @@ final class ConsoleDetailViewController: NSViewController {
         previewWindowView.layer?.masksToBounds = radius > 0
         previewShadowView.isHidden = radius <= 0
 
-        // 舞台按模板声明的窗口尺寸 1:1 撑开（含投影留白），
-        // 超出可视区时由详情页滚动，不再把模板等比压进固定高度。
-        let chrome = 2 * ConsoleTheme.Space.stageInset
+        // 舞台先按模板声明的窗口尺寸 1:1 撑开（含投影留白）；页面加载后若
+        // 调用 pinshell.setSize 自适应内容高度，再跟随更新。超出可视区时由
+        // 详情页滚动，不再把模板等比压进固定高度。
+        previewChrome = 2 * ConsoleTheme.Space.stageInset
             + (radius > 0 ? 2 * Self.previewShadowMargin : 0)
-        previewHeightConstraint?.constant = max(120, item.size.height + chrome)
+        previewSize = item.frameSize
+        previewHeightConstraint?.constant = max(120, previewSize.height + previewChrome)
         previewWebView.loadLocalHTMLFile(item.url)
         updateShowingState()
         view.layoutSubtreeIfNeeded()
@@ -508,8 +544,8 @@ final class ConsoleDetailViewController: NSViewController {
 
     private func layoutPreview() {
         let box = previewStage.contentView.bounds.size
-        guard let item = currentTemplate, box.width > 1, box.height > 1 else { return }
-        let size = item.frameSize
+        guard currentTemplate != nil, box.width > 1, box.height > 1 else { return }
+        let size = previewSize
         // 留出阴影的绘制空隙，避免被舞台的圆角遮罩裁掉。
         let margin = previewRadius > 0 ? Self.previewShadowMargin : 0
         // 按 HTML 实际尺寸 1:1 展示；只有模板比可视区更宽时才按宽度等比缩小，
@@ -597,6 +633,50 @@ final class ConsoleDetailViewController: NSViewController {
 
     private func positionText(_ position: WindowPosition?) -> String {
         position?.displayName ?? NSLocalizedString("console.position.auto", comment: "")
+    }
+}
+
+// MARK: - 预览桥接
+
+extension ConsoleDetailViewController: WKScriptMessageHandler {
+    /// 页面 `pinshell.setSize`：模板按内容高度自适应窗口时，预览同步收放舞台。
+    func userContentController(_ userContentController: WKUserContentController,
+                               didReceive message: WKScriptMessage) {
+        guard message.name == Self.previewBridgeName,
+              message.frameInfo.isMainFrame,
+              let body = message.body as? [String: Any],
+              body["action"] as? String == "setSize",
+              let width = (body["width"] as? NSNumber)?.doubleValue,
+              let height = (body["height"] as? NSNumber)?.doubleValue,
+              width.isFinite, height.isFinite,
+              width >= 80, width <= 4000,
+              height >= 80, height <= 4000,
+              let item = currentTemplate,
+              message.frameInfo.request.url?.standardizedFileURL == item.url.standardizedFileURL,
+              previewWebView.url?.standardizedFileURL == item.url.standardizedFileURL
+        else { return }
+
+        guard abs(width - previewSize.width) >= 1 || abs(height - previewSize.height) >= 1 else {
+            return
+        }
+        previewSize = NSSize(width: width, height: height)
+        previewHeightConstraint?.constant = max(120, height + previewChrome)
+        view.layoutSubtreeIfNeeded()
+        layoutPreview()
+    }
+}
+
+/// WKUserContentController 会强引用 handler；用弱代理避免与详情控制器形成循环。
+private final class PreviewMessageProxy: NSObject, WKScriptMessageHandler {
+    weak var target: WKScriptMessageHandler?
+
+    init(target: WKScriptMessageHandler) {
+        self.target = target
+    }
+
+    func userContentController(_ userContentController: WKUserContentController,
+                               didReceive message: WKScriptMessage) {
+        target?.userContentController(userContentController, didReceive: message)
     }
 }
 
