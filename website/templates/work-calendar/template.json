@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "id": "work-calendar",
-  "version": "1.1.0",
-  "releaseDate": "2026-11-25",
+  "version": "1.1.1",
+  "releaseDate": "2026-11-26",
   "minAppVersion": "1.4.0",
   "category": "productivity",
   "tags": ["calendar", "lunar", "holiday", "schedule", "month-grid"],
@@ -33,6 +33,13 @@
       "notes": {
         "zh-Hans": "日程视图升级：月视图下新增按天分组的日程列表，支持时间、地点、备注、全天条目与详情浮层；窗口高度随日程内容自适应；.ics 订阅读取时间、地点和描述；Agent 可推送富日程。",
         "en": "Richer schedule: a day-grouped agenda under the month grid with times, places, notes, all-day entries and a detail sheet; the window height follows the schedule; .ics feeds read times, locations and descriptions; agents can push rich events."
+      }
+    },
+    "1.1.1": {
+      "date": "2026-11-26",
+      "notes": {
+        "zh-Hans": "跨天自动刷新：窗口常驻跨过午夜后，“今天”高亮会自动移到新的一天，不再停留在昨天。",
+        "en": "Automatic day rollover: the today highlight now moves to the new day after midnight without reloading the panel."
       }
     }
   }

@@ -5,7 +5,7 @@ import PinShellCore
 enum BundledTemplates {
     static let fileName = "work-calendar.html"
     /// 内容版本；修改 bundled 模板时递增。老安装只补记版本，不覆盖已有模板。
-    static let seedVersion = 2
+    static let seedVersion = 3
 
     /// 目录为空且尚未播种当前版本时复制内置模板；已有模板时只记录版本。
     @discardableResult

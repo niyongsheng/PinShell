@@ -750,7 +750,7 @@
   var MAX_EVENTS = 400;                 // 订阅条目上限
   var AGENDA_DAYS = 7;                  // 日程列表覆盖选中日起 7 天
   var MAX_ITEMS = 8;                    // 单日富日程上限
-  var VERSION = '1.1.0';
+  var VERSION = '1.1.1';
 
   function t(key, fallback, vars) {
     if (PSapi && typeof PSapi.t === 'function') return PSapi.t(key, fallback, vars);
@@ -1501,6 +1501,7 @@
   }
 
   function goToday() {
+    syncToday();
     var previousMonth = ymOf(view);
     view = startOfMonth(new Date());
     selected = TODAY;
@@ -1921,6 +1922,28 @@
   });
 
   bridge.on('calendar:today', goToday);
+
+  /* ================= 跨天 ================= */
+  // 模板长时间常驻跨过午夜时，TODAY 会过期，蓝色“今天”会停在昨天。
+  // 定时对比本地日期：若用户当时选中的就是“今天”，选中项和月视图一起跟随；
+  // 否则只移动“今天”高亮，不打断正在浏览的位置。
+  function syncToday() {
+    var next = ymd(new Date());
+    if (next === TODAY) return;
+    var followsToday = selected === TODAY;
+    var showsTodayMonth = ymOf(view) === ymOf(parseDate(TODAY));
+    TODAY = next;
+    if (followsToday) {
+      selected = TODAY;
+      if (showsTodayMonth) view = startOfMonth(new Date());
+    }
+    render();
+  }
+
+  setInterval(syncToday, 30 * 1000);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) syncToday();
+  });
 
   /* ================= 启动 ================= */
   renderWeekdays();
