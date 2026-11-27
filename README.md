@@ -9,9 +9,7 @@
 
 **A real-time desktop window built for AI.** PinShell gives agents an always-on-top HTML interface on the user's screen for real-time communication, presentation, questions, and responses. The interface is built with HTML/CSS/JS; PinShell itself is only a lightweight native shell (NSPanel + WKWebView).
 
-Website & template library: **https://pinshell.looplooptech.com/**
-
-[![爱发电](https://img.shields.io/badge/爱发电-Afdian-946ce6?style=for-the-badge&logo=github&logoColor=white)](https://ifdian.net/a/nico2026)
+[Website](https://pinshell.looplooptech.com/en/) · [Download](https://pinshell.looplooptech.com/en/#install) · [Templates](https://pinshell.looplooptech.com/en/templates/)
 
 https://github.com/user-attachments/assets/e41163ae-ab77-47e9-a174-7bc201597627
 

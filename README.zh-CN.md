@@ -9,9 +9,7 @@
 
 **为 AI 打造的实时桌面窗口。** PinShell 在用户屏幕上为 Agent（智能体）提供一个始终置顶的 HTML 界面，用于实时沟通、展示、提问和响应。界面由 HTML/CSS/JS 构建，PinShell 本身只是一层轻量的原生外壳（NSPanel + WKWebView）。
 
-官网与在线模板库：**https://pinshell.looplooptech.com/**
-
-[![爱发电](https://img.shields.io/badge/爱发电-Afdian-946ce6?style=for-the-badge&logo=github&logoColor=white)](https://ifdian.net/a/nico2026)
+[官网](https://pinshell.looplooptech.com/) · [下载](https://pinshell.looplooptech.com/#install) · [模板](https://pinshell.looplooptech.com/templates/)
 
 https://github.com/user-attachments/assets/e41163ae-ab77-47e9-a174-7bc201597627
 
